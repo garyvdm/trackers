@@ -45,7 +45,10 @@ async def stop_activity(client_session, activity_id):
     await api_call(client_session, 'stop_activity', (('activity_id', activity_id), ))
 
 
-async def get_activites(client_session, author):
+async def get_activites(client_session, author, logger=None):
+    if logger is None:
+        logger = logging.getLogger('mapmytracks')
+
     data = (
         ('author', author),
     )
@@ -57,7 +60,7 @@ async def get_activites(client_session, author):
 
     else:
         # Hack to pull activites with html scraping. :-(
-        logging.getLogger('mapmytracks').warning('User "{}" is not a username. Using html scrap to get activities.'.format(author))
+        logger.warning('User "{}" is not a username. Using html scrap to get activities.'.format(author))
 
         activites = []
         for i in range(1, 5):
@@ -71,18 +74,15 @@ async def get_activites(client_session, author):
             if text == '\n\nnomoretracks':
                 break
             doc = bs4.BeautifulSoup(text, 'html.parser')
-            if i == 1:
-                tracks = doc.find(id='tracks-list').find_all(class_='grid-entry')
-            else:
-                tracks = doc.find_all(class_='grid-entry')
 
-            for track in tracks:
+            for track in  doc.find_all(class_='grid-entry'):
                 activity_id = int(track.find('a', title='Replay this activity')['href'].rpartition('/')[2])
                 date_text = track.find(class_='act-local').text.partition(' on ')[2].strip()
                 date = datetime.datetime.strptime(date_text, '%d %b %Y')
                 activites.append((activity_id, date))
 
     return activites
+
 
 def point_from_str(s):
     split = s.split(',')
@@ -131,35 +131,42 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
         await tracker.new_points(old_points)
 
     while True:
-        uncompleted_activities = completed_activites.difference(activites)
+        now = datetime.datetime.now()
 
-        if not uncompleted_activities:
-            all_activites = await  get_activites(client_session, user)
-            activites.update([activity[0] for activity in all_activites if start_date <= activity[1] < end_date])
-            uncompleted_activities = activites.difference(completed_activites)
+        if now >= start_date:
+            uncompleted_activities = completed_activites.difference(activites)
 
-        new_points = []
-        for activity_id in uncompleted_activities:
-            points = activities_points.setdefault(activity_id, [])
-            while True:
-                max_timestamp = points[-1][0] if points else 0
+            if not uncompleted_activities:
+                all_activites = await  get_activites(client_session, user, logger=tracker.logger)
+                activites.update([activity[0] for activity in all_activites if start_date <= activity[1] < end_date])
+                uncompleted_activities = activites.difference(completed_activites)
 
-                complete, update_points = await get_activity(client_session, activity_id, max_timestamp)
-                if len(update_points) == 0:
-                    break
-                points.extend(update_points)
-                new_points.append(update_points)
-            if complete:
-                completed_activites.add(activity_id)
+            new_points = []
+            for activity_id in uncompleted_activities:
+                points = activities_points.setdefault(activity_id, [])
+                while True:
+                    max_timestamp = points[-1][0] if points else 0
 
-        new_tracker_points = [tracker_point(point) for point in sorted(itertools.chain.from_iterable(new_points))]
-        if new_tracker_points:
-            await tracker.new_points(new_tracker_points)
+                    complete, update_points = await get_activity(client_session, activity_id, max_timestamp)
+                    if len(update_points) == 0:
+                        break
+                    points.extend(update_points)
+                    new_points.append(update_points)
+                if complete:
+                    completed_activites.add(activity_id)
 
-        state['activites'] = list(activites)
-        state['completed_activites'] = list(completed_activites)
-        with open(full_cache_path, 'w') as f:
-            yaml.dump(state, f)
+            new_tracker_points = [tracker_point(point) for point in sorted(itertools.chain.from_iterable(new_points))]
+            if new_tracker_points:
+                await tracker.new_points(new_tracker_points)
+
+            state['activites'] = list(activites)
+            state['completed_activites'] = list(completed_activites)
+            with open(full_cache_path, 'w') as f:
+                yaml.dump(state, f)
+
+        if now > end_date:
+            break
+
         await asyncio.sleep(60)
 
 

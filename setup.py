@@ -10,6 +10,8 @@ setuptools.setup(
         'uvloop',
         'beautifulsoup4',
         'pyyaml',
+        'asyncio-contextmanager',
+        'python-slugify',
     ],
     entry_points={
         'console_scripts': [

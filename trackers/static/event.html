@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Event Tracker</title>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <script>
+        window.onerror = function (messageOrEvent, source, lineno, colno, error){{
+            setTimeout(function () {{
+                document.getElementById('status').innerText = messageOrEvent;
+            }}, 100);
+            // TODO: post error to server
+            return false;
+        }}
+    </script>
+    <script src="https://maps.googleapis.com/maps/api/js?v=3.exp&key={api_key}"></script>
+    <script src="/static/event.js"></script>
+    <style>
+      * {{ font: 400 11px Roboto, Arial, sans-serif; }}
+      html, body {{ height: 100%; margin: 0px; padding: 0px }}
+    </style>
+  </head>
+  <body>
+    <div id="map" style="height: 100%;"></div>
+    <div style="position: absolute; left: 50%; bottom: 0;">
+        <div id="status" style="position: relative; margin: 10px ; left: -50%; padding: 8px; box-shadow: 0px 1px 4px -1px rgba(0, 0, 0, 0.5); background: white; border-radius: 2px;">Loading</div>
+    </div>
+  </body>
+</html>
+
