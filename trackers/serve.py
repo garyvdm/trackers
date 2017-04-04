@@ -13,6 +13,7 @@ import yaml
 from aiocontext import async_contextmanager
 
 import trackers.web_app
+import trackers.bin_utils
 
 defaults_yaml = """
     server_type: inet
@@ -20,66 +21,20 @@ defaults_yaml = """
     inet_port: 6841
     debugtoolbar: False
     aioserver_debug: False
-
-    data_path: data
-
-
-    logging:
-        version: 1
-        handlers:
-            console:
-                formatter: generic
-                stream  : ext://sys.stdout
-                class : logging.StreamHandler
-                level: NOTSET
-
-        formatters:
-            generic:
-                format: '%(levelname)-5.5s [%(name)s] %(message)s'
-        root:
-            level: NOTSET
-            handlers: [console, ]
-
-        loggers:
-            route_view:
-                 level: INFO
-                 qualname: route_view
-
-            aiohttp:
-                 level: INFO
-                 qualname: aiohttp
-
-            asyncio:
-                 level: INFO
-                 qualname: asyncio
-
 """
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('settings_file', action='store', nargs='?', default='/etc/route_view.yaml',
-                        help='File to load settings from.')
+    parser = trackers.bin_utils.get_base_argparser()
     parser.add_argument('--inet', action='store',
                         help='Host address and port to listen on. (format: host:port)')
     parser.add_argument('--unix', action='store',
                         help='Route of unix socket to listen on. ')
     parser.add_argument('--dev', action='store_true',
                         help='Enable development tools (e.g. debug toolbar.)')
-    parser.add_argument('--google-api-key', action='store',
-                        help='Google api key. ')
     args = parser.parse_args()
 
-    defaults = yaml.load(defaults_yaml)
-    settings = copy.deepcopy(defaults)
-    try:
-        with open(args.settings_file) as f:
-            settings_from_file = yaml.load(f)
-    except FileNotFoundError:
-        settings_from_file = {}
-    settings.update(settings_from_file)
-
-    logging.config.dictConfig(settings['logging'])
+    settings = trackers.bin_utils.get_combined_settings(defaults_yaml, args)
 
     try:
 

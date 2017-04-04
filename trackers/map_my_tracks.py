@@ -11,6 +11,17 @@ import yaml
 
 import trackers
 
+async def config(app, settings):
+    app['trackers.mapmytracks_session'] = mapmytracks_session = aiohttp.ClientSession(auth=aiohttp.BasicAuth(*settings['mapmytracks_auth']))
+    return mapmytracks_session
+
+async def start_event_tracker(app, settings, event_name, event_data, tracker_data):
+    tracker = trackers.Tracker('mapmytracks.{}'.format(tracker_data['name']))
+    monitor_task = asyncio.ensure_future(monitor_user(
+        app['trackers.mapmytracks_session'], tracker_data['name'], event_data['tracker_start'], event_data['tracker_end'],
+        os.path.join(settings['data_path'], event_name, 'mapmytracks_cache'), tracker))
+    return tracker, monitor_task
+
 async def api_call(client_session, request_name, data):
     req_data = (('request', request_name), ) + data
     async with client_session.post('http://www.mapmytracks.com/api/', data=req_data) as response:
@@ -102,11 +113,6 @@ async def get_activity(client_session, activity_id, from_time):
         points = []
     return complete, points
 
-
-async def start_monitor_user(client_session, user, start_date, end_date, cache_path):
-    tracker = trackers.Tracker('mapmytracks.multiactivity.{}'.format(user))
-    monitor_task = asyncio.ensure_future(monitor_user(client_session, user, start_date, end_date, cache_path, tracker))
-    return tracker, monitor_task
 
 
 async def monitor_user(client_session, user, start_date, end_date, cache_path, tracker):

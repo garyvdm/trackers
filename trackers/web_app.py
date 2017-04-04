@@ -15,6 +15,9 @@ from slugify import slugify
 
 import trackers.garmin_livetrack
 import trackers.map_my_tracks
+import trackers.modules
+import trackers.events
+
 
 async def make_aio_app(loop, settings):
     app = web.Application(loop=loop)
@@ -29,33 +32,15 @@ async def make_aio_app(loop, settings):
                body_processor=lambda app, body: body.decode('utf8').format(api_key=settings['google_api_key']).encode('utf8'))
 
     app['trackers.ws_sessions'] = []
-    app['trackers.mapmytracks_session'] = mapmytracks_session = aiohttp.ClientSession(auth=aiohttp.BasicAuth(*settings['mapmytracks_auth']))
-    app['trackers.garmin_livetrack_session'] = garmin_livetrack_session = aiohttp.ClientSession()
-    app['trackers.tracker_tasks'] = tracker_tasks = []
-    app['trackers.events_data'] = events_data = {}
-    app['trackers.events_rider_trackers'] = events_rider_trackers = {}
+
+    app['trackers.modules_cm'] = modules_cm = await trackers.modules.config_modules(app, settings)
+    await modules_cm.__aenter__()
+
+    await trackers.events.load_events(app, settings)
+    for event_name in app['trackers.events_data']:
+        await trackers.events.start_event_trackers(app, settings, event_name)
 
     app.on_shutdown.append(shutdown)
-
-    with open(os.path.join(settings['data_path'], 'events.yaml')) as f:
-        event_names = yaml.load(f)
-
-    for event_name in event_names:
-        with open(os.path.join(settings['data_path'], event_name, 'data.yaml')) as f:
-            event_data = yaml.load(f)
-        events_data[event_name] = event_data
-        event_rider_trackers = events_rider_trackers[event_name] = {}
-
-        for rider in event_data['riders']:
-            if rider['tracker']['type'] == 'mapmytracks':
-                tracker, task = await trackers.map_my_tracks.start_monitor_user(
-                    mapmytracks_session, rider['tracker']['name'],
-                    event_data['tracker_start'], event_data['tracker_end'],
-                    os.path.join(settings['data_path'], event_name, 'mapmytracks_cache'))
-
-                tracker_tasks.append(task)
-                event_rider_trackers[rider['name']] = tracker
-                task.add_done_callback(partial(tracker_task_callback, tracker))
 
 
     # add_static = partial(add_static_resource, app)
@@ -74,17 +59,7 @@ async def make_aio_app(loop, settings):
     #
     # route_view.auth.config_aio_app(app, settings)
 
-
     return app
-
-def tracker_task_callback(tracker, task):
-    try:
-        task.result()
-        tracker.logger.info('Tracker task complete')
-    except asyncio.CancelledError:
-        tracker.logger.info('Tracker task canceled')
-    except Exception:
-        tracker.logger.exception('Unhandled error in tracker task:')
 
 
 async def shutdown(app):
@@ -95,9 +70,7 @@ async def shutdown(app):
             await task
         except Exception:
             pass
-
-    await app['trackers.mapmytracks_session'].close()
-    await app['trackers.garmin_livetrack_session'].close()
+    await app['trackers.modules_cm'].__aexit__(None, None, None)
 
     for ws in app['trackers.ws_sessions']:
         await ws.close(code=aiohttp.WSCloseCode.GOING_AWAY,

@@ -5,20 +5,29 @@ import re
 
 import trackers
 
+# https://www.cloudmailin.com/
+
+async def config(app, settings):
+    app['trackers.garmin_livetrack.session'] = garmin_livetrack_session = aiohttp.ClientSession()
+    app['trackers.garmin_livetrack.config'] = await get_service_config(garmin_livetrack_session)
+    return garmin_livetrack_session
+
+async def start_event_tracker(app, settings, event_name, event_data, tracker_data):
+    # TODO
+    session_token_match = url_session_token_matcher(url).groupdict()
+    tracker = trackers.Tracker('garmin_livetrack.{}'.format(session_token_match['session']))
+    monitor_task = asyncio.ensure_future(monitor_session(
+        app['trackers.garmin_livetrack.session'], app['trackers.garmin_livetrack.config'], session_token_match, tracker))
+    return tracker, monitor_task
+
+
 async def get_service_config(client_session):
     async with client_session.get('http://livetrack.garmin.com/services/config') as resp:
         return await resp.json()
 
 
-# https://www.cloudmailin.com/
-
 url_session_token_matcher = re.compile('http://livetrack.garmin.com/session/(?P<session>.*)/token/(?P<token>.*)').match
 
-async def start_monitor_session(client_session, service_config, url):
-    session_token_match = url_session_token_matcher(url).groupdict()
-    tracker = trackers.Tracker('garmin_livetrack.{}'.format(session_token_match['session']))
-    monitor_task = asyncio.ensure_future(monitor_session(client_session, service_config, session_token_match, tracker))
-    return tracker, monitor_task
 
 
 async def monitor_session(client_session, service_config, session_token_match, tracker):

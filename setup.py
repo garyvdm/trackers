@@ -16,6 +16,7 @@ setuptools.setup(
     entry_points={
         'console_scripts': [
             'serve=trackers.serve:main',
+            'convert_to_static=trackers.bin_utils:convert_to_static',
         ],
     },
     # test_suite='trackers.tests.suite',
