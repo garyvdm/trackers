@@ -17,6 +17,7 @@ setuptools.setup(
         'console_scripts': [
             'serve=trackers.serve:main',
             'convert_to_static=trackers.bin_utils:convert_to_static',
+            'assign_rider_colors=trackers.bin_utils:assign_rider_colors',
         ],
     },
     # test_suite='trackers.tests.suite',

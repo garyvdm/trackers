@@ -6,7 +6,7 @@ import yaml
 
 import trackers.modules
 
-async def load_events(app, settings):
+def load_events(app, settings):
     app['trackers.events_data'] = events_data = {}
     app['trackers.tracker_tasks'] = []
     app['trackers.events_rider_trackers'] = {}
@@ -42,7 +42,8 @@ def tracker_task_callback(tracker, task):
         tracker.logger.exception('Unhandled error in tracker task:')
 
 
-async def save_event(app, settings, event_name):
+def save_event(app, settings, event_name):
+    app['trackers.events_data'][event_name]['data_version'] += 1
     with open(os.path.join(settings['data_path'], event_name, 'data.yaml'), 'w') as f:
         yaml.dump(app['trackers.events_data'][event_name], f)
 

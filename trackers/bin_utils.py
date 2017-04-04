@@ -7,6 +7,7 @@ import logging.config
 import os
 import signal
 import sys
+import colorsys
 from functools import partial
 
 import yaml
@@ -111,7 +112,7 @@ def convert_to_static():
 async def convert_to_static_async(settings, event_name):
     app = {}
     async with await trackers.modules.config_modules(app, settings):
-        await trackers.events.load_events(app, settings)
+        trackers.events.load_events(app, settings)
         await trackers.events.start_event_trackers(app, settings, event_name)
 
         for task in app['trackers.tracker_tasks']:
@@ -125,8 +126,22 @@ async def convert_to_static_async(settings, event_name):
             with open(os.path.join(os.path.join(settings['data_path'], event_name, rider_name)), 'w') as f:
                 yaml.dump(tracker.points, f)
             rider['tracker'] = {'type': 'static', 'name': rider_name}
-        await trackers.events.save_event(app, settings, event_name)
+        trackers.events.save_event(app, settings, event_name)
 
+
+def assign_rider_colors():
+    parser = get_base_argparser(description="Assigns unique colors to riders")
+    parser.add_argument('event', action='store')
+    args = parser.parse_args()
+    settings = get_combined_settings(args=args)
+    app = {}
+    event_name = args.event
+    trackers.events.load_events(app, settings)
+    event_data = app['trackers.events_data'][event_name]
+    num_riders = len(event_data['riders'])
+    for i, rider in enumerate(event_data['riders']):
+        rider['color'] = 'hsl({}, 100%, 50%)'.format(round(i * 360 / num_riders))
+    trackers.events.save_event(app, settings, event_name)
 
 
 

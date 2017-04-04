@@ -36,7 +36,7 @@ async def make_aio_app(loop, settings):
     app['trackers.modules_cm'] = modules_cm = await trackers.modules.config_modules(app, settings)
     await modules_cm.__aenter__()
 
-    await trackers.events.load_events(app, settings)
+    trackers.events.load_events(app, settings)
     for event_name in app['trackers.events_data']:
         await trackers.events.start_event_trackers(app, settings, event_name)
 
@@ -136,14 +136,17 @@ async def event_ws(request):
                         send({'sending': 'event data'})
                         send({'event_data': event_data})
                 if 'rider_indexes' in data:
-                    client_rider_point_indexes = data['rider_indexes']
+                    if not data['event_data_version'] or data['event_data_version'] != event_data['data_version']:
+                        send({'erase_rider_points': 1})
+                        client_rider_point_indexes = {}
+                    else:
+                        client_rider_point_indexes = data['rider_indexes']
                     for rider in event_data['riders']:
                         rider_name = rider['name']
                         tracker = trackers[rider_name]
                         last_index = client_rider_point_indexes.get(rider_name, 0)
                         new_points = tracker.points[last_index:]
                         if new_points:
-                            print('sending {} new points for {}'.format(len(new_points), rider_name))
                             if len(new_points) > 100:
                                 send({'sending': rider_name})
                             send({'rider_points': {'name': rider_name, 'points': new_points}})

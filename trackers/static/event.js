@@ -1,10 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     var status = document.getElementById('status');
 
-    var event_data = JSON.parse(window.localStorage.getItem(location.pathname  + '_event_data'))
-    on_new_event_data();
-    var riders_points = JSON.parse(window.localStorage.getItem(location.pathname  + '_riders_points')) || {}
-
     var map = new google.maps.Map(document.getElementById('map'), {
         center: {lat: 0, lng: 0},
         zoom: 2,
@@ -32,7 +28,6 @@ document.addEventListener('DOMContentLoaded', function() {
         reconnect_time = 1000;
         close_reason = null;
 
-        // TODO add a way to wack the rider_points from the server, like event_data_version
         current_state = {
             'event_data_version': (event_data? event_data['data_version'] || null : null),
         }
@@ -70,7 +65,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function ws_onmessage(event){
         status.innerText = 'Conneceted';
-        console.log(event.data);
+//        console.log(event.data);
         var data = JSON.parse(event.data);
         if (data.hasOwnProperty('client_etags')) {
             data.client_etags.forEach(function (item){
@@ -94,6 +89,10 @@ document.addEventListener('DOMContentLoaded', function() {
             window.localStorage.setItem(location.pathname  + '_event_data', JSON.stringify(event_data));
             on_new_event_data();
         }
+        if (data.hasOwnProperty('erase_rider_points')) {
+            riders_points = {};
+            window.localStorage.setItem(location.pathname  + '_riders_points', JSON.stringify(riders_points))
+        }
         if (data.hasOwnProperty('rider_points')) {
             var name = data.rider_points.name;
             var rider_points = riders_points[name] || (riders_points[name] = []);
@@ -106,10 +105,54 @@ document.addEventListener('DOMContentLoaded', function() {
     function on_new_event_data(){
         if (event_data) {
             document.title = event_data.title;
+            riders_by_name = {}
+            event_data.riders.forEach(function (rider) { riders_by_name[rider.name] = rider})
         }
     }
 
-    setTimeout(ws_connect, 0);
+    function on_new_rider_points(rider_name, index){
+        rider = riders_by_name[rider_name]
+        if (!rider) return;
+        rider_items = riders_client_items[rider_name] || (riders_client_items[rider_name] = {})
+        path = (rider_items.path || (rider_items.path = new google.maps.Polyline({
+            map: map,
+            path: [],
+            geodesic: true,
+            strokeColor: rider.color,
+            strokeOpacity: 1.0,
+            strokeWeight: 2
+        }))).getPath()
+
+        var last_position = null;
+        riders_points[rider_name].slice(index).forEach(function (point) {
+            if (point.hasOwnProperty('position')) {
+                last_position = new google.maps.LatLng(point.position[0], point.position[1]);
+                path.push(last_position);
+            }
+        });
+
+        marker = (rider_items.marker || (rider_items.path = new google.maps.Marker({
+            map: map,
+            title: rider.name,
+            label: rider.name.substr(0, 1),
+            color: rider.color
+        }))).setPosition(last_position);
+
+
+    }
+
+    var event_data = JSON.parse(window.localStorage.getItem(location.pathname  + '_event_data'))
+    var riders_by_name = {}
+    var riders_points = JSON.parse(window.localStorage.getItem(location.pathname  + '_riders_points')) || {}
+    var riders_client_items = {}
+
+    try{
+        on_new_event_data();
+        Object.keys(riders_points).forEach(function(rider_name) { on_new_rider_points(rider_name, 0) });
+    }
+    finally {
+        setTimeout(ws_connect, 0);
+    }
 
 });
 
