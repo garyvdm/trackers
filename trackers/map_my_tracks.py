@@ -22,9 +22,10 @@ async def start_event_tracker(app, settings, event_name, event_data, tracker_dat
         os.path.join(settings['data_path'], event_name, 'mapmytracks_cache'), tracker))
     return tracker, monitor_task
 
+
 async def api_call(client_session, request_name, data):
     req_data = (('request', request_name), ) + data
-    async with client_session.post('http://www.mapmytracks.com/api/', data=req_data) as response:
+    async with client_session.post('http://www.mapmytracks.com/api/', data=req_data,) as response:
         response.raise_for_status()
         xml_str = await response.text()
     xml_dom = xml.fromstring(xml_str)
@@ -32,24 +33,22 @@ async def api_call(client_session, request_name, data):
     # if type_ is None:
     #     raise RuntimeError('No type in message for {}'.format(request_name))
     if type_ is not None and type_.text == 'error':
-        print(xml_str)
         reason = xml_dom.find('./reason').text
         raise RuntimeError('Error in {}: {}'.format(request_name, reason))
     return xml_dom
 
 
-async def start_activity(client_session, title, privacy='public', activity='running', source='me', version='0.1.0'):
+async def start_activity(client_session, title, points, privacy='public', activity='running', source='garyvdm@gmail.com', tags=()):
     data = (
         ('title', title),
         ('privacy', privacy),
         ('activity', activity),
         ('source', source),
-        ('version', version),
-        ('points', ''),
-        ('tags', '')
+        ('points', points),
+        ('tags', ' '.join(tags))
     )
     xml_dom = await api_call(client_session, 'start_activity', data)
-    activity_id = xml_dom.find('./activity_id').text()
+    activity_id = xml_dom.find('./activity_id').text
     return activity_id
 
 async def stop_activity(client_session, activity_id):
@@ -179,15 +178,18 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
 async def main():
 
     async with aiohttp.ClientSession(auth=aiohttp.BasicAuth('USERNAME', 'PASSWORD')) as client_session:
-        # activity_id = await start_activity(client_session, 'Testing')
+        pass
+        # activity_id = await start_activity(client_session, 'My activity', points='51.3704583333333 1.15737333333333 1.345 1198052842')
+        # print(activity_id)
         # await stop_activity(client_session, activity_id)
         # print(await get_activites(client_session, 'garyvdm'))
 
-        tracker, monitor_task = await start_monitor_user(client_session, 'garyvdm',
-                                                         datetime.datetime(2017, 3, 21), datetime.datetime(2017, 4, 10), '/tmp/')
-        trackers.print_tracker(tracker)
-        await monitor_task
+        # tracker, monitor_task = await start_monitor_user(client_session, 'garyvdm',
+        #                                                  datetime.datetime(2017, 3, 21), datetime.datetime(2017, 4, 10), '/tmp/')
+        # trackers.print_tracker(tracker)
+        # await monitor_task
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
