@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function ws_connect(){
         set_status('Connecting');
-        ws = new WebSocket('ws://' + location.host + location.pathname + '/websocket');
+        ws = new WebSocket(location.protocol.replace('http', 'ws') + '//' + location.host + location.pathname + '/websocket');
         ws.onopen = ws_onopen;
         ws.onclose = ws_onclose;
         ws.onmessage = ws_onmessage;
