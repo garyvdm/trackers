@@ -12,6 +12,7 @@ setuptools.setup(
         'pyyaml',
         'asyncio-contextmanager',
         'python-slugify',
+        'filemagic',
     ],
     entry_points={
         'console_scripts': [

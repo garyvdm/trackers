@@ -8,7 +8,7 @@ import asyncio
 import datetime
 from functools import partial
 
-import yaml
+import magic
 import aiohttp
 from aiohttp import web, WSMsgType
 from slugify import slugify
@@ -24,12 +24,17 @@ async def make_aio_app(loop, settings):
     app['trackers.settings'] = settings
 
     app['trackers.static_etags'] = static_etags = {}
-    add_static = partial(add_static_resource, app, 'trackers', static_etags)
 
-    add_static('/static/event.js', '/static/event.js', content_type='text/html', charset='utf8',)
+    with magic.Magic(flags=magic.MAGIC_MIME_TYPE) as m:
+        add_static = partial(add_static_resource, app, 'trackers', static_etags, m)
+        add_static('/static/event.js', '/static/event.js', charset='utf8', content_type='application/javascript')
+        add_static('/static/event.html', '/{event}', charset='utf8', content_type='text/html',
+                   body_processor=lambda app, body: body.decode('utf8').format(api_key=settings['google_api_key']).encode('utf8'))
+        for name in pkg_resources.resource_listdir('trackers', '/static/markers'):
+            full_name = '/static/markers/{}'.format(name)
+            add_static(full_name, full_name)
+
     app.router.add_route('GET', '/{event}/websocket', handler=event_ws, name='event_ws')
-    add_static('/static/event.html', '/{event}', content_type='text/html', charset='utf8',
-               body_processor=lambda app, body: body.decode('utf8').format(api_key=settings['google_api_key']).encode('utf8'))
 
     app['trackers.ws_sessions'] = []
 
@@ -41,23 +46,6 @@ async def make_aio_app(loop, settings):
         await trackers.events.start_event_trackers(app, settings, event_name)
 
     app.on_shutdown.append(shutdown)
-
-
-    # add_static = partial(add_static_resource, app)
-    # add_static('static/view.js', '/static/view.js', content_type='application/javascript', charset='utf8',)
-    # add_static('static/media-playback-start-symbolic.png', '/static/play.png', content_type='image/png')
-    # add_static('static/media-playback-pause-symbolic.png', '/static/pause.png', content_type='image/png')
-    #
-    # route_view_static = add_static(
-    #     'static/view.html', None, content_type='text/html', charset='utf8',
-    #     body_processor=lambda app, body: body.decode('utf8').format(api_key=settings['api_key']).encode('utf8'))
-    #
-    # app.router.add_route('GET', '/', home)
-    # app.router.add_route('POST', '/upload', upload_route)
-    # app.router.add_route('GET', '/view/{route_id}/', handler=partial(route_view_handler, route_view_static), name='route_view')
-    # app.router.add_route('GET', '/img/{pano_id_and_heading}', handler=img_handler, name='img')
-    #
-    # route_view.auth.config_aio_app(app, settings)
 
     return app
 
@@ -78,11 +66,13 @@ async def shutdown(app):
 
 
 
-def add_static_resource(app, package, etags, resource_name, route, *args, **kwargs):
+def add_static_resource(app, package, etags, magic, resource_name, route, *args, **kwargs):
     body = pkg_resources.resource_string(package, resource_name)
     body_processor = kwargs.pop('body_processor', None)
     if body_processor:
         body = body_processor(app, body)
+    if 'content_type' not in kwargs:
+        kwargs['content_type'] = magic.id_buffer(body)
     kwargs['body'] = body
     headers = kwargs.setdefault('headers', {})
     etag = base64.urlsafe_b64encode(hashlib.sha1(body).digest()).decode('ascii')

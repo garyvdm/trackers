@@ -1,5 +1,25 @@
 document.addEventListener('DOMContentLoaded', function() {
     var status = document.getElementById('status');
+    var status_msg = '';
+    var errors = []
+
+    function update_status(){
+        status.innerText = errors.slice(-4).concat([status_msg]).join('\n')
+    }
+
+    function set_status(status){
+        status_msg = status;
+        update_status();
+    }
+
+    window.onerror = function (messageOrEvent, source, lineno, colno, error){{
+        setTimeout(function () {{
+            errors.push(messageOrEvent);
+            update_status();
+        }}, 100);
+        // TODO: post error to server
+        return false;
+    }}
 
     var map = new google.maps.Map(document.getElementById('map'), {
         center: {lat: 0, lng: 0},
@@ -16,7 +36,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var reconnect_time = 1000;
 
     function ws_connect(){
-        status.innerText = 'Connecting';
+        set_status('Connecting');
         ws = new WebSocket('ws://' + location.host + location.pathname + '/websocket');
         ws.onopen = ws_onopen;
         ws.onclose = ws_onclose;
@@ -24,7 +44,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function ws_onopen(event) {
-        status.innerText = 'Conneceted';
+        set_status('Conneceted');
         reconnect_time = 1000;
         close_reason = null;
 
@@ -40,9 +60,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function ws_onclose(event) {
         if (event.reason.startsWith('TAKEMEOUTError:')) {
-            status.innerText = event.reason;
+            set_status(event.reason);
         } else {
-            close_reason = 'Disconnected: ' + event.code + ' ' + event.reason;
+            set_status('Disconnected: ' + event.code + ' ' + event.reason);
             status.innerText = close_reason;
             ws = null;
 
@@ -53,7 +73,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             function reconnect_status(time){
-                status.innerText = close_reason + '\nReconnecting in ' + Math.floor((reconnect_time - time) / 1000) + ' sec.';
+                set_status(close_reason + '\nReconnecting in ' + Math.floor((reconnect_time - time) / 1000) + ' sec.');
             }
             for(var time = 1000; time < reconnect_time; time += 1000){
                 setTimeout(reconnect_status, time, time);
@@ -64,7 +84,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function ws_onmessage(event){
-        status.innerText = 'Conneceted';
+        set_status('Conneceted');
 //        console.log(event.data);
         var data = JSON.parse(event.data);
         if (data.hasOwnProperty('client_etags')) {
@@ -82,7 +102,7 @@ document.addEventListener('DOMContentLoaded', function() {
             })
         }
         if (data.hasOwnProperty('sending')) {
-            status.innerText = 'Conneceted, Loading '+ data.sending;
+            set_status('Conneceted, Loading '+ data.sending);
         }
         if (data.hasOwnProperty('event_data')) {
             event_data = data.event_data;
@@ -103,10 +123,21 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function on_new_event_data(){
+        event_markers.forEach(function (marker) { marker.setMap(null) });
+        event_markers = [];
         if (event_data) {
+            console.log(event_data);
             document.title = event_data.title;
-            riders_by_name = {}
-            event_data.riders.forEach(function (rider) { riders_by_name[rider.name] = rider})
+            riders_by_name = {};
+            event_data.riders.forEach(function (rider) { riders_by_name[rider.name] = rider});
+            var bounds = new google.maps.LatLngBounds();
+            (event_data.markers || {}).forEach(function (marker_data) {
+                bounds.extend(marker_data.position);
+                var marker = new google.maps.Marker(marker_data);
+                marker.setMap(map);
+                event_markers.push(marker);
+            });
+            map.fitBounds(bounds);
         }
     }
 
@@ -142,6 +173,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     var event_data = JSON.parse(window.localStorage.getItem(location.pathname  + '_event_data'))
+    var event_markers = []
     var riders_by_name = {}
     var riders_points = JSON.parse(window.localStorage.getItem(location.pathname  + '_riders_points')) || {}
     var riders_client_items = {}
