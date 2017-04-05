@@ -52,7 +52,7 @@ defaults_yaml = """
 
 def get_base_argparser(*args, **kwargs):
     parser = argparse.ArgumentParser()
-    parser.add_argument('settings_file', action='store', nargs='?', default='/etc/route_view.yaml',
+    parser.add_argument('settings_file', action='store', nargs='?', default='/etc/trackers.yaml',
                         help='File to load settings from.')
     parser.add_argument('--google-api-key', action='store',
                         help='Google api key. ')
