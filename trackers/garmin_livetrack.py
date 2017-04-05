@@ -8,7 +8,7 @@ import trackers
 
 async def config(app, settings):
     app['trackers.garmin_livetrack.session'] = garmin_livetrack_session = aiohttp.ClientSession()
-    app.router.add_route('GET', '/modules/garmin_livetrack/email', handler=email_recive, name='garmin_livetrack_email')
+    app.router.add_route('POST', '/modules/garmin_livetrack/email', handler=email_recive, name='garmin_livetrack_email')
     return garmin_livetrack_session
 
 async def start_event_tracker(app, settings, event_name, event_data, tracker_data):
@@ -30,9 +30,12 @@ url_session_token_matcher = re.compile('http://livetrack.garmin.com/session/(?P<
 
 async def email_recive(request):
     # using https://www.cloudmailin.com/ to get email to me.
-    import pprint
     body = await request.content.read()
-    logging.info('Email: {}\n{}'.format(pprint.pformat(request.headers), body.decode()))
+    url_m = re.search(b'<a href="(http:\/\/livetrack\.garmin\.com\/session\/[\w\d-]+\/token\/[\w\d-]+)"', body)
+    name_m = re.search(b'An invitation from (.*)\n', body)
+    logging.debug('Garmin email: {}, {}'.format(url_m, name_m))
+    if url_m and name_m:
+        logging.debug('Garmin email matches: {}, {}'.format(url_m.group(1), name_m.group(1)))
     return aiohttp.web.Response(text="Thanks for the mail.")
 
 
