@@ -2,14 +2,13 @@ import asyncio
 import aiohttp
 import datetime
 import re
+import logging
 
 import trackers
 
-# https://www.cloudmailin.com/
-
 async def config(app, settings):
     app['trackers.garmin_livetrack.session'] = garmin_livetrack_session = aiohttp.ClientSession()
-    app['trackers.garmin_livetrack.config'] = await get_service_config(garmin_livetrack_session)
+    app.router.add_route('GET', '/modules/garmin_livetrack/email', handler=email_recive, name='garmin_livetrack_email')
     return garmin_livetrack_session
 
 async def start_event_tracker(app, settings, event_name, event_data, tracker_data):
@@ -17,7 +16,7 @@ async def start_event_tracker(app, settings, event_name, event_data, tracker_dat
     session_token_match = url_session_token_matcher(url).groupdict()
     tracker = trackers.Tracker('garmin_livetrack.{}'.format(session_token_match['session']))
     monitor_task = asyncio.ensure_future(monitor_session(
-        app['trackers.garmin_livetrack.session'], app['trackers.garmin_livetrack.config'], session_token_match, tracker))
+        app['trackers.garmin_livetrack.session'], session_token_match, tracker))
     return tracker, monitor_task
 
 
@@ -29,8 +28,16 @@ async def get_service_config(client_session):
 url_session_token_matcher = re.compile('http://livetrack.garmin.com/session/(?P<session>.*)/token/(?P<token>.*)').match
 
 
+async def email_recive(request):
+    # using https://www.cloudmailin.com/ to get email to me.
+    import pprint
+    body = await request.content.read()
+    logging.info('Email: {}\n{}'.format(pprint.pformat(request.headers), body.decode()))
+    return aiohttp.web.Response(text="Thanks for the mail.")
 
-async def monitor_session(client_session, service_config, session_token_match, tracker):
+
+async def monitor_session(client_session, session_token_match, tracker):
+    service_config = await get_service_config(client_session);
     session_url = 'http://livetrack.garmin.com/services/session/{session}/token/{token}'.format_map(session_token_match)
     tracklog_url = 'http://livetrack.garmin.com/services/trackLog/{session}/token/{token}'.format_map(session_token_match)
     last_status = None
