@@ -87,7 +87,7 @@ async def serve(loop, settings):
                 os.unlink(unix_path)
             except OSError:
                 logging.exception("Could not unlink socket '{}'".format(unix_path))
-        srv = loop.run_until_complete(loop.create_unix_server(handler, unix_path))
+        srv = await loop.create_unix_server(handler, unix_path)
         os.chmod(unix_path, 660)
 
     for sock in srv.sockets:
