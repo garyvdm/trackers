@@ -46,7 +46,7 @@ def main():
             settings['inet_port'] = port
         if args.unix:
             settings['server_type'] = 'unix'
-            settings['unix_route'] = args.unix
+            settings['unix_path'] = args.unix
         if args.dev:
             settings['debugtoolbar'] = True
             settings['aioserver_debug'] = True
@@ -81,7 +81,14 @@ async def serve(loop, settings):
     if settings['server_type'] == 'inet':
         srv = await loop.create_server(handler, settings['inet_host'], settings['inet_port'])
     elif settings['server_type'] == 'unix':
-        srv = await loop.create_unix_server(handler, settings['unix_route'])
+        unix_path = settings['unix_path']
+        if os.path.exists(unix_path):
+            try:
+                os.unlink(unix_path)
+            except OSError:
+                logging.exception("Could not unlink socket '{}'".format(unix_path))
+        srv = loop.run_until_complete(loop.create_unix_server(handler, unix_path))
+        os.chmod(unix_path, 660)
 
     for sock in srv.sockets:
         if sock.family in (socket.AF_INET, socket.AF_INET6):
