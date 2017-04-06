@@ -19,17 +19,26 @@ import trackers.modules
 import trackers.events
 
 
+
+
 async def make_aio_app(loop, settings):
     app = web.Application(loop=loop)
     app['trackers.settings'] = settings
 
     app['trackers.static_etags'] = static_etags = {}
 
+    def event_page_body_processor(app, body):
+        hash = hashlib.sha1(body)
+        for resource_name in ('/static/event.js', ):
+            hash.update(pkg_resources.resource_string('trackers', resource_name))
+        client_hash = base64.urlsafe_b64encode(hash.digest()).decode('ascii')
+        app['trackers.client_hash'] = client_hash
+        return body.decode('utf8').format(api_key=settings['google_api_key'], client_hash=client_hash).encode('utf8')
+
     with magic.Magic(flags=magic.MAGIC_MIME_TYPE) as m:
         add_static = partial(add_static_resource, app, 'trackers', static_etags, m)
         add_static('/static/event.js', '/static/event.js', charset='utf8', content_type='application/javascript')
-        add_static('/static/event.html', '/{event}', charset='utf8', content_type='text/html',
-                   body_processor=lambda app, body: body.decode('utf8').format(api_key=settings['google_api_key']).encode('utf8'))
+        add_static('/static/event.html', '/{event}', charset='utf8', content_type='text/html', body_processor=event_page_body_processor)
         for name in pkg_resources.resource_listdir('trackers', '/static/markers'):
             full_name = '/static/markers/{}'.format(name)
             add_static(full_name, full_name)
@@ -63,7 +72,6 @@ async def shutdown(app):
     for ws in app['trackers.ws_sessions']:
         await ws.close(code=aiohttp.WSCloseCode.GOING_AWAY,
                        message='Server shutdown')
-
 
 
 def add_static_resource(app, package, etags, magic, resource_name, route, *args, **kwargs):
@@ -110,11 +118,7 @@ async def event_ws(request):
 
         send = lambda msg: ws.send_str(json.dumps(msg, default=json_encode))
 
-        static_etags = request.app['trackers.static_etags']
-        send({'client_etags': [
-            ('', static_etags['static-event-html']),
-            ('/static/event.js', static_etags['static-event-js'])
-        ]})
+        send({'client_hash': request.app['trackers.client_hash']})
 
         async for msg in ws:
             if msg.tp == WSMsgType.text:

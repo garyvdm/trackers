@@ -49,13 +49,6 @@ document.addEventListener('DOMContentLoaded', function() {
         set_status('Conneceted');
         reconnect_time = 1000;
         close_reason = null;
-
-        current_state = {
-            'event_data_version': (event_data? event_data['data_version'] || null : null),
-        }
-        rider_indexes = current_state['rider_indexes'] = {}
-        Object.keys(riders_points).forEach(function (name) {rider_indexes[name] = riders_points[name].length})
-        ws.send(JSON.stringify(current_state))
     }
 
     function ws_onclose(event) {
@@ -88,19 +81,17 @@ document.addEventListener('DOMContentLoaded', function() {
         set_status('Conneceted');
 //        console.log(event.data);
         var data = JSON.parse(event.data);
-        if (data.hasOwnProperty('client_etags')) {
-            data.client_etags.forEach(function (item){
-                var request = new XMLHttpRequest();
-                request.onreadystatechange = function() {
-                    if (request.readyState == 4) {
-                        if (item[1] != request.getResponseHeader('etag')) {
-                            location.reload(true);
-                        }
-                    }
+        if (data.hasOwnProperty('client_hash')) {
+            if (data.client_hash != client_hash) {
+                location.reload();
+            } else {
+                current_state = {
+                    'event_data_version': (event_data? event_data['data_version'] || null : null),
                 }
-                request.open("GET", (item[0]?item[0]:location.pathname), true);
-                request.send(null);
-            })
+                rider_indexes = current_state['rider_indexes'] = {}
+                Object.keys(riders_points).forEach(function (name) {rider_indexes[name] = riders_points[name].length})
+                ws.send(JSON.stringify(current_state))
+            }
         }
         if (data.hasOwnProperty('sending')) {
             set_status('Conneceted, Loading '+ data.sending);
