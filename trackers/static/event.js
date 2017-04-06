@@ -147,11 +147,12 @@ document.addEventListener('DOMContentLoaded', function() {
         var rider = riders_by_name[rider_name]
         if (!rider) return;
         var rider_items = riders_client_items[rider_name] || (riders_client_items[rider_name] = {})
+        path_color = rider.color || 'black';
         path = (rider_items.path || (rider_items.path = new google.maps.Polyline({
             map: map,
             path: [],
             geodesic: true,
-            strokeColor: rider.color,
+            strokeColor: path_color,
             strokeOpacity: 1.0,
             strokeWeight: 2
         }))).getPath()
@@ -165,12 +166,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         if (!rider_items.marker) {
+            marker_color = rider.color_marker || 'white';
             rider_items.marker = new RichMarker({
                 map: map,
                 position: last_position,
                 flat: true,
-                content: '<div class="rider-marker" style="background: ' + rider.color_marker + ';">' + (rider.name_short || rider.name)+ '</div>' +
-                         '<div class="rider-marker-pointer" style="border-color: transparent ' + rider.color_marker + ' ' + rider.color_marker + ' transparent;"></div>'
+                content: '<div class="rider-marker" style="background: ' + marker_color + ';">' + (rider.name_short || rider.name)+ '</div>' +
+                         '<div class="rider-marker-pointer" style="border-color: transparent ' + marker_color + ' ' + marker_color + ' transparent;"></div>'
             })
         } else {
             rider_items.marker.setPosition(last_position);
