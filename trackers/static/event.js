@@ -4,7 +4,9 @@ document.addEventListener('DOMContentLoaded', function() {
     var errors = []
 
     function update_status(){
-        status.innerText = errors.slice(-4).concat([status_msg]).join('\n')
+        text = errors.slice(-4).concat([status_msg]).join('\n');
+//        console.log(text);
+        status.innerText = text;
     }
 
     function set_status(status){
@@ -53,8 +55,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         rider_indexes = current_state['rider_indexes'] = {}
         Object.keys(riders_points).forEach(function (name) {rider_indexes[name] = riders_points[name].length})
-        console.log(current_state)
-
         ws.send(JSON.stringify(current_state))
     }
 
@@ -62,8 +62,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (event.reason.startsWith('TAKEMEOUTError:')) {
             set_status(event.reason);
         } else {
-            set_status('Disconnected: ' + event.code + ' ' + event.reason);
-            status.innerText = close_reason;
+            close_reason = 'Disconnected: ' + event.code + ' ' + event.reason;
+            console.log(close_reason);
+            set_status(close_reason);
             ws = null;
 
             if (event.reason.startsWith('Error:')){
@@ -116,8 +117,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (data.hasOwnProperty('rider_points')) {
             var name = data.rider_points.name;
             var rider_points = riders_points[name] || (riders_points[name] = []);
+            last_index = rider_points.length;
             rider_points.extend(data.rider_points.points)
             window.localStorage.setItem(location.pathname  + '_riders_points', JSON.stringify(riders_points))
+            on_new_rider_points(name, last_index)
         }
 
     }
@@ -126,7 +129,6 @@ document.addEventListener('DOMContentLoaded', function() {
         event_markers.forEach(function (marker) { marker.setMap(null) });
         event_markers = [];
         if (event_data) {
-            console.log(event_data);
             document.title = event_data.title;
             riders_by_name = {};
             event_data.riders.forEach(function (rider) { riders_by_name[rider.name] = rider});
