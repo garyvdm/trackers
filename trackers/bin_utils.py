@@ -141,6 +141,7 @@ def assign_rider_colors():
     num_riders = len(event_data['riders'])
     for i, rider in enumerate(event_data['riders']):
         rider['color'] = 'hsl({}, 100%, 50%)'.format(round(i * 360 / num_riders))
+        rider['color_marker'] = 'hsl({}, 100%, 60%)'.format(round(i * 360 / num_riders))
     trackers.events.save_event(app, settings, event_name)
 
 

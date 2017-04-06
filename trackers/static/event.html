@@ -16,16 +16,19 @@
         var client_hash = '{client_hash}';
     </script>
     <script src="https://maps.googleapis.com/maps/api/js?v=3.exp&key={api_key}"></script>
+    <script src="/static/richmarker.js"></script>
     <script src="/static/event.js"></script>
     <style>
       * {{ font: 400 11px Roboto, Arial, sans-serif; }}
       html, body {{ height: 100%; margin: 0px; padding: 0px }}
+      .rider-marker {{ padding: 4px; box-shadow: 2px 2px 3px -1px rgba(0, 0, 0, 0.5); border-radius: 2px; }}
+      .rider-marker-pointer {{ position: relative; box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.5); border-width: 5px; border-style: solid; width: 0; transform: rotate(45deg);  left: 40%; top: -5px;}}
     </style>
   </head>
   <body>
     <div id="map" style="height: 100%;"></div>
     <div style="position: absolute; left: 50%; bottom: 0;">
-        <div id="status" style="position: relative; margin: 10px ; left: -50%; padding: 8px; box-shadow: 0px 1px 4px -1px rgba(0, 0, 0, 0.5); background: white; border-radius: 2px;">Loading</div>
+        <div id="status" style="position: relative; margin: 10px ; left: -50%; padding: 8px; box-shadow: 2px 2px 4px -1px rgba(0, 0, 0, 0.5); background: white; border-radius: 2px;">Loading</div>
     </div>
   </body>
 </html>

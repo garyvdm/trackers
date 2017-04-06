@@ -108,11 +108,16 @@ document.addEventListener('DOMContentLoaded', function() {
         if (data.hasOwnProperty('erase_rider_points')) {
             riders_points = {};
             window.localStorage.setItem(location.pathname  + '_riders_points', JSON.stringify(riders_points))
+            Object.values(riders_client_items).forEach(function (rider_items){
+                rider_items.path.setMap(null);
+                rider_items.marker.setMap(null);
+            });
+            riders_client_items = {};
         }
         if (data.hasOwnProperty('rider_points')) {
             var name = data.rider_points.name;
             var rider_points = riders_points[name] || (riders_points[name] = []);
-            last_index = rider_points.length;
+            var last_index = rider_points.length;
             rider_points.extend(data.rider_points.points)
             window.localStorage.setItem(location.pathname  + '_riders_points', JSON.stringify(riders_points))
             on_new_rider_points(name, last_index)
@@ -139,9 +144,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function on_new_rider_points(rider_name, index){
-        rider = riders_by_name[rider_name]
+        var rider = riders_by_name[rider_name]
         if (!rider) return;
-        rider_items = riders_client_items[rider_name] || (riders_client_items[rider_name] = {})
+        var rider_items = riders_client_items[rider_name] || (riders_client_items[rider_name] = {})
         path = (rider_items.path || (rider_items.path = new google.maps.Polyline({
             map: map,
             path: [],
@@ -159,12 +164,17 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        marker = (rider_items.marker || (rider_items.path = new google.maps.Marker({
-            map: map,
-            title: rider.name,
-            label: rider.name.substr(0, 1),
-            color: rider.color
-        }))).setPosition(last_position);
+        if (!rider_items.marker) {
+            rider_items.marker = new RichMarker({
+                map: map,
+                position: last_position,
+                flat: true,
+                content: '<div class="rider-marker" style="background: ' + rider.color_marker + ';">' + (rider.name_short || rider.name)+ '</div>' +
+                         '<div class="rider-marker-pointer" style="border-color: transparent ' + rider.color_marker + ' ' + rider.color_marker + ' transparent;"></div>'
+            })
+        } else {
+            rider_items.marker.setPosition(last_position);
+        }
 
 
     }
