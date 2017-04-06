@@ -44,6 +44,7 @@ async def make_aio_app(loop, settings):
             add_static(full_name, full_name)
 
     app.router.add_route('GET', '/{event}/websocket', handler=event_ws, name='event_ws')
+    app.router.add_route('POST', '/client_error', handler=client_error_logger, name='client_error_logger')
 
     app['trackers.ws_sessions'] = []
 
@@ -159,7 +160,14 @@ async def event_ws(request):
         ws_sessions.remove(ws)
 
 
-
 def json_encode(obj):
     if isinstance(obj, datetime.datetime):
         return obj.timestamp()
+
+async def client_error_logger(request):
+    body = await request.text()
+    body = body[:1024 * 1024]  # limit to 1kb
+    agent = request.headers['User-Agent']
+    client = request.transport.get_extra_info('peername')[0]
+    logging.getLogger('client_errors').error('\n'.join((body, agent, client)))
+    return aiohttp.web.Response()

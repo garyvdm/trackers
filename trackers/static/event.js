@@ -19,7 +19,10 @@ document.addEventListener('DOMContentLoaded', function() {
             errors.push(messageOrEvent);
             update_status();
         }}, 100);
-        // TODO: post error to server
+
+        var request = new XMLHttpRequest();
+        request.open("POST", '/client_error', true);
+        request.send(messageOrEvent + '\n' + (error.stack || source + ':' + lineno + ':' + colno));
         return false;
     }}
 
@@ -36,6 +39,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var ws;
     var close_reason;
     var reconnect_time = 1000;
+
 
     function ws_connect(){
         set_status('Connecting');
