@@ -58,7 +58,7 @@ async def stop_activity(client_session, activity_id):
     await api_call(client_session, 'stop_activity', (('activity_id', activity_id), ))
 
 
-async def get_activites(client_session, author, logger=None):
+async def get_activites(client_session, author, logger=None, pages=5):
     if logger is None:
         logger = logging.getLogger('mapmytracks')
 
@@ -76,7 +76,7 @@ async def get_activites(client_session, author, logger=None):
         logger.warning('User "{}" is not a username. Using html scrap to get activities.'.format(author))
 
         activites = []
-        for i in range(1, 5):
+        for i in range(1, pages):
             if i == 1:
                 url = 'http://www.mapmytracks.com/{}'.format(author, i)
             else:
@@ -93,7 +93,6 @@ async def get_activites(client_session, author, logger=None):
                 date_text = track.find(class_='act-local').text.partition(' on ')[2].strip()
                 date = datetime.datetime.strptime(date_text, '%d %b %Y')
                 activites.append((activity_id, date))
-
     return activites
 
 
@@ -138,19 +137,36 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
     if old_points:
         await tracker.new_points(old_points)
 
+    def save():
+        state['activites'] = list(activites)
+        state['completed_activites'] = list(completed_activites)
+        with open(full_cache_path, 'w') as f:
+            yaml.dump(state, f)
+
     while True:
         now = datetime.datetime.now()
+        last_slow_log = now
+        slow = False
 
         if now >= start_date:
             uncompleted_activities = completed_activites.difference(activites)
 
             if not uncompleted_activities:
-                all_activites = await  get_activites(client_session, user, logger=tracker.logger)
+                all_activites = await  get_activites(client_session, user, logger=tracker.logger, pages=1 if activites else 5)
                 activites.update([activity[0] for activity in all_activites if start_date <= activity[1] < end_date])
                 uncompleted_activities = activites.difference(completed_activites)
+                save()
+
+            completed_changes = False
 
             new_points = []
             for activity_id in uncompleted_activities:
+                if datetime.datetime.now() - last_slow_log > datetime.timedelta(seconds=30):
+                    tracker.logger.info('Still downloading. ({} points)'.format(sum((len(p) for p in new_points))))
+                    slow = True
+                    last_slow_log = datetime.datetime.now()
+                    save()
+
                 points = activities_points.setdefault(activity_id, [])
                 while True:
                     max_timestamp = points[-1][0] if points else 0
@@ -161,16 +177,18 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
                     points.extend(update_points)
                     new_points.append(update_points)
                 if complete:
+                    completed_changes = True
                     completed_activites.add(activity_id)
+
+            if slow:
+                tracker.logger.info('Done downloading. ({} points)'.format(sum((len(p) for p in new_points))))
+
+            if new_points or completed_changes:
+                save()
 
             new_tracker_points = [tracker_point(point) for point in sorted(itertools.chain.from_iterable(new_points))]
             if new_tracker_points:
                 await tracker.new_points(new_tracker_points)
-
-            state['activites'] = list(activites)
-            state['completed_activites'] = list(completed_activites)
-            with open(full_cache_path, 'w') as f:
-                yaml.dump(state, f)
 
         if now > end_date:
             break
