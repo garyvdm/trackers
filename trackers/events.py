@@ -4,6 +4,7 @@ from functools import partial
 
 import yaml
 
+import trackers
 import trackers.modules
 
 def load_events(app, settings):
@@ -30,6 +31,7 @@ async def start_event_trackers(app, settings, event_name):
         app['trackers.tracker_tasks'].append(task)
         event_rider_trackers[rider['name']] = tracker
         task.add_done_callback(partial(tracker_task_callback, tracker))
+        trackers.print_tracker(tracker)
 
 
 def tracker_task_callback(tracker, task):

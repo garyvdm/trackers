@@ -6,6 +6,7 @@ import os
 import base64
 import asyncio
 import datetime
+import contextlib
 from functools import partial
 
 import magic
@@ -13,12 +14,11 @@ import aiohttp
 from aiohttp import web, WSMsgType
 from slugify import slugify
 
-import trackers.garmin_livetrack
-import trackers.map_my_tracks
+import trackers
 import trackers.modules
 import trackers.events
 
-
+logger = logging.getLogger(__name__)
 
 
 async def make_aio_app(loop, settings):
@@ -102,63 +102,80 @@ def add_static_resource(app, package, etags, magic, resource_name, route, *args,
     return static_resource_handler
 
 
+@contextlib.contextmanager
+def list_register(list, item):
+    list.append(item)
+    try:
+        yield
+    finally:
+        list.remove(item)
+
+
 async def event_ws(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
+    with contextlib.ExitStack() as exit_stack:
+        try:
+            exit_stack.enter_context(list_register(request.app['trackers.ws_sessions'], ws))
 
-    ws_sessions = request.app['trackers.ws_sessions']
-    ws_sessions.append(ws)
-    try:
-        event_name = request.match_info['event']
-        event_data = request.app['trackers.events_data'].get(event_name)
-        if event_data is None:
-            await ws.close(message='Error: Event not found.')
+            event_name = request.match_info['event']
+            event_data = request.app['trackers.events_data'].get(event_name)
+            if event_data is None:
+                await ws.close(message='Error: Event not found.')
+                return ws
+
+            trackers = request.app['trackers.events_rider_trackers'].get(event_name)
+
+            send = lambda msg: ws.send_str(json.dumps(msg, default=json_encode))
+
+            send({'client_hash': request.app['trackers.client_hash']})
+
+            async for msg in ws:
+                if msg.tp == WSMsgType.text:
+                    data = json.loads(msg.data)
+                    logger.debug(data)
+                    if 'event_data_version' in data:
+                        if not data['event_data_version'] or data['event_data_version'] != event_data['data_version']:
+                            # TODO: massage data to remove stuff that is only approiate to server
+                            send({'sending': 'event data'})
+                            send({'event_data': event_data})
+                    if 'rider_indexes' in data:
+                        if not data['event_data_version'] or data['event_data_version'] != event_data['data_version']:
+                            send({'erase_rider_points': 1})
+                            client_rider_point_indexes = {}
+                        else:
+                            client_rider_point_indexes = data['rider_indexes']
+                        for rider in event_data['riders']:
+                            rider_name = rider['name']
+                            tracker = trackers[rider_name]
+                            last_index = client_rider_point_indexes.get(rider_name, 0)
+                            new_points = tracker.points[last_index:]
+                            if new_points:
+                                if len(new_points) > 100:
+                                    send({'sending': rider_name})
+                                send({'rider_points': {'name': rider_name, 'points': new_points}})
+                            client_rider_point_indexes[rider_name] = len(tracker.points)
+                            exit_stack.enter_context(list_register(tracker.new_points_callbacks,
+                                                                   partial(tracker_new_points_to_ws, send, rider_name)))
+
+
+                if msg.tp == WSMsgType.close:
+                    await ws.close()
+                if msg.tp == WSMsgType.error:
+                    raise ws.exception()
             return ws
 
-        trackers = request.app['trackers.events_rider_trackers'].get(event_name)
-        client_rider_point_indexes = {}
-
-        send = lambda msg: ws.send_str(json.dumps(msg, default=json_encode))
-
-        send({'client_hash': request.app['trackers.client_hash']})
-
-        async for msg in ws:
-            if msg.tp == WSMsgType.text:
-                data = json.loads(msg.data)
-                logging.debug(data)
-                if 'event_data_version' in data:
-                    if not data['event_data_version'] or data['event_data_version'] != event_data['data_version']:
-                        # TODO: massage data to remove stuff that is only approiate to server
-                        send({'sending': 'event data'})
-                        send({'event_data': event_data})
-                if 'rider_indexes' in data:
-                    if not data['event_data_version'] or data['event_data_version'] != event_data['data_version']:
-                        send({'erase_rider_points': 1})
-                        client_rider_point_indexes = {}
-                    else:
-                        client_rider_point_indexes = data['rider_indexes']
-                    for rider in event_data['riders']:
-                        rider_name = rider['name']
-                        tracker = trackers[rider_name]
-                        last_index = client_rider_point_indexes.get(rider_name, 0)
-                        new_points = tracker.points[last_index:]
-                        if new_points:
-                            if len(new_points) > 100:
-                                send({'sending': rider_name})
-                            send({'rider_points': {'name': rider_name, 'points': new_points}})
-                        client_rider_point_indexes[rider_name] = len(tracker.points)
+        except Exception as e:
+            await ws.close(message='Error: {}'.format(e))
+            raise
 
 
-            if msg.tp == WSMsgType.close:
-                await ws.close()
-            if msg.tp == WSMsgType.error:
-                raise ws.exception()
-        return ws
-    except Exception as e:
-        await ws.close(message='Error: {}'.format(e))
-        raise
-    finally:
-        ws_sessions.remove(ws)
+async def tracker_new_points_to_ws(ws_send, rider_name, tracker, new_points):
+    try:
+        ws_send({'rider_points': {'name': rider_name, 'points': new_points}})
+    except Exception:
+        logger.exception('Error in tracker_new_points_to_ws:')
+
 
 
 def json_encode(obj):
@@ -170,5 +187,5 @@ async def client_error_logger(request):
     body = body[:1024 * 1024]  # limit to 1kb
     agent = request.headers['User-Agent']
     client = request.transport.get_extra_info('peername')[0]
-    logging.getLogger('client_errors').error('\n'.join((body, agent, client)))
+    logger.getLogger('client_errors').error('\n'.join((body, agent, client)))
     return aiohttp.web.Response()
