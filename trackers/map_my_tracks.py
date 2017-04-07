@@ -4,6 +4,7 @@ import datetime
 import logging
 import os
 import itertools
+import functools
 
 import aiohttp
 import bs4
@@ -20,7 +21,9 @@ async def start_event_tracker(app, settings, event_name, event_data, tracker_dat
     monitor_task = asyncio.ensure_future(monitor_user(
         app['trackers.mapmytracks_session'], tracker_data['name'], event_data['tracker_start'], event_data['tracker_end'],
         os.path.join(settings['data_path'], event_name, 'mapmytracks_cache'), tracker))
-    return tracker, monitor_task
+    tracker.stop = functools.partial(trackers.cancel_and_wait_task, monitor_task)
+    monitor_task.add_done_callback(functools.partial(trackers.callback_done_callback, 'Error in monitor_user:', tracker.logger))
+    return tracker
 
 
 async def api_call(client_session, request_name, data):

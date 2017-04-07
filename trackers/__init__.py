@@ -16,6 +16,9 @@ class Tracker(object):
         self.points.extend(new_points)
         await call_callbacks(self.new_points_callbacks, 'Error calling new_points callback:', self.logger, self, new_points)
 
+    async def stop(self):
+        pass
+
 
 async def call_callbacks(callbacks, error_msg, logger, *args, **kwargs):
     loop = asyncio.get_event_loop()
@@ -32,6 +35,14 @@ def callback_done_callback(error_msg, logger, fut):
         pass
     except Exception:
         logger.exception(error_msg)
+
+
+async def cancel_and_wait_task(task):
+    task.cancel()
+    try:
+        await task
+    except Exception:
+        pass
 
 
 def print_tracker(tracker):

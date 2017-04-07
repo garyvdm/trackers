@@ -1,6 +1,4 @@
 import os
-import asyncio
-from functools import partial
 
 import yaml
 
@@ -26,26 +24,22 @@ async def start_event_trackers(app, settings, event_name):
     event_rider_trackers = app['trackers.events_rider_trackers'][event_name] = {}
 
     for rider in event_data['riders']:
-        tracker, task = await trackers.modules.start_event_trackers[rider['tracker']['type']](
-            app, settings, event_name, event_data, rider['tracker'])
-        app['trackers.tracker_tasks'].append(task)
-        event_rider_trackers[rider['name']] = tracker
-        task.add_done_callback(partial(tracker_task_callback, tracker))
-        trackers.print_tracker(tracker)
+        if rider['tracker']:
+            tracker = await trackers.modules.start_event_trackers[rider['tracker']['type']](
+                app, settings, event_name, event_data, rider['tracker'])
+            event_rider_trackers[rider['name']] = tracker
+            # trackers.print_tracker(tracker)
 
 
-def tracker_task_callback(tracker, task):
-    try:
-        task.result()
-        tracker.logger.info('Tracker task complete')
-    except asyncio.CancelledError:
-        tracker.logger.info('Tracker task canceled')
-    except Exception:
-        tracker.logger.exception('Unhandled error in tracker task:')
+async def stop_event_trackers(app, event_name):
+    event_rider_trackers = app['trackers.events_rider_trackers'][event_name]
+    for tracker in event_rider_trackers.values():
+        await tracker.stop()
 
 
 def save_event(app, settings, event_name):
     app['trackers.events_data'][event_name]['data_version'] += 1
     with open(os.path.join(settings['data_path'], event_name, 'data.yaml'), 'w') as f:
         yaml.dump(app['trackers.events_data'][event_name], f)
+
 

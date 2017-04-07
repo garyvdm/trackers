@@ -62,18 +62,14 @@ async def make_aio_app(loop, settings):
 
 
 async def shutdown(app):
-    for task in app['trackers.tracker_tasks']:
-        task.cancel()
-    for task in app['trackers.tracker_tasks']:
-        try:
-            await task
-        except Exception:
-            pass
-    await app['trackers.modules_cm'].__aexit__(None, None, None)
-
     for ws in app['trackers.ws_sessions']:
         await ws.close(code=aiohttp.WSCloseCode.GOING_AWAY,
                        message='Server shutdown')
+
+    for event_name in app['trackers.events_data']:
+        await trackers.events.stop_event_trackers(app, event_name)
+
+    await app['trackers.modules_cm'].__aexit__(None, None, None)
 
 
 def add_static_resource(app, package, etags, magic, resource_name, route, *args, **kwargs):
@@ -147,16 +143,17 @@ async def event_ws(request):
                             client_rider_point_indexes = data['rider_indexes']
                         for rider in event_data['riders']:
                             rider_name = rider['name']
-                            tracker = trackers[rider_name]
-                            last_index = client_rider_point_indexes.get(rider_name, 0)
-                            new_points = tracker.points[last_index:]
-                            if new_points:
-                                if len(new_points) > 100:
-                                    send({'sending': rider_name})
-                                send({'rider_points': {'name': rider_name, 'points': new_points}})
-                            client_rider_point_indexes[rider_name] = len(tracker.points)
-                            exit_stack.enter_context(list_register(tracker.new_points_callbacks,
-                                                                   partial(tracker_new_points_to_ws, send, rider_name)))
+                            tracker = trackers.get(rider_name)
+                            if tracker:
+                                last_index = client_rider_point_indexes.get(rider_name, 0)
+                                new_points = tracker.points[last_index:]
+                                if new_points:
+                                    if len(new_points) > 100:
+                                        send({'sending': rider_name})
+                                    send({'rider_points': {'name': rider_name, 'points': new_points}})
+                                client_rider_point_indexes[rider_name] = len(tracker.points)
+                                exit_stack.enter_context(list_register(tracker.new_points_callbacks,
+                                                                       partial(tracker_new_points_to_ws, send, rider_name)))
 
 
                 if msg.tp == WSMsgType.close:
