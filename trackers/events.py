@@ -27,6 +27,10 @@ async def start_event_trackers(app, settings, event_name):
         if rider['tracker']:
             tracker = await trackers.modules.start_event_trackers[rider['tracker']['type']](
                 app, settings, event_name, event_data, rider['tracker'])
+            tracker = await trackers.start_analyse_tracker(tracker)
+            # print(rider['name'])
+            # import pprint
+            # pprint.pprint(tracker.points)
             event_rider_trackers[rider['name']] = tracker
             # trackers.print_tracker(tracker)
 

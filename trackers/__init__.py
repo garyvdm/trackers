@@ -1,7 +1,11 @@
 import asyncio
 import functools
 import logging
+import copy
+import geographiclib.geodesic
+import datetime
 
+geodesic = geographiclib.geodesic.Geodesic.WGS84
 
 class Tracker(object):
 
@@ -52,3 +56,34 @@ def print_tracker(tracker):
         print('{} {}: \n{}'.format(source.name, callback, pprint.pformat(data)))
 
     tracker.new_points_callbacks.append(functools.partial(print_callback, 'new_points'))
+
+
+async def start_analyse_tracker(tracker):
+    new_tracker = Tracker('analysed.{}'.format(tracker.name))
+    new_tracker.last_point_with_position = None
+    new_tracker.current_track_id = 0
+    await analyse_tracker_new_points(new_tracker, tracker, tracker.points)
+    tracker.new_points_callbacks.append(functools.partial(analyse_tracker_new_points, new_tracker))
+    return new_tracker
+
+
+async def analyse_tracker_new_points(new_tracker, tracker, new_points):
+    new_new_points = []
+    track_break_time = datetime.timedelta(minutes=21)
+    track_break_dist = 10000
+    for point in new_points:
+        point = copy.deepcopy(point)
+        if 'position' in point:
+            if new_tracker.last_point_with_position:
+                last_point = new_tracker.last_point_with_position
+                dist = geodesic.Inverse(point['position'][0], point['position'][1], last_point['position'][0], last_point['position'][1])['s12']
+                time = point['time'] - last_point['time']
+                # speed = dist/time.total_seconds()
+                if time > track_break_time and dist > track_break_dist:
+                    # print((str(time), dist))
+                    new_tracker.current_track_id += 1
+            new_tracker.last_point_with_position = point
+            point['track_id'] = new_tracker.current_track_id
+        new_new_points.append(point)
+    if new_new_points:
+        await new_tracker.new_points(new_new_points)

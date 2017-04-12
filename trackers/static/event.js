@@ -109,7 +109,7 @@ document.addEventListener('DOMContentLoaded', function() {
             riders_points = {};
             window.localStorage.setItem(location.pathname  + '_riders_points', JSON.stringify(riders_points))
             Object.values(riders_client_items).forEach(function (rider_items){
-                rider_items.path.setMap(null);
+                Object.values(rider_items.paths).forEach(function (path){ path.setMap(null) });
                 rider_items.marker.setMap(null);
             });
             riders_client_items = {};
@@ -146,20 +146,21 @@ document.addEventListener('DOMContentLoaded', function() {
     function on_new_rider_points(rider_name, index){
         var rider = riders_by_name[rider_name]
         if (!rider) return;
-        var rider_items = riders_client_items[rider_name] || (riders_client_items[rider_name] = {})
+        var rider_items = riders_client_items[rider_name] || (riders_client_items[rider_name] = {'paths': {}})
         path_color = rider.color || 'black';
-        path = (rider_items.path || (rider_items.path = new google.maps.Polyline({
-            map: map,
-            path: [],
-            geodesic: true,
-            strokeColor: path_color,
-            strokeOpacity: 1.0,
-            strokeWeight: 2
-        }))).getPath()
 
         var last_position = null;
         riders_points[rider_name].slice(index).forEach(function (point) {
             if (point.hasOwnProperty('position')) {
+                path = (rider_items.paths[point.track_id] || (rider_items.paths[point.track_id] = new google.maps.Polyline({
+                    map: map,
+                    path: [],
+                    geodesic: true,
+                    strokeColor: path_color,
+                    strokeOpacity: 1.0,
+                    strokeWeight: 2
+                }))).getPath()
+
                 last_position = new google.maps.LatLng(point.position[0], point.position[1]);
                 path.push(last_position);
             }

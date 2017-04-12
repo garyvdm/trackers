@@ -13,6 +13,7 @@ setuptools.setup(
         'asyncio-contextmanager',
         'python-slugify',
         'filemagic',
+        'geographiclib',
     ],
     entry_points={
         'console_scripts': [
