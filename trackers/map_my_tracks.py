@@ -5,10 +5,10 @@ import logging
 import os
 import itertools
 import functools
+import json
 
 import aiohttp
 import bs4
-import yaml
 
 import trackers
 
@@ -31,7 +31,11 @@ async def api_call(client_session, request_name, data):
     async with client_session.post('http://www.mapmytracks.com/api/', data=req_data,) as response:
         response.raise_for_status()
         xml_str = await response.text()
-    xml_dom = xml.fromstring(xml_str)
+    try:
+        xml_dom = xml.fromstring(xml_str)
+    except Exception:
+        logging.exception("Error parsing: \n{}\n".format(xml_str))
+        raise
     type_ = xml_dom.find('./type')
     # if type_ is None:
     #     raise RuntimeError('No type in message for {}'.format(request_name))
@@ -58,7 +62,7 @@ async def stop_activity(client_session, activity_id):
     await api_call(client_session, 'stop_activity', (('activity_id', activity_id), ))
 
 
-async def get_activites(client_session, author, logger=None, pages=5):
+async def get_activites(client_session, author, logger=None, pages=5, warn_scrape=True):
     if logger is None:
         logger = logging.getLogger('mapmytracks')
 
@@ -73,7 +77,8 @@ async def get_activites(client_session, author, logger=None, pages=5):
 
     else:
         # Hack to pull activites with html scraping. :-(
-        logger.warning('User "{}" is not a username. Using html scrap to get activities.'.format(author))
+        if warn_scrape:
+            logger.warning('User "{}" is not a username. Using html scrap to get activities.'.format(author))
 
         activites = []
         for i in range(1, pages):
@@ -119,13 +124,14 @@ async def get_activity(client_session, activity_id, from_time):
 async def monitor_user(client_session, user, start_date, end_date, cache_path, tracker):
     full_cache_path = os.path.join(cache_path, user)
     # todo have append state/cache storage
+    state = {}
     try:
-        with open(full_cache_path) as f:
-            state = yaml.load(f)
-        if state is None:
-            state = {}
+        with open(full_cache_path, 'r') as f:
+            state = json.load(f)
     except FileNotFoundError:
-        state = {}
+        tracker.logger.info("Cache file not found: '{}'".format(full_cache_path))
+    except Exception:
+        tracker.logger.exception("Error loading cache file: '{}' :".format(full_cache_path))
 
     activites = set(state.get('activites', []))
     completed_activites = set(state.get('completed_activites', ()))
@@ -138,10 +144,14 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
         await tracker.new_points(old_points)
 
     def save():
+        state = {}
         state['activites'] = list(activites)
         state['completed_activites'] = list(completed_activites)
+        state['activities_points'] = activities_points
+
         with open(full_cache_path, 'w') as f:
-            yaml.dump(state, f)
+            json.dump(state, f)
+
 
     while True:
         now = datetime.datetime.now()
@@ -152,7 +162,8 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
             uncompleted_activities = completed_activites.difference(activites)
 
             if not uncompleted_activities:
-                all_activites = await  get_activites(client_session, user, logger=tracker.logger, pages=1 if activites else 5)
+                all_activites = await  get_activites(client_session, user, logger=tracker.logger,
+                                                     pages=1 if activites else 5, warn_scrape=not activites)
                 activites.update([activity[0] for activity in all_activites if start_date <= activity[1] < end_date])
                 uncompleted_activities = activites.difference(completed_activites)
                 save()
@@ -161,7 +172,7 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
 
             new_points = []
             for activity_id in uncompleted_activities:
-                if datetime.datetime.now() - last_slow_log > datetime.timedelta(seconds=30):
+                if datetime.datetime.now() - last_slow_log > datetime.timedelta(seconds=10):
                     tracker.logger.info('Still downloading. ({} points)'.format(sum((len(p) for p in new_points))))
                     slow = True
                     last_slow_log = datetime.datetime.now()

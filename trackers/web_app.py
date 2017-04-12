@@ -184,5 +184,5 @@ async def client_error_logger(request):
     body = body[:1024 * 1024]  # limit to 1kb
     agent = request.headers['User-Agent']
     client = request.transport.get_extra_info('peername')[0]
-    logger.getLogger('client_errors').error('\n'.join((body, agent, client)))
+    logger.error('\n'.join((body, agent, client)))
     return aiohttp.web.Response()
