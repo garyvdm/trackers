@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function ws_onopen(event) {
         set_status('Conneceted');
-        reconnect_time = 1000;
+        reconnect_time = 500;
         close_reason = null;
     }
 
@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function ws_onmessage(event){
         set_status('Conneceted');
-//        console.log(event.data);
+        console.log(event.data);
         var data = JSON.parse(event.data);
         if (data.hasOwnProperty('client_hash')) {
             if (data.client_hash != client_hash) {
@@ -104,12 +104,13 @@ document.addEventListener('DOMContentLoaded', function() {
             event_data = data.event_data;
             window.localStorage.setItem(location.pathname  + '_event_data', JSON.stringify(event_data));
             on_new_event_data();
+            update_rider_table();
         }
         if (data.hasOwnProperty('erase_rider_points')) {
             riders_points = {};
             window.localStorage.setItem(location.pathname  + '_riders_points', JSON.stringify(riders_points))
             Object.values(riders_client_items).forEach(function (rider_items){
-                Object.values(rider_items.paths).forEach(function (path){ path.setMap(null) });
+                Object.values(rider_items.paths || {}).forEach(function (path){ path.setMap(null) });
                 rider_items.marker.setMap(null);
             });
             riders_client_items = {};
@@ -121,6 +122,7 @@ document.addEventListener('DOMContentLoaded', function() {
             rider_points.extend(data.rider_points.points)
             window.localStorage.setItem(location.pathname  + '_riders_points', JSON.stringify(riders_points))
             on_new_rider_points(name, last_index)
+            update_rider_table();
         }
 
     }
@@ -146,10 +148,10 @@ document.addEventListener('DOMContentLoaded', function() {
     function on_new_rider_points(rider_name, index){
         var rider = riders_by_name[rider_name]
         if (!rider) return;
-        var rider_items = riders_client_items[rider_name] || (riders_client_items[rider_name] = {'paths': {}})
+        var rider_items = riders_client_items[rider_name] || (riders_client_items[rider_name] = {'paths': {}, 'current_values': {}})
         path_color = rider.color || 'black';
+        var rider_current_values = rider_items.current_values;
 
-        var last_position = null;
         riders_points[rider_name].slice(index).forEach(function (point) {
             if (point.hasOwnProperty('position')) {
                 path = (rider_items.paths[point.track_id] || (rider_items.paths[point.track_id] = new google.maps.Polyline({
@@ -160,27 +162,49 @@ document.addEventListener('DOMContentLoaded', function() {
                     strokeOpacity: 1.0,
                     strokeWeight: 2
                 }))).getPath()
-
-                last_position = new google.maps.LatLng(point.position[0], point.position[1]);
-                path.push(last_position);
+                path.push(new google.maps.LatLng(point.position[0], point.position[1]));
+                rider_items.last_position_point = point;
             }
+            Object.assign(rider_current_values, point);
         });
 
+        var position = new google.maps.LatLng(rider_items.last_position_point.position[0], rider_items.last_position_point.position[1])
         if (!rider_items.marker) {
             marker_color = rider.color_marker || 'white';
             rider_items.marker = new RichMarker({
                 map: map,
-                position: last_position,
+                position: position,
                 flat: true,
                 content: '<div class="rider-marker" style="background: ' + marker_color + ';">' + (rider.name_short || rider.name)+ '</div>' +
                          '<div class="rider-marker-pointer" style="border-color: transparent ' + marker_color + ' ' + marker_color + ' transparent;"></div>'
             })
         } else {
-            rider_items.marker.setPosition(last_position);
+            rider_items.marker.setPosition(position);
         }
-
-
     }
+
+    function update_rider_table(){
+
+        rider_rows = event_data.riders.map(function (rider){
+            var rider_items = riders_client_items[rider.name] || {};
+            var current_values = rider_items.current_values || {};
+            var last_position_time;
+            if (rider_items.last_position_point) {
+                // TODO more than a day
+                var time = new Date(rider_items.last_position_point.time * 1000);
+                console.log([rider_items.last_position_point.time, time, time.getHours(), time.getMinutes(), time.getSeconds()])
+                last_position_time = sprintf('%02i:%02i:%02i', time.getHours(), time.getMinutes(), time.getSeconds() )
+            }
+            return '<tr>'+
+                   '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
+                   '<td>' + rider.name + '</td>' +
+                   '<td>' + (current_values.status || '') + '</td>' +
+                   '<td style="text-align: right">' +  (last_position_time || '') + '</td>' +
+                   '</tr>';
+        });
+        document.getElementById('riders').innerHTML = '<table><tr class="head"><td></td><td>Name</td><td>Tracker<br>Status</td><td>Last<br>Position</td></tr>' + rider_rows.join('') + '</table>';
+    }
+
 
     var event_data = JSON.parse(window.localStorage.getItem(location.pathname  + '_event_data'))
     var event_markers = []
@@ -191,6 +215,7 @@ document.addEventListener('DOMContentLoaded', function() {
     try{
         on_new_event_data();
         Object.keys(riders_points).forEach(function(rider_name) { on_new_rider_points(rider_name, 0) });
+        update_rider_table();
     }
     finally {
         setTimeout(ws_connect, 0);

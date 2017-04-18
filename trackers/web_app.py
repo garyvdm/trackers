@@ -29,7 +29,7 @@ async def make_aio_app(loop, settings):
 
     def event_page_body_processor(app, body):
         hash = hashlib.sha1(body)
-        for resource_name in ('/static/event.js', ):
+        for resource_name in ('/static/event.js', '/static/event.css', '/static/richmarker.js',):
             hash.update(pkg_resources.resource_string('trackers', resource_name))
         client_hash = base64.urlsafe_b64encode(hash.digest()).decode('ascii')
         app['trackers.client_hash'] = client_hash
@@ -37,8 +37,9 @@ async def make_aio_app(loop, settings):
 
     with magic.Magic(flags=magic.MAGIC_MIME_TYPE) as m:
         add_static = partial(add_static_resource, app, 'trackers', static_etags, m)
-        add_static('/static/event.js', '/static/event.js', charset='utf8', content_type='application/javascript')
-        add_static('/static/richmarker.js', '/static/richmarker.js', charset='utf8', content_type='application/javascript')
+        add_static('/static/event.css', '/static/event.css', charset='utf8', content_type='text/css')
+        add_static('/static/event.js', '/static/event.js', charset='utf8', content_type='text/javascript')
+        add_static('/static/richmarker.js', '/static/richmarker.js', charset='utf8', content_type='text/javascript')
         add_static('/static/event.html', '/{event}', charset='utf8', content_type='text/html', body_processor=event_page_body_processor)
         for name in pkg_resources.resource_listdir('trackers', '/static/markers'):
             full_name = '/static/markers/{}'.format(name)
