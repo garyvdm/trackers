@@ -14,6 +14,7 @@ setuptools.setup(
         'python-slugify',
         'filemagic',
         'geographiclib',
+        'asynctest',
     ],
     entry_points={
         'console_scripts': [
