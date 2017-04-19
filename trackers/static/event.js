@@ -1,3 +1,10 @@
+var TIME = 't'
+var POSITION = 'p'
+var TRACK_ID = 'i'
+var STATUS = 's'
+var DIST_ROUTE = 'o'
+var DIST_RIDDEN = 'd'
+
 document.addEventListener('DOMContentLoaded', function() {
     var status = document.getElementById('status');
     var status_msg = '';
@@ -113,7 +120,7 @@ document.addEventListener('DOMContentLoaded', function() {
             window.localStorage.setItem(location.pathname  + '_riders_points', JSON.stringify(riders_points))
             Object.values(riders_client_items).forEach(function (rider_items){
                 Object.values(rider_items.paths || {}).forEach(function (path){ path.setMap(null) });
-                rider_items.marker.setMap(null);
+                if (rider_items.hasOwnProperty('marker')) rider_items.marker.setMap(null);
             });
             riders_client_items = {};
         }
@@ -155,8 +162,8 @@ document.addEventListener('DOMContentLoaded', function() {
         var rider_current_values = rider_items.current_values;
 
         riders_points[rider_name].slice(index).forEach(function (point) {
-            if (point.hasOwnProperty('position')) {
-                path = (rider_items.paths[point.track_id] || (rider_items.paths[point.track_id] = new google.maps.Polyline({
+            if (point.hasOwnProperty(POSITION)) {
+                path = (rider_items.paths[point[TRACK_ID]] || (rider_items.paths[point[TRACK_ID]] = new google.maps.Polyline({
                     map: map,
                     path: [],
                     geodesic: true,
@@ -164,13 +171,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     strokeOpacity: 1.0,
                     strokeWeight: 2
                 }))).getPath()
-                path.push(new google.maps.LatLng(point.position[0], point.position[1]));
+                path.push(new google.maps.LatLng(point[POSITION][0], point[POSITION][1]));
                 rider_items.last_position_point = point;
             }
             Object.assign(rider_current_values, point);
         });
 
-        var position = new google.maps.LatLng(rider_items.last_position_point.position[0], rider_items.last_position_point.position[1])
+        var position = new google.maps.LatLng(rider_items.last_position_point[POSITION][0], rider_items.last_position_point[POSITION][1])
         if (!rider_items.marker) {
             marker_color = rider.color_marker || 'white';
             rider_items.marker = new RichMarker({
@@ -193,14 +200,13 @@ document.addEventListener('DOMContentLoaded', function() {
             var last_position_time;
             if (rider_items.last_position_point) {
                 // TODO more than a day
-                var time = new Date(rider_items.last_position_point.time * 1000);
-                console.log([rider_items.last_position_point.time, time, time.getHours(), time.getMinutes(), time.getSeconds()])
+                var time = new Date(rider_items.last_position_point[TIME] * 1000);
                 last_position_time = sprintf('%02i:%02i:%02i', time.getHours(), time.getMinutes(), time.getSeconds() )
             }
             return '<tr>'+
                    '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
                    '<td>' + rider.name + '</td>' +
-                   '<td>' + (current_values.status || '') + '</td>' +
+                   '<td>' + (current_values[STATUS] || '') + '</td>' +
                    '<td style="text-align: right">' +  (last_position_time || '') + '</td>' +
                    '</tr>';
         });

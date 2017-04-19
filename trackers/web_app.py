@@ -20,7 +20,7 @@ import trackers.events
 
 logger = logging.getLogger(__name__)
 
-server_version = 3
+server_version = 8
 
 async def make_aio_app(loop, settings):
     app = web.Application(loop=loop)
@@ -156,9 +156,7 @@ async def event_ws(request):
                                 last_index = client_rider_point_indexes.get(rider_name, 0)
                                 new_points = tracker.points[last_index:]
                                 if new_points:
-                                    if len(new_points) > 100:
-                                        send({'sending': rider_name})
-                                    send({'rider_points': {'name': rider_name, 'points': new_points}})
+                                    await tracker_new_points_to_ws(send, rider_name, tracker, new_points)
                                 client_rider_point_indexes[rider_name] = len(tracker.points)
                                 exit_stack.enter_context(list_register(tracker.new_points_callbacks,
                                                                        partial(tracker_new_points_to_ws, send, rider_name)))
@@ -175,9 +173,25 @@ async def event_ws(request):
             raise
 
 
+point_keys = {
+    'time': 't',
+    'position': 'p',
+    'track_id': 'i',
+    'status': 's',
+    'dist_route': 'o',
+    'dist_ridden': 'd',
+}
+
+
 async def tracker_new_points_to_ws(ws_send, rider_name, tracker, new_points):
+    if len(new_points) > 100:
+        ws_send({'sending': rider_name})
     try:
-        ws_send({'rider_points': {'name': rider_name, 'points': new_points}})
+        compressed_points = [
+            {point_keys.get(key, key): value for key, value in point.items()}
+            for point in new_points
+        ]
+        ws_send({'rider_points': {'name': rider_name, 'points': compressed_points}})
     except Exception:
         logger.exception('Error in tracker_new_points_to_ws:')
 
