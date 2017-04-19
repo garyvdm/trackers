@@ -20,6 +20,7 @@ import trackers.events
 
 logger = logging.getLogger(__name__)
 
+server_version = 3
 
 async def make_aio_app(loop, settings):
     app = web.Application(loop=loop)
@@ -131,13 +132,19 @@ async def event_ws(request):
                 if msg.tp == WSMsgType.text:
                     data = json.loads(msg.data)
                     logger.debug(data)
+                    resend = False
                     if 'event_data_version' in data:
-                        if not data['event_data_version'] or data['event_data_version'] != event_data['data_version']:
+                        resend = (
+                            not data['event_data_version'] or
+                            data['event_data_version'] != event_data['data_version'] or
+                            data['server_version'] != server_version
+                        )
+                        if resend:
                             # TODO: massage data to remove stuff that is only approiate to server
                             send({'sending': 'event data'})
-                            send({'event_data': event_data})
+                            send({'event_data': event_data, 'server_version': server_version})
                     if 'rider_indexes' in data:
-                        if not data['event_data_version'] or data['event_data_version'] != event_data['data_version']:
+                        if resend:
                             send({'erase_rider_points': 1})
                             client_rider_point_indexes = {}
                         else:

@@ -90,7 +90,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 location.reload();
             } else {
                 current_state = {
-                    'event_data_version': (event_data? event_data['data_version'] || null : null),
+                    'event_data_version': (event_data? event_data.data_version || null : null),
+                    'server_version': (event_data? event_data.server_version || null : null),
                 }
                 rider_indexes = current_state['rider_indexes'] = {}
                 Object.keys(riders_points).forEach(function (name) {rider_indexes[name] = riders_points[name].length})
@@ -102,6 +103,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         if (data.hasOwnProperty('event_data')) {
             event_data = data.event_data;
+            event_data.server_version = data.server_version;
             window.localStorage.setItem(location.pathname  + '_event_data', JSON.stringify(event_data));
             on_new_event_data();
             update_rider_table();

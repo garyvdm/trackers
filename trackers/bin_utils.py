@@ -39,7 +39,9 @@ defaults_yaml = """
             trackers:
                  level: INFO
                  qualname: trackers
-
+            web_app:
+                 level: INFO
+                 qualname: web_app
             aiohttp:
                  level: INFO
                  qualname: aiohttp
@@ -89,7 +91,8 @@ def get_combined_settings(specific_defaults_yaml=None, args=None):
 
     logging.config.dictConfig(settings['logging'])
     if args and args.debug:
-        logging.getLogger('cfs').setLevel(logging.DEBUG)
+        logging.getLogger('trackers').setLevel(logging.DEBUG)
+        logging.getLogger('web_app').setLevel(logging.DEBUG)
 
     if sys.stdout.isatty() and settings['logging'] != defaults['logging']:
         # Reapply the default logging settings
