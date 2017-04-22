@@ -177,18 +177,20 @@ document.addEventListener('DOMContentLoaded', function() {
             Object.assign(rider_current_values, point);
         });
 
-        var position = new google.maps.LatLng(rider_items.last_position_point[POSITION][0], rider_items.last_position_point[POSITION][1])
-        if (!rider_items.marker) {
-            marker_color = rider.color_marker || 'white';
-            rider_items.marker = new RichMarker({
-                map: map,
-                position: position,
-                flat: true,
-                content: '<div class="rider-marker" style="background: ' + marker_color + ';">' + (rider.name_short || rider.name)+ '</div>' +
-                         '<div class="rider-marker-pointer" style="border-color: transparent ' + marker_color + ' ' + marker_color + ' transparent;"></div>'
-            })
-        } else {
-            rider_items.marker.setPosition(position);
+        if (rider_items.hasOwnProperty('last_position_point')) {
+            var position = new google.maps.LatLng(rider_items.last_position_point[POSITION][0], rider_items.last_position_point[POSITION][1])
+            if (!rider_items.marker) {
+                marker_color = rider.color_marker || 'white';
+                rider_items.marker = new RichMarker({
+                    map: map,
+                    position: position,
+                    flat: true,
+                    content: '<div class="rider-marker" style="background: ' + marker_color + ';">' + (rider.name_short || rider.name)+ '</div>' +
+                             '<div class="rider-marker-pointer" style="border-color: transparent ' + marker_color + ' ' + marker_color + ' transparent;"></div>'
+                })
+            } else {
+                rider_items.marker.setPosition(position);
+            }
         }
     }
 
