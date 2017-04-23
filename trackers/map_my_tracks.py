@@ -154,57 +154,63 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
 
 
     while True:
-        now = datetime.datetime.now()
-        last_slow_log = now
-        slow = False
+        try:
+            now = datetime.datetime.now()
+            last_slow_log = now
+            slow = False
 
-        if now >= start_date:
-            uncompleted_activities = completed_activites.difference(activites)
+            if now >= start_date:
+                uncompleted_activities = completed_activites.difference(activites)
 
-            if not uncompleted_activities:
-                all_activites = await  get_activites(client_session, user, logger=tracker.logger,
-                                                     pages=1 if activites else 5, warn_scrape=not activites)
-                activites.update([activity[0] for activity in all_activites if start_date <= activity[1] < end_date])
-                uncompleted_activities = activites.difference(completed_activites)
-                save()
-
-            completed_changes = False
-
-            new_points = []
-            for activity_id in uncompleted_activities:
-                if datetime.datetime.now() - last_slow_log > datetime.timedelta(seconds=10):
-                    tracker.logger.info('Still downloading. ({} points)'.format(sum((len(p) for p in new_points))))
-                    slow = True
-                    last_slow_log = datetime.datetime.now()
+                if not uncompleted_activities:
+                    all_activites = await  get_activites(client_session, user, logger=tracker.logger,
+                                                         pages=1 if activites else 5, warn_scrape=not activites)
+                    activites.update([activity[0] for activity in all_activites if start_date <= activity[1] < end_date])
+                    uncompleted_activities = activites.difference(completed_activites)
                     save()
 
-                points = activities_points.setdefault(activity_id, [])
-                while True:
-                    max_timestamp = points[-1][0] if points else 0
+                completed_changes = False
 
-                    complete, update_points = await get_activity(client_session, activity_id, max_timestamp)
-                    if len(update_points) == 0:
-                        break
-                    points.extend(update_points)
-                    new_points.append(update_points)
-                if complete:
-                    completed_changes = True
-                    completed_activites.add(activity_id)
+                new_points = []
+                for activity_id in uncompleted_activities:
+                    if datetime.datetime.now() - last_slow_log > datetime.timedelta(seconds=10):
+                        tracker.logger.info('Still downloading. ({} points)'.format(sum((len(p) for p in new_points))))
+                        slow = True
+                        last_slow_log = datetime.datetime.now()
+                        save()
 
-            if slow:
-                tracker.logger.info('Done downloading. ({} points)'.format(sum((len(p) for p in new_points))))
+                    points = activities_points.setdefault(activity_id, [])
+                    while True:
+                        max_timestamp = points[-1][0] if points else 0
 
-            if new_points or completed_changes:
-                save()
+                        complete, update_points = await get_activity(client_session, activity_id, max_timestamp)
+                        if len(update_points) == 0:
+                            break
+                        points.extend(update_points)
+                        new_points.append(update_points)
+                    if complete:
+                        completed_changes = True
+                        completed_activites.add(activity_id)
 
-            new_tracker_points = [tracker_point(point) for point in sorted(itertools.chain.from_iterable(new_points))]
-            if new_tracker_points:
-                await tracker.new_points(new_tracker_points)
+                if slow:
+                    tracker.logger.info('Done downloading. ({} points)'.format(sum((len(p) for p in new_points))))
 
-        if now > end_date:
+                if new_points or completed_changes:
+                    save()
+
+                new_tracker_points = [tracker_point(point) for point in sorted(itertools.chain.from_iterable(new_points))]
+                if new_tracker_points:
+                    await tracker.new_points(new_tracker_points)
+
+            if now > end_date:
+                break
+
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
             break
-
-        await asyncio.sleep(60)
+        except Exception:
+            tracker.logger.exception('Error in monitor_user:')
+            await asyncio.sleep(10)
 
 
 async def main():
