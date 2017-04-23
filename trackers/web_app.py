@@ -184,10 +184,9 @@ point_keys = {
 
 
 async def tracker_new_points_to_ws(ws_send, rider_name, tracker, new_points):
-    if len(new_points) > 100:
-        ws_send({'sending': rider_name})
     try:
         for points in chunked(new_points, 100):
+            ws_send({'sending': rider_name})
             compressed_points = [
                 {point_keys.get(key, key): value for key, value in point.items()}
                 for point in points
