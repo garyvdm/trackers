@@ -195,7 +195,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function update_rider_table(){
-
         rider_rows = event_data.riders.map(function (rider){
             var rider_items = riders_client_items[rider.name] || {};
             var current_values = rider_items.current_values || {};
@@ -223,9 +222,11 @@ document.addEventListener('DOMContentLoaded', function() {
     var riders_client_items = {}
 
     try{
-        on_new_event_data();
-        Object.keys(riders_points).forEach(function(rider_name) { on_new_rider_points(rider_name, 0) });
-        update_rider_table();
+        if (event_data){
+            on_new_event_data();
+            Object.keys(riders_points).forEach(function(rider_name) { on_new_rider_points(rider_name, 0) });
+            update_rider_table();
+        }
     }
     finally {
         setTimeout(ws_connect, 0);

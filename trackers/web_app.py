@@ -2,15 +2,14 @@ import logging
 import hashlib
 import json
 import pkg_resources
-import os
 import base64
-import asyncio
 import datetime
 import contextlib
 from functools import partial
 
 import magic
 import aiohttp
+from more_itertools import chunked
 from aiohttp import web, WSMsgType
 from slugify import slugify
 
@@ -20,7 +19,7 @@ import trackers.events
 
 logger = logging.getLogger(__name__)
 
-server_version = 8
+server_version = 9
 
 async def make_aio_app(loop, settings):
     app = web.Application(loop=loop)
@@ -135,7 +134,8 @@ async def event_ws(request):
                     resend = False
                     if 'event_data_version' in data:
                         resend = (
-                            not data['event_data_version'] or
+                            not data.get('event_data_version') or
+                            not data.get('server_version') or
                             data['event_data_version'] != event_data['data_version'] or
                             data['server_version'] != server_version
                         )
@@ -187,11 +187,12 @@ async def tracker_new_points_to_ws(ws_send, rider_name, tracker, new_points):
     if len(new_points) > 100:
         ws_send({'sending': rider_name})
     try:
-        compressed_points = [
-            {point_keys.get(key, key): value for key, value in point.items()}
-            for point in new_points
-        ]
-        ws_send({'rider_points': {'name': rider_name, 'points': compressed_points}})
+        for points in chunked(new_points, 100):
+            compressed_points = [
+                {point_keys.get(key, key): value for key, value in point.items()}
+                for point in points
+            ]
+            ws_send({'rider_points': {'name': rider_name, 'points': compressed_points}})
     except Exception:
         logger.exception('Error in tracker_new_points_to_ws:')
 

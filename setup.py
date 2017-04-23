@@ -15,6 +15,7 @@ setuptools.setup(
         'filemagic',
         'geographiclib',
         'asynctest',
+        'more-itertools',
     ],
     entry_points={
         'console_scripts': [
