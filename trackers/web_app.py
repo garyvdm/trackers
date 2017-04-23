@@ -204,7 +204,9 @@ def json_encode(obj):
 async def client_error_logger(request):
     body = await request.text()
     body = body[:1024 * 1024]  # limit to 1kb
-    agent = request.headers['User-Agent']
-    client = request.transport.get_extra_info('peername')[0]
+    agent = request.headers.get('User-Agent', '')
+    peername = request.transport.get_extra_info('peername')
+    forwared_for = request.headers.get('X-Forwarded-For')
+    client = forwared_for or (peername[0] if peername else '')
     logger.error('\n'.join((body, agent, client)))
     return aiohttp.web.Response()
