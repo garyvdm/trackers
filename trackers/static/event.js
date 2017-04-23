@@ -123,6 +123,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (rider_items.hasOwnProperty('marker')) rider_items.marker.setMap(null);
             });
             riders_client_items = {};
+            update_rider_table();
         }
         if (data.hasOwnProperty('rider_points')) {
             var name = data.rider_points.name;
