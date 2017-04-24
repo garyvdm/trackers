@@ -1,14 +1,18 @@
 import os
+import logging
 
 import yaml
 
 import trackers
 import trackers.modules
 
+logger = logging.getLogger(__name__)
+
 def load_events(app, settings):
     app['trackers.events_data'] = events_data = {}
     app['trackers.tracker_tasks'] = []
     app['trackers.events_rider_trackers'] = {}
+    app['trackers.events_routes'] = {}
 
     with open(os.path.join(settings['data_path'], 'events.yaml')) as f:
         event_names = yaml.load(f)
@@ -19,18 +23,25 @@ def load_events(app, settings):
         events_data[event_name] = event_data
 
 
+
 async def start_event_trackers(app, settings, event_name):
+    logger.info('Starting {}'.format(event_name))
     event_data = app['trackers.events_data'][event_name]
     event_rider_trackers = app['trackers.events_rider_trackers'][event_name] = {}
+
+    analyse = event_data.get('analyse', False)
+
+    if analyse:
+        event_routes = trackers.get_expanded_routes(event_data.get('routes', ()))
 
     for rider in event_data['riders']:
         if rider['tracker']:
             tracker = await trackers.modules.start_event_trackers[rider['tracker']['type']](
                 app, settings, event_name, event_data, rider['tracker'])
-            tracker = await trackers.start_analyse_tracker(tracker)
-            # print(rider['name'])
-            # import pprint
-            # pprint.pprint(tracker.points)
+            if analyse:
+                logger.debug('start_analyse_tracker for {}. ({} points)'.format(tracker.name, len(tracker.points)))
+                tracker = await trackers.start_analyse_tracker(tracker, event_data, event_routes)
+
             event_rider_trackers[rider['name']] = tracker
             # trackers.print_tracker(tracker)
 

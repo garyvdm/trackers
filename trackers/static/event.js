@@ -196,24 +196,58 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
     function update_rider_table(){
-        rider_rows = event_data.riders.map(function (rider){
+        var sorted_riders = Array.from(event_data.riders);
+        sorted_riders.sort(function (a, b){
+            var a_rider_items = riders_client_items[a.name] || {};
+            var a_current_values = a_rider_items.current_values || {};
+            var b_rider_items = riders_client_items[b.name] || {};
+            var b_current_values = b_rider_items.current_values || {};
+
+            if (a_current_values.finished_time && !b_current_values.finished_time || a_current_values.finished_time < b_current_values.finished_time) return -1;
+            if (!a_current_values.finished_time && b_current_values.finished_time || a_current_values.finished_time > b_current_values.finished_time) return 1;
+
+            if (a_current_values[DIST_ROUTE] && !b_current_values[DIST_ROUTE] || a_current_values[DIST_ROUTE] > b_current_values[DIST_ROUTE]) return -1;
+            if (!a_current_values[DIST_ROUTE] && b_current_values[DIST_ROUTE] || a_current_values[DIST_ROUTE] < b_current_values[DIST_ROUTE]) return 1;
+            return 0;
+        });
+        rider_rows = sorted_riders.map(function (rider){
             var rider_items = riders_client_items[rider.name] || {};
             var current_values = rider_items.current_values || {};
             var last_position_time;
+            var finished_time;
+            if (current_values.finished_time) {
+                var time = new Date(current_values.finished_time * 1000);
+                finished_time = sprintf('%s %02i:%02i:%02i', days[time.getDay()], time.getHours(), time.getMinutes(), time.getSeconds() )
+
+            }
             if (rider_items.last_position_point) {
                 // TODO more than a day
                 var time = new Date(rider_items.last_position_point[TIME] * 1000);
-                last_position_time = sprintf('%02i:%02i:%02i', time.getHours(), time.getMinutes(), time.getSeconds() )
+                last_position_time = sprintf('%s %02i:%02i:%02i', days[time.getDay()], time.getHours(), time.getMinutes(), time.getSeconds() )
             }
             return '<tr>'+
                    '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
                    '<td>' + rider.name + '</td>' +
                    '<td>' + (current_values[STATUS] || '') + '</td>' +
                    '<td style="text-align: right">' +  (last_position_time || '') + '</td>' +
+                   '<td style="text-align: right">' + (current_values.hasOwnProperty(DIST_RIDDEN) ? Math.round(current_values[DIST_RIDDEN] / 100) / 10 : '') + '</td>' +
+                   '<td style="text-align: right">' + (current_values.hasOwnProperty(DIST_ROUTE) ? Math.round(current_values[DIST_ROUTE] / 100) / 10 : '') + '</td>' +
+                   '<td style="text-align: right">' + (finished_time || '') + '</td>' +
                    '</tr>';
         });
-        document.getElementById('riders').innerHTML = '<table><tr class="head"><td></td><td>Name</td><td>Tracker<br>Status</td><td>Last<br>Position</td></tr>' + rider_rows.join('') + '</table>';
+        document.getElementById('riders').innerHTML =
+            '<table><tr class="head">' +
+            '<td></td>' +
+            '<td>Name</td>' +
+            '<td>Tracker<br>Status</td>' +
+            '<td>Last<br>Position</td>' +
+            '<td>Dist<br>Ridden</td>' +
+            '<td>Dist on<br>Route</td>' +
+            '<td>Finish<br>Time</td>' +
+            '</tr>' + rider_rows.join('') + '</table>';
     }
 
 

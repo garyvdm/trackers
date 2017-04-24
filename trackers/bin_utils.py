@@ -5,6 +5,7 @@ import copy
 import logging.config
 import os
 import sys
+import xml.etree.ElementTree as xml
 
 import yaml
 
@@ -37,10 +38,12 @@ defaults_yaml = """
             web_app:
                  level: INFO
                  qualname: web_app
+            events:
+                 level: INFO
+                 qualname: events
             aiohttp:
                  level: INFO
                  qualname: aiohttp
-
             asyncio:
                  level: INFO
                  qualname: asyncio
@@ -102,12 +105,14 @@ def get_combined_settings(specific_defaults_yaml=None, args=None):
 def convert_to_static():
     parser = get_base_argparser(description="Convert live trackers to static data.")
     parser.add_argument('event', action='store')
+    parser.add_argument('--dry-run', '-d', action='store_true')
+
     args = parser.parse_args()
     settings = get_combined_settings(args=args)
     with contextlib.closing(asyncio.get_event_loop()) as loop:
-        loop.run_until_complete(convert_to_static_async(settings, args.event))
+        loop.run_until_complete(convert_to_static_async(settings, args.event, args.dry_run))
 
-async def convert_to_static_async(settings, event_name):
+async def convert_to_static_async(settings, event_name, dry_run):
     app = {}
     async with await trackers.modules.config_modules(app, settings):
         trackers.events.load_events(app, settings)
@@ -124,7 +129,8 @@ async def convert_to_static_async(settings, event_name):
             with open(os.path.join(os.path.join(settings['data_path'], event_name, rider_name)), 'w') as f:
                 yaml.dump(tracker.points, f)
             rider['tracker'] = {'type': 'static', 'name': rider_name}
-        trackers.events.save_event(app, settings, event_name)
+        if not dry_run:
+            trackers.events.save_event(app, settings, event_name)
 
 
 def assign_rider_colors():
@@ -144,4 +150,29 @@ def assign_rider_colors():
 
 
 
+def add_gpx_to_event_routes():
+    parser = get_base_argparser(description="Add a gpx file to the routes for of an event.")
+    parser.add_argument('event', action='store')
+    parser.add_argument('gpx_file', action='store')
+    args = parser.parse_args()
+    settings = get_combined_settings(args=args)
+    app = {}
+    event_name = args.event
+    trackers.events.load_events(app, settings)
+    event_data = app['trackers.events_data'][event_name]
+
+    with open(args.gpx_file) as f:
+        gpx_text = f.read()
+
+    xml_doc = xml.fromstring(gpx_text)
+
+    gpx_ns = {
+        '1.0': {'gpx': 'http://www.topografix.com/GPX/1/0', },
+        '1.1': {'gpx': 'http://www.topografix.com/GPX/1/1', },
+    }[xml_doc.attrib['version']]
+
+    trkpts = xml_doc.findall('./gpx:trk/gpx:trkseg/gpx:trkpt', gpx_ns)
+    points = [[float(trkpt.attrib['lat']), float(trkpt.attrib['lon'])] for trkpt in trkpts]
+    event_data.setdefault('routes', []).append(points)
+    trackers.events.save_event(app, settings, event_name)
 

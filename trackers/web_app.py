@@ -19,7 +19,7 @@ import trackers.modules
 
 logger = logging.getLogger(__name__)
 
-server_version = 9
+server_version = 10
 
 async def make_aio_app(loop, settings):
     app = web.Application(loop=loop)
@@ -180,6 +180,7 @@ point_keys = {
     'status': 's',
     'dist_route': 'o',
     'dist_ridden': 'd',
+    'dist_from_last': 'l',
 }
 
 

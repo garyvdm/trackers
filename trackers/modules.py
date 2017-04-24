@@ -16,7 +16,7 @@ async def config_modules(app, settings):
 
     modules = (
         trackers.map_my_tracks.config,
-        trackers.garmin_livetrack.config,
+        # trackers.garmin_livetrack.config,
     )
 
     for module in modules:
