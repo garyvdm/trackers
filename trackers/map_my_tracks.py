@@ -1,16 +1,17 @@
-import xml.etree.ElementTree as xml
 import asyncio
 import datetime
+import functools
+import itertools
+import json
 import logging
 import os
-import itertools
-import functools
-import json
+import xml.etree.ElementTree as xml
 
 import aiohttp
 import bs4
 
 import trackers
+
 
 async def config(app, settings):
     app['trackers.mapmytracks_session'] = mapmytracks_session = aiohttp.ClientSession(auth=aiohttp.BasicAuth(*settings['mapmytracks_auth']))

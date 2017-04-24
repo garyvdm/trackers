@@ -1,16 +1,11 @@
-import argparse
-import copy
 import logging.config
 import asyncio
 import socket
-import contextlib
 import os
 import signal
 import sys
 
 import uvloop
-import yaml
-from aiocontext import async_contextmanager
 
 import trackers.web_app
 import trackers.bin_utils

@@ -1,20 +1,15 @@
 import argparse
 import asyncio
-import concurrent
 import contextlib
 import copy
 import logging.config
 import os
-import signal
 import sys
-import colorsys
-from functools import partial
 
 import yaml
 
-import trackers.modules
 import trackers.events
-
+import trackers.modules
 
 defaults_yaml = """
     data_path: data

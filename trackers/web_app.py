@@ -1,21 +1,21 @@
-import logging
+import base64
+import contextlib
+import datetime
 import hashlib
 import json
-import pkg_resources
-import base64
-import datetime
-import contextlib
+import logging
 from functools import partial
 
-import magic
 import aiohttp
-from more_itertools import chunked
+import magic
+import pkg_resources
 from aiohttp import web, WSMsgType
+from more_itertools import chunked
 from slugify import slugify
 
 import trackers
-import trackers.modules
 import trackers.events
+import trackers.modules
 
 logger = logging.getLogger(__name__)
 
