@@ -15,7 +15,7 @@ class Tracker(object):
         self.points = []
         self.status = None
         self.new_points_callbacks = []
-        self.logger = logging.getLogger('tracker.{}'.format(name))
+        self.logger = logging.getLogger('trackers.{}'.format(name))
 
     async def new_points(self, new_points):
         self.points.extend(new_points)
