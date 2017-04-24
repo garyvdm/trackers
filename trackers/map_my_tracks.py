@@ -152,7 +152,7 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
         with open(full_cache_path, 'w') as f:
             json.dump(state, f)
 
-
+    first_get_activites = True
     while True:
         try:
             now = datetime.datetime.now()
@@ -160,37 +160,53 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
             slow = False
 
             if now >= start_date:
-                uncompleted_activities = completed_activites.difference(activites)
+                uncompleted_activities = activites.difference(completed_activites)
 
-                if not uncompleted_activities:
+                tracker.logger.debug('uncompleted_activities: {}'.format(uncompleted_activities))
+                if len(uncompleted_activities) == 0:
+                    tracker.logger.debug('Getting activities')
                     all_activites = await  get_activites(client_session, user, logger=tracker.logger,
-                                                         pages=1 if activites else 5, warn_scrape=not activites)
+                                                         pages=1 if activites else 5, warn_scrape=first_get_activites)
+                    first_get_activites = False
                     activites.update([activity[0] for activity in all_activites if start_date <= activity[1] < end_date])
                     uncompleted_activities = activites.difference(completed_activites)
+
+                    # Hack to get the incorrectly completed activity out of completed.
+                    if activites:
+                        uncompleted_activities.add(max(activites))
                     save()
 
                 completed_changes = False
 
                 new_points = []
                 for activity_id in uncompleted_activities:
+                    points = activities_points.setdefault(str(activity_id), [])
+                    while True:
+                        max_timestamp = points[-1][0] if points else 0
+                        tracker.logger.debug('Getting points for {} ({})'.format(activity_id, max_timestamp))
+
+                        complete, update_points = await get_activity(client_session, activity_id, max_timestamp)
+                        tracker.logger.debug('Got {} points'.format(len(update_points)))
+                        points.extend(update_points)
+                        new_points.append(update_points)
+                        # if len(update_points) == 0:
+                        #     break
+                        break  # Document says api will only return 100 rows at a time - but it seems to send down all rows.
+
+                    if complete != (activity_id in completed_activites):
+                        completed_changes = True
+                        if complete:
+                            completed_activites.add(activity_id)
+                            tracker.logger.debug('Activity {} completed'.format(activity_id))
+                        else:
+                            completed_activites.remove(activity_id)
+                            tracker.logger.debug('Activity {} uncompleted????'.format(activity_id))
+
                     if datetime.datetime.now() - last_slow_log > datetime.timedelta(seconds=10):
                         tracker.logger.info('Still downloading. ({} points)'.format(sum((len(p) for p in new_points))))
                         slow = True
                         last_slow_log = datetime.datetime.now()
                         save()
-
-                    points = activities_points.setdefault(activity_id, [])
-                    while True:
-                        max_timestamp = points[-1][0] if points else 0
-
-                        complete, update_points = await get_activity(client_session, activity_id, max_timestamp)
-                        if len(update_points) == 0:
-                            break
-                        points.extend(update_points)
-                        new_points.append(update_points)
-                    if complete:
-                        completed_changes = True
-                        completed_activites.add(activity_id)
 
                 if slow:
                     tracker.logger.info('Done downloading. ({} points)'.format(sum((len(p) for p in new_points))))
