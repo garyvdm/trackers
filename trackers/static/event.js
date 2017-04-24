@@ -11,9 +11,9 @@ document.addEventListener('DOMContentLoaded', function() {
     var errors = []
 
     function update_status(){
-        text = errors.slice(-4).concat([status_msg]).join('\n');
+        text = errors.slice(-4).concat([status_msg]).join('<br>');
 //        console.log(text);
-        status.innerText = text;
+        status.innerHTML = text;
     }
 
     function set_status(status){
@@ -47,9 +47,10 @@ document.addEventListener('DOMContentLoaded', function() {
     var close_reason;
     var reconnect_time = 1000;
 
+    loader_html = '<span class="l1"></span><span class="l2"></span><span class="l3"></span> '
 
     function ws_connect(){
-        set_status('Connecting');
+        set_status(loader_html + 'Connecting');
         ws = new WebSocket(location.protocol.replace('http', 'ws') + '//' + location.host + location.pathname + '/websocket');
         ws.onopen = ws_onopen;
         ws.onclose = ws_onclose;
@@ -57,7 +58,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function ws_onopen(event) {
-        set_status('Conneceted');
+        set_status('&#x2713; Connected');
         reconnect_time = 500;
         close_reason = null;
     }
@@ -66,7 +67,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (event.reason.startsWith('TAKEMEOUTError:')) {
             set_status(event.reason);
         } else {
-            close_reason = 'Disconnected: ' + event.code + ' ' + event.reason;
+            close_reason = '<span style="color: red; font-weight: bold;">X</span> Disconnected: ' + event.reason;
             console.log(close_reason);
             set_status(close_reason);
             ws = null;
@@ -78,7 +79,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             function reconnect_status(time){
-                set_status(close_reason + '\nReconnecting in ' + Math.floor((reconnect_time - time) / 1000) + ' sec.');
+                set_status(close_reason + '<br>Reconnecting in ' + Math.floor((reconnect_time - time) / 1000) + ' sec.');
             }
             for(var time = 1000; time < reconnect_time; time += 1000){
                 setTimeout(reconnect_status, time, time);
@@ -89,7 +90,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function ws_onmessage(event){
-        set_status('Conneceted');
+        set_status('&#x2713; Connected');
         console.log(event.data);
         var data = JSON.parse(event.data);
         if (data.hasOwnProperty('client_hash')) {
@@ -106,7 +107,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         if (data.hasOwnProperty('sending')) {
-            set_status('Conneceted, Loading '+ data.sending);
+            set_status('&#x2713; Conneceted, ' + loader_html + 'Loading '+ data.sending);
         }
         if (data.hasOwnProperty('event_data')) {
             event_data = data.event_data;
