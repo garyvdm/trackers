@@ -8,7 +8,8 @@ var DIST_RIDDEN = 'd'
 document.addEventListener('DOMContentLoaded', function() {
     var status = document.getElementById('status');
     var status_msg = '';
-    var errors = []
+    var errors = [];
+    var time_offset = 0;
 
     function update_status(){
         text = errors.slice(-4).concat([status_msg]).join('<br>');
@@ -93,6 +94,12 @@ document.addEventListener('DOMContentLoaded', function() {
         set_status('&#x2713; Connected');
         console.log(event.data);
         var data = JSON.parse(event.data);
+        if (data.hasOwnProperty('server_time')) {
+            var current_time = new Date();
+            var server_time = new Date(data.server_time * 1000);
+            time_offset = (current_time.getTime() - server_time.getTime()) / 1000;
+            console.log([current_time, server_time, time_offset]);
+        }
         if (data.hasOwnProperty('client_hash')) {
             if (data.client_hash != client_hash) {
                 location.reload();
@@ -138,10 +145,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
     }
 
+    function format_race_time(seconds){
+        return sprintf('%id %02i:%02i:%02i',
+            Math.floor(seconds / 60 / 60 / 24), /* days */
+            Math.floor(seconds / 60 / 60 % 24), /* hours */
+            Math.floor(seconds / 60 % 60),      /* min */
+            Math.floor(seconds % 60)            /* seconds */
+            );
+    }
+
+    var race_time = document.getElementById('race_time');
+    setInterval(function(){
+        if (event_data && event_data.hasOwnProperty('event_start')){
+            race_time.innerText = 'Race time: ' + format_race_time((new Date().getTime() / 1000) - event_data.event_start - time_offset);
+        } else {
+            race_time.innerText = '';
+        }
+    }, 1000);
+
     function on_new_event_data(){
         event_markers.forEach(function (marker) { marker.setMap(null) });
         event_markers = [];
         if (event_data) {
+            document.getElementById('title').innerText = event_data.title;
             document.title = event_data.title;
             riders_by_name = {};
             event_data.riders.forEach(function (rider) { riders_by_name[rider.name] = rider});
@@ -196,7 +222,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
     function update_rider_table(){
         var sorted_riders = Array.from(event_data.riders);
@@ -219,8 +245,12 @@ document.addEventListener('DOMContentLoaded', function() {
             var last_position_time;
             var finished_time;
             if (current_values.finished_time) {
-                var time = new Date(current_values.finished_time * 1000);
-                finished_time = sprintf('%s %02i:%02i:%02i', days[time.getDay()], time.getHours(), time.getMinutes(), time.getSeconds() )
+                if (event_data && event_data.hasOwnProperty('event_start')){
+                    finished_time = format_race_time(current_values.finished_time - event_data.event_start);
+                } else {
+                    var time = new Date(current_values.finished_time * 1000);
+                    finished_time = sprintf('%s %02i:%02i:%02i', days[time.getDay()], time.getHours(), time.getMinutes(), time.getSeconds() )
+                }
 
             }
             if (rider_items.last_position_point) {

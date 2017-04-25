@@ -2,20 +2,53 @@
     font: 400 11px Roboto, Arial, sans-serif;
 }
 html, body {
-    height: 100%;
     margin: 0px;
     padding: 0px;
+    height: 100%;
 }
+
+#foo{
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+
+#head{
+    padding: 8px;
+    background: #4285F4;
+    color: white;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+}
+
+#main {
+    flex: 1 0 100%;
+    position: relative;
+}
+
+#title{
+    font-weight: bold;
+    font-size: larger;
+}
+
+#race_time{
+}
+
+#status {
+    text-align: right;
+}
+
 
 #map {
     height: 100%;
 }
 
 #riders {
+    padding: 8px;
     position: absolute;
     top: 0;
     margin: 10px;
-    padding: 8px;
     box-shadow: 2px 2px 4px -1px rgba(0, 0, 0, 0.5);
     background: white;
     border-radius: 2px;
@@ -25,21 +58,6 @@ html, body {
     font-weight: bold;
 }
 
-#status_container {
-    position: absolute;
-    left: 50%;
-    bottom: 0;
-}
-
-#status {
-    position: relative;
-    margin: 10px ;
-    left: -50%;
-    padding: 8px;
-    box-shadow: 2px 2px 4px -1px rgba(0, 0, 0, 0.5);
-    background: white;
-    border-radius: 2px;
-}
 
 .rider-marker {
     padding: 4px;

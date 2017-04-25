@@ -41,11 +41,14 @@ async def make_aio_app(loop, settings):
         add_static('/static/event.js', '/static/event.js', charset='utf8', content_type='text/javascript')
         add_static('/static/richmarker.js', '/static/richmarker.js', charset='utf8', content_type='text/javascript')
         add_static('/static/event.html', '/{event}', charset='utf8', content_type='text/html', body_processor=event_page_body_processor)
+
         for name in pkg_resources.resource_listdir('trackers', '/static/markers'):
             full_name = '/static/markers/{}'.format(name)
             add_static(full_name, full_name)
 
     app.router.add_route('GET', '/{event}/websocket', handler=event_ws, name='event_ws')
+    app.router.add_route('GET', '/{event}/set_start', handler=event_set_start, name='event_set_start')
+
     app.router.add_route('POST', '/client_error', handler=client_error_logger, name='client_error_logger')
 
     app['trackers.ws_sessions'] = []
@@ -124,8 +127,9 @@ async def event_ws(request):
             trackers = request.app['trackers.events_rider_trackers'].get(event_name)
 
             send = lambda msg: ws.send_str(json.dumps(msg, default=json_encode))
+            exit_stack.enter_context(list_register(request.app['trackers.events_ws_sessions'][event_name], send))
 
-            send({'client_hash': request.app['trackers.client_hash']})
+            send({'client_hash': request.app['trackers.client_hash'], 'server_time': datetime.datetime.now()})
 
             async for msg in ws:
                 if msg.tp == WSMsgType.text:
@@ -212,3 +216,16 @@ async def client_error_logger(request):
     client = forwared_for or (peername[0] if peername else '')
     logger.error('\n'.join((body, agent, client)))
     return aiohttp.web.Response()
+
+
+async def event_set_start(request):
+    event_name = request.match_info['event']
+    event_data = request.app['trackers.events_data'].get(event_name)
+    event_data['event_start'] = datetime.datetime.now()
+    trackers.events.save_event(request.app, request.app['trackers.settings'], event_name)
+
+    for send in request.app['trackers.events_ws_sessions'][event_name]:
+        send({'sending': 'event data'})
+        send({'event_data': event_data, 'server_version': server_version})
+
+    return web.Response(text='Start time set to {}'.format(event_data['event_start']))

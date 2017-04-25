@@ -13,6 +13,7 @@ def load_events(app, settings):
     app['trackers.tracker_tasks'] = []
     app['trackers.events_rider_trackers'] = {}
     app['trackers.events_routes'] = {}
+    app['trackers.events_ws_sessions'] = events_ws_sessions ={}
 
     with open(os.path.join(settings['data_path'], 'events.yaml')) as f:
         event_names = yaml.load(f)
@@ -21,6 +22,7 @@ def load_events(app, settings):
         with open(os.path.join(settings['data_path'], event_name, 'data.yaml')) as f:
             event_data = yaml.load(f)
         events_data[event_name] = event_data
+        events_ws_sessions[event_name] = []
 
 
 
