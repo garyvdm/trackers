@@ -278,7 +278,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     return '<tr>'+
                            '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
                            '<td>' + rider.name + '</td>' +
-                           '<td style="text-align: right">' + (finished_time || (current_values.hasOwnProperty(DIST_RIDDEN) ? (Math.round(current_values[DIST_RIDDEN] / 100) / 10) +' km': '')) + '</td>' +
+                           '<td style="text-align: right">' + (finished_time || (current_values.hasOwnProperty(DIST_ROUTE) ? (Math.round(current_values[DIST_ROUTE] / 100) / 10) +' km': '')) + '</td>' +
                            '</tr>';
                 }
             });
