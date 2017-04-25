@@ -159,7 +159,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (event_data && event_data.hasOwnProperty('event_start')){
             race_time.innerText = 'Race time: ' + format_race_time((new Date().getTime() / 1000) - event_data.event_start - time_offset);
         } else {
-            race_time.innerText = '';
+            race_time.innerText = '.';
         }
     }, 1000);
 
@@ -222,64 +222,87 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
+    var riders_detail_el = document.getElementById('riders_detail');
     function update_rider_table(){
-        var sorted_riders = Array.from(event_data.riders);
-        sorted_riders.sort(function (a, b){
-            var a_rider_items = riders_client_items[a.name] || {};
-            var a_current_values = a_rider_items.current_values || {};
-            var b_rider_items = riders_client_items[b.name] || {};
-            var b_current_values = b_rider_items.current_values || {};
+        if (event_data) {
+            var sorted_riders = Array.from(event_data.riders);
+            sorted_riders.sort(function (a, b){
+                var a_rider_items = riders_client_items[a.name] || {};
+                var a_current_values = a_rider_items.current_values || {};
+                var b_rider_items = riders_client_items[b.name] || {};
+                var b_current_values = b_rider_items.current_values || {};
 
-            if (a_current_values.finished_time && !b_current_values.finished_time || a_current_values.finished_time < b_current_values.finished_time) return -1;
-            if (!a_current_values.finished_time && b_current_values.finished_time || a_current_values.finished_time > b_current_values.finished_time) return 1;
+                if (a_current_values.finished_time && !b_current_values.finished_time || a_current_values.finished_time < b_current_values.finished_time) return -1;
+                if (!a_current_values.finished_time && b_current_values.finished_time || a_current_values.finished_time > b_current_values.finished_time) return 1;
 
-            if (a_current_values[DIST_ROUTE] && !b_current_values[DIST_ROUTE] || a_current_values[DIST_ROUTE] > b_current_values[DIST_ROUTE]) return -1;
-            if (!a_current_values[DIST_ROUTE] && b_current_values[DIST_ROUTE] || a_current_values[DIST_ROUTE] < b_current_values[DIST_ROUTE]) return 1;
-            return 0;
-        });
-        rider_rows = sorted_riders.map(function (rider){
-            var rider_items = riders_client_items[rider.name] || {};
-            var current_values = rider_items.current_values || {};
-            var last_position_time;
-            var finished_time;
-            if (current_values.finished_time) {
-                if (event_data && event_data.hasOwnProperty('event_start')){
-                    finished_time = format_race_time(current_values.finished_time - event_data.event_start);
-                } else {
-                    var time = new Date(current_values.finished_time * 1000);
-                    finished_time = sprintf('%s %02i:%02i:%02i', days[time.getDay()], time.getHours(), time.getMinutes(), time.getSeconds() )
+                if (a_current_values[DIST_ROUTE] && !b_current_values[DIST_ROUTE] || a_current_values[DIST_ROUTE] > b_current_values[DIST_ROUTE]) return -1;
+                if (!a_current_values[DIST_ROUTE] && b_current_values[DIST_ROUTE] || a_current_values[DIST_ROUTE] < b_current_values[DIST_ROUTE]) return 1;
+                return 0;
+            });
+
+            var current_time = (new Date().getTime() / 1000) - time_offset;
+            var show_detail = riders_detail_el.checked;
+            rider_rows = sorted_riders.map(function (rider){
+                var rider_items = riders_client_items[rider.name] || {};
+                var current_values = rider_items.current_values || {};
+                var last_position_point = rider_items.last_position_point || {};
+                var last_position_time;
+                var finished_time;
+                if (current_values.finished_time) {
+                    if (event_data && event_data.hasOwnProperty('event_start')){
+                        finished_time = format_race_time(current_values.finished_time - event_data.event_start);
+                    } else {
+                        var time = new Date(current_values.finished_time * 1000);
+                        finished_time = sprintf('%s %02i:%02i:%02i', days[time.getDay()], time.getHours(), time.getMinutes(), time.getSeconds() )
+                    }
+
                 }
-
+                if (rider_items.last_position_point) {
+                    // TODO more than a day
+                    seconds = current_time - last_position_point[TIME];
+                    if (seconds < 60) { last_position_time = '< 1 min ago' }
+                    else if (seconds < 60 * 60) { last_position_time = sprintf('%i min ago', Math.floor(seconds / 60))}
+                    else { last_position_time = sprintf('%i:%02i ago', Math.floor(seconds / 60 / 60), Math.floor(seconds / 60 % 60))}
+                }
+                if (show_detail) {
+                    return '<tr>'+
+                           '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
+                           '<td>' + rider.name + '</td>' +
+                           '<td>' + (current_values[STATUS] || '') + '</td>' +
+                           '<td style="text-align: right">' +  (last_position_time || '') + '</td>' +
+                           '<td style="text-align: right">' + (current_values.hasOwnProperty(DIST_RIDDEN) ? Math.round(current_values[DIST_RIDDEN] / 100) / 10 : '') + '</td>' +
+                           '<td style="text-align: right">' + (last_position_point.hasOwnProperty(DIST_RIDDEN) ? (Math.round(last_position_point[DIST_RIDDEN] / last_position_point[TIME] * 3.6 * 10) /10)   : '') + '</td>' +
+                           '<td style="text-align: right">' + (current_values.hasOwnProperty(DIST_ROUTE) ? Math.round(current_values[DIST_ROUTE] / 100) / 10 : '') + '</td>' +
+                           '<td style="text-align: right">' + (finished_time || '') + '</td>' +
+                           '</tr>';
+                } else {
+                    return '<tr>'+
+                           '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
+                           '<td>' + rider.name + '</td>' +
+                           '<td style="text-align: right">' + (finished_time || (current_values.hasOwnProperty(DIST_RIDDEN) ? (Math.round(current_values[DIST_RIDDEN] / 100) / 10) +' km': '')) + '</td>' +
+                           '</tr>';
+                }
+            });
+            if (show_detail) {
+                document.getElementById('riders_actual').innerHTML =
+                    '<table><tr class="head">' +
+                    '<td></td>' +
+                    '<td>Name</td>' +
+                    '<td>Tracker<br>Status</td>' +
+                    '<td style="text-align: right">Last<br>Position</td>' +
+                    '<td style="text-align: right">Dist<br>Ridden</td>' +
+                    '<td style="text-align: right">Current<br>Speed</td>' +
+                    '<td style="text-align: right">Dist on<br>Route</td>' +
+                    '<td style="text-align: right">Finish<br>Time</td>' +
+                    '</tr>' + rider_rows.join('') + '</table>';
+            } else {
+                document.getElementById('riders_actual').innerHTML =
+                    '<table>' + rider_rows.join('') + '</table>';
             }
-            if (rider_items.last_position_point) {
-                // TODO more than a day
-                var time = new Date(rider_items.last_position_point[TIME] * 1000);
-                last_position_time = sprintf('%s %02i:%02i:%02i', days[time.getDay()], time.getHours(), time.getMinutes(), time.getSeconds() )
-            }
-            return '<tr>'+
-                   '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
-                   '<td>' + rider.name + '</td>' +
-                   '<td>' + (current_values[STATUS] || '') + '</td>' +
-                   '<td style="text-align: right">' +  (last_position_time || '') + '</td>' +
-                   '<td style="text-align: right">' + (current_values.hasOwnProperty(DIST_RIDDEN) ? Math.round(current_values[DIST_RIDDEN] / 100) / 10 : '') + '</td>' +
-                   '<td style="text-align: right">' + (current_values.hasOwnProperty(DIST_ROUTE) ? Math.round(current_values[DIST_ROUTE] / 100) / 10 : '') + '</td>' +
-                   '<td style="text-align: right">' + (finished_time || '') + '</td>' +
-                   '</tr>';
-        });
-        document.getElementById('riders').innerHTML =
-            '<table><tr class="head">' +
-            '<td></td>' +
-            '<td>Name</td>' +
-            '<td>Tracker<br>Status</td>' +
-            '<td style="text-align: right">Last<br>Position</td>' +
-            '<td style="text-align: right">Dist<br>Ridden</td>' +
-            '<td style="text-align: right">Dist on<br>Route</td>' +
-            '<td style="text-align: right">Finish<br>Time</td>' +
-            '</tr>' + rider_rows.join('') + '</table>';
+        }
     }
-
+    setInterval(update_rider_table());
+    riders_detail_el.onclick = update_rider_table;
 
     var event_data = JSON.parse(window.localStorage.getItem(location.pathname  + '_event_data'))
     var event_markers = []
