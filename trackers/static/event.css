@@ -129,8 +129,8 @@ html, body {
 .l2{ animation-delay: -0.16s;}
 .l3{ animation-delay: 0s;}
 @keyframes load7 {
-  0%, 80%, 100% { background: white; }
-  40% { background: black; }
+  0%, 80%, 100% { background: #4285F4; }
+  40% { background: white; }
 }
 
 
