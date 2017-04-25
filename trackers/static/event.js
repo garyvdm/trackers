@@ -327,12 +327,12 @@ document.addEventListener('DOMContentLoaded', function() {
     function apply_mobile_selected(selected){
         mobile_selected = selected;
         main_el.className = 'show_' + selected;
-        mobile_selectors.forEach(function (el){
+        Array.prototype.forEach.call(mobile_selectors, function (el){
             el.className = (el.getAttribute('show') == selected?'selected':'')
         });
     }
     apply_mobile_selected('map');
-    mobile_selectors.forEach(function (el){
+    Array.prototype.forEach.call(mobile_selectors, function (el){
         var el_selects = el.getAttribute('show')
         el.onclick = function(){apply_mobile_selected(el_selects);};
     });

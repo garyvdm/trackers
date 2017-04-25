@@ -1,5 +1,5 @@
 * {
-    font: 400 11px Roboto, Arial, sans-serif;
+    font: 400 13px Roboto, Arial, sans-serif;
 }
 
 html, body {
@@ -71,7 +71,7 @@ html, body {
     display: none;
 }
 
-@media screen and (max-width: 750px) {
+@media screen and (max-width: 800px) {
     #mobile_select {
         display: flex;
         background: #4285F4;
