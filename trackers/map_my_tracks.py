@@ -139,10 +139,12 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
     activities_points = state.setdefault('activities_points', {})
 
     tracker_point = lambda point: {'time': datetime.datetime.fromtimestamp(point[0]), 'position': point[1:], }
+    last_point = None
 
     old_points = [tracker_point(point) for point in sorted(itertools.chain.from_iterable(activities_points.values()))]
     if old_points:
         await tracker.new_points(old_points)
+        last_point = old_points[-1]
 
     def save():
         state = {}
@@ -154,7 +156,10 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
             json.dump(state, f)
 
     first_get_activites = True
-    while True:
+
+    inactive_time = datetime.timedelta(minutes=15)
+
+    for i in itertools.count():
         try:
             now = datetime.datetime.now()
             last_slow_log = now
@@ -164,7 +169,7 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
                 uncompleted_activities = activites.difference(completed_activites)
 
                 tracker.logger.debug('uncompleted_activities: {}'.format(uncompleted_activities))
-                if len(uncompleted_activities) == 0:
+                if len(uncompleted_activities) == 0 or i % 10 == 0 or (not last_point or now - last_point['time'] > inactive_time):
                     tracker.logger.debug('Getting activities')
                     all_activites = await  get_activites(client_session, user, logger=tracker.logger,
                                                          pages=1 if activites else 5, warn_scrape=first_get_activites)
@@ -218,6 +223,7 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
                 new_tracker_points = [tracker_point(point) for point in sorted(itertools.chain.from_iterable(new_points))]
                 if new_tracker_points:
                     await tracker.new_points(new_tracker_points)
+                    last_point = new_tracker_points[-1]
 
             if now > end_date:
                 break
