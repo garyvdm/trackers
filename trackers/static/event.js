@@ -273,10 +273,10 @@ document.addEventListener('DOMContentLoaded', function() {
             '<td></td>' +
             '<td>Name</td>' +
             '<td>Tracker<br>Status</td>' +
-            '<td>Last<br>Position</td>' +
-            '<td>Dist<br>Ridden</td>' +
-            '<td>Dist on<br>Route</td>' +
-            '<td>Finish<br>Time</td>' +
+            '<td style="text-align: right">Last<br>Position</td>' +
+            '<td style="text-align: right">Dist<br>Ridden</td>' +
+            '<td style="text-align: right">Dist on<br>Route</td>' +
+            '<td style="text-align: right">Finish<br>Time</td>' +
             '</tr>' + rider_rows.join('') + '</table>';
     }
 
@@ -297,6 +297,24 @@ document.addEventListener('DOMContentLoaded', function() {
     finally {
         setTimeout(ws_connect, 0);
     }
+
+    var main_el = document.getElementById('main');
+    var mobile_selectors = document.getElementById('mobile_select').querySelectorAll('div');
+    var mobile_selected;
+
+    function apply_mobile_selected(selected){
+        mobile_selected = selected;
+        main_el.className = 'show_' + selected;
+        mobile_selectors.forEach(function (el){
+            el.className = (el.getAttribute('show') == selected?'selected':'')
+        });
+    }
+    apply_mobile_selected('map');
+    mobile_selectors.forEach(function (el){
+        var el_selects = el.getAttribute('show')
+        el.onclick = function(){apply_mobile_selected(el_selects);};
+    });
+
 
 });
 

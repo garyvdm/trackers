@@ -1,6 +1,7 @@
 * {
     font: 400 11px Roboto, Arial, sans-serif;
 }
+
 html, body {
     margin: 0px;
     padding: 0px;
@@ -58,21 +59,54 @@ html, body {
     font-weight: bold;
 }
 
-
-.rider-marker {
+#riders td{
     padding: 4px;
-    box-shadow: 2px 2px 3px -1px rgba(0, 0, 0, 0.5);
-    border-radius: 2px;
 }
-.rider-marker-pointer {
-    position: relative;
-    box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.5);
-    border-width: 5px;
-    border-style: solid;
-    width: 0;
-    transform: rotate(45deg);
-    left: 40%;
-    top: -5px;
+
+#mobile_select {
+    display: none;
+}
+
+@media screen and (max-width: 750px) {
+    #mobile_select {
+        display: flex;
+        background: #4285F4;
+        color: white;
+        justify-content: space-around;
+    }
+    #mobile_select > * {
+        border-bottom: 4px solid #4285F4;
+        flex-basis: 8em;
+        padding: 10px;
+        text-align: center;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    #mobile_select > .selected {
+        border-bottom: 4px solid white;
+    }
+
+    .show_map #map{
+        display: block;
+    }
+    .show_map #riders{
+        display: none;
+    }
+    .show_riders #map{
+        display: none;
+    }
+    .show_riders #riders{
+        display: block;
+
+    }
+    #riders{
+        position: static;
+        box-shadow: none;
+    }
+    #riders>table{
+        width: 100%
+    }
+
 }
 
 
@@ -95,3 +129,20 @@ html, body {
   40% { background: black; }
 }
 
+
+
+.rider-marker {
+    padding: 4px;
+    box-shadow: 2px 2px 3px -1px rgba(0, 0, 0, 0.5);
+    border-radius: 2px;
+}
+.rider-marker-pointer {
+    position: relative;
+    box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.5);
+    border-width: 5px;
+    border-style: solid;
+    width: 0;
+    transform: rotate(45deg);
+    left: 40%;
+    top: -5px;
+}
