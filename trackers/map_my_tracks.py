@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import datetime
 import functools
 import itertools
@@ -123,6 +124,8 @@ async def get_activity(client_session, activity_id, from_time):
 
 
 async def monitor_user(client_session, user, start_date, end_date, cache_path, tracker):
+    os.makedirs(cache_path, exist_ok=True)
+
     full_cache_path = os.path.join(cache_path, user)
     # todo have append state/cache storage
     state = {}

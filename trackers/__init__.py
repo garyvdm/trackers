@@ -22,6 +22,7 @@ from nvector import (
 )
 
 geodesic = geographiclib.geodesic.Geodesic.WGS84
+logger = logging.getLogger()
 
 
 class Tracker(object):
@@ -104,6 +105,8 @@ async def stop_analyse_tracker(analyse_tracker):
 
 
 async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track_break_time, track_break_dist, tracker, new_points):
+    analyse_tracker.logger.debug('analyse_tracker_new_points ({} points)'.format(len(new_points)))
+
     new_new_points = []
     last_point_with_position = None
     for point in new_points:
@@ -120,6 +123,8 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
             # TODO only search points after the last route point
             point_point = Point(*point['position'][:2])
             closest = find_closest_point_pair_routes(event_routes, point_point, 1000, analyse_tracker.last_closest, 250)
+            if closest.dist > 5000:
+                closest = None
 
             if closest:
                 prev_route_point = closest.point_pair[0]
@@ -214,6 +219,7 @@ def get_expanded_routes(routes_org):
         route_points = route_with_distance_and_index(route_points_org)
         route_point_pairs = [get_point_pair_precalc(*point_pair) for point_pair in pairs(route_points)]
         simplfied_point_pairs = [get_point_pair_precalc(*point_pair) for point_pair in pairs(ramer_douglas_peucker(route_points, 500))]
+        logger.debug('Route points: {}, simplified points: {}'.format(len(route_points), len(simplfied_point_pairs)))
         if main_route:
             start_closest = find_closest_point_pair_route(main_route, route_points[0], 2000)
             prev_point = start_closest.point_pair[0]
