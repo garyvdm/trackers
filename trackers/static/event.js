@@ -184,7 +184,12 @@ document.addEventListener('DOMContentLoaded', function() {
     function on_new_rider_points(rider_name, index){
         var rider = riders_by_name[rider_name]
         if (!rider) return;
-        var rider_items = riders_client_items[rider_name] || (riders_client_items[rider_name] = {'paths': {}, 'current_values': {}})
+        var rider_items = riders_client_items[rider_name] || (riders_client_items[rider_name] = {
+            'paths': {},
+            'current_values': {},
+            'last_position_point': null,
+            'position_point': null,
+        });
         path_color = rider.color || 'black';
         var rider_current_values = rider_items.current_values;
 
@@ -199,13 +204,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     strokeWeight: 2
                 }))).getPath()
                 path.push(new google.maps.LatLng(point[POSITION][0], point[POSITION][1]));
-                rider_items.last_position_point = point;
+                rider_items.last_position_point = rider_items.position_point;
+                rider_items.position_point = point;
             }
             Object.assign(rider_current_values, point);
         });
 
-        if (rider_items.hasOwnProperty('last_position_point')) {
-            var position = new google.maps.LatLng(rider_items.last_position_point[POSITION][0], rider_items.last_position_point[POSITION][1])
+        if (rider_items.hasOwnProperty('position_point')) {
+            var position = new google.maps.LatLng(rider_items.position_point[POSITION][0], rider_items.position_point[POSITION][1])
             if (!rider_items.marker) {
                 marker_color = rider.color_marker || 'white';
                 rider_items.marker = new RichMarker({
@@ -244,9 +250,11 @@ document.addEventListener('DOMContentLoaded', function() {
             rider_rows = sorted_riders.map(function (rider){
                 var rider_items = riders_client_items[rider.name] || {};
                 var current_values = rider_items.current_values || {};
-                var last_position_point = rider_items.last_position_point || {};
+                var last_position_point = rider_items.last_position_point;
+                var position_point = rider_items.position_point;
                 var last_position_time;
                 var finished_time;
+                var speed;
                 if (current_values.finished_time) {
                     if (event_data && event_data.hasOwnProperty('event_start')){
                         finished_time = format_race_time(current_values.finished_time - event_data.event_start);
@@ -256,12 +264,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                 }
-                if (rider_items.last_position_point) {
+                if (position_point) {
                     // TODO more than a day
                     seconds = current_time - last_position_point[TIME];
                     if (seconds < 60) { last_position_time = '< 1 min ago' }
                     else if (seconds < 60 * 60) { last_position_time = sprintf('%i min ago', Math.floor(seconds / 60))}
                     else { last_position_time = sprintf('%i:%02i ago', Math.floor(seconds / 60 / 60), Math.floor(seconds / 60 % 60))}
+                }
+                if (position_point && last_position_point) {
+                    speed = Math.round(position_point[DIST_RIDDEN] / (position_point[TIME] - last_position_point[TIME]) * 3.6 * 10) /10;
                 }
                 if (show_detail) {
                     return '<tr>'+
@@ -270,7 +281,7 @@ document.addEventListener('DOMContentLoaded', function() {
                            '<td>' + (current_values[STATUS] || '') + '</td>' +
                            '<td style="text-align: right">' +  (last_position_time || '') + '</td>' +
                            '<td style="text-align: right">' + (current_values.hasOwnProperty(DIST_RIDDEN) ? Math.round(current_values[DIST_RIDDEN] / 100) / 10 : '') + '</td>' +
-                           '<td style="text-align: right">' + (last_position_point.hasOwnProperty(DIST_RIDDEN) ? (Math.round(last_position_point[DIST_RIDDEN] / last_position_point[TIME] * 3.6 * 10) /10)   : '') + '</td>' +
+                           '<td style="text-align: right">' + speed + '</td>' +
                            '<td style="text-align: right">' + (current_values.hasOwnProperty(DIST_ROUTE) ? Math.round(current_values[DIST_ROUTE] / 100) / 10 : '') + '</td>' +
                            '<td style="text-align: right">' + (finished_time || '') + '</td>' +
                            '</tr>';
