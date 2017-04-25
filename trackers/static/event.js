@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', function() {
             set_status(event.reason);
         } else {
             close_reason = '<span style="color: red; font-weight: bold;">X</span> Disconnected: ' + event.reason;
-            console.log(close_reason);
+//            console.log(close_reason);
             set_status(close_reason);
             ws = null;
 
@@ -92,13 +92,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function ws_onmessage(event){
         set_status('&#x2713; Connected');
-        console.log(event.data);
+//        console.log(event.data);
         var data = JSON.parse(event.data);
         if (data.hasOwnProperty('server_time')) {
             var current_time = new Date();
             var server_time = new Date(data.server_time * 1000);
             time_offset = (current_time.getTime() - server_time.getTime()) / 1000;
-            console.log([current_time, server_time, time_offset]);
         }
         if (data.hasOwnProperty('client_hash')) {
             if (data.client_hash != client_hash) {
