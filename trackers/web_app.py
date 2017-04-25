@@ -87,7 +87,7 @@ def add_static_resource(app, package, etags, magic, resource_name, route, *args,
     headers = kwargs.setdefault('headers', {})
     etag = base64.urlsafe_b64encode(hashlib.sha1(body).digest()).decode('ascii')
     headers['ETag'] = etag
-    headers['Cache-Control'] = 'public, max-age=31536000'
+    headers['Cache-Control'] = 'public'
 
     etags[slugify(resource_name)] = etag
 
