@@ -126,7 +126,10 @@ async def event_ws(request):
 
             trackers = request.app['trackers.events_rider_trackers'].get(event_name)
 
-            send = lambda msg: ws.send_str(json.dumps(msg, default=json_encode))
+            def send(msg):
+                logger.debug('send: {}'.format(msg))
+                ws.send_str(json.dumps(msg, default=json_encode))
+
             exit_stack.enter_context(list_register(request.app['trackers.events_ws_sessions'][event_name], send))
 
             send({'client_hash': request.app['trackers.client_hash'], 'server_time': datetime.datetime.now()})
@@ -134,7 +137,7 @@ async def event_ws(request):
             async for msg in ws:
                 if msg.tp == WSMsgType.text:
                     data = json.loads(msg.data)
-                    logger.debug(data)
+                    logger.debug('receive: {}'.format(data))
                     resend = False
                     if 'event_data_version' in data:
                         resend = (
