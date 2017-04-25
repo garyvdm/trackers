@@ -227,6 +227,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     var riders_detail_el = document.getElementById('riders_detail');
     function update_rider_table(){
         if (event_data) {

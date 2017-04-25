@@ -136,7 +136,8 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
                     point['dist_route'] = round(alt_route_dist * route['dist_factor'] + route['start_distance'])
 
                 if not analyse_tracker.finished:
-                    if closest.route_i == 0 and closest.point_pair[1] == event_routes[0]['points'][-1] and closest.dist < 100:
+                    if closest.route_i == 0 and closest.point_pair[1] == event_routes[0]['points'][-1] and closest.dist < 200:
+                        analyse_tracker.logger.debug('Finished')
                         analyse_tracker.finished = True
                         point['finished_time'] = point['time']
 
