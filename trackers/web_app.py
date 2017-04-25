@@ -127,7 +127,7 @@ async def event_ws(request):
             trackers = request.app['trackers.events_rider_trackers'].get(event_name)
 
             def send(msg):
-                logger.debug('send: {}'.format(msg))
+                logger.debug('send: {}'.format(str(msg)[:1000]))
                 ws.send_str(json.dumps(msg, default=json_encode))
 
             exit_stack.enter_context(list_register(request.app['trackers.events_ws_sessions'][event_name], send))
