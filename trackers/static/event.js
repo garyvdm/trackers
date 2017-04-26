@@ -253,7 +253,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var riders_el = [];
     function update_rider_table(){
         if (event_data) {
-            var sorted_riders = Array.from(event_data.riders);
+            var sorted_riders = event_data.riders.slice();
             sorted_riders.sort(function (a, b){
                 var a_rider_items = riders_client_items[a.name] || {};
                 var a_current_values = a_rider_items.current_values || {};
