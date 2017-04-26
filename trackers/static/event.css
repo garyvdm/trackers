@@ -59,12 +59,29 @@ html, body {
     border-radius: 2px;
 }
 
+#riders table{
+     border-collapse: collapse;
+}
+
 #riders .head>*{
     font-weight: bold;
 }
 
 #riders td{
-    padding: 4px;
+    padding: 10px;
+}
+
+.rider {
+    cursor: pointer;
+}
+
+.rider td{
+    cursor: pointer;
+}
+
+.rider.selected {
+    background: #4285F4;
+    color: white;
 }
 
 #mobile_select {
@@ -101,7 +118,6 @@ html, body {
     }
     .show_riders #riders{
         display: block;
-
     }
     #riders{
         position: static;

@@ -167,9 +167,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }, 1000);
 
+    var route_path = null;
     function on_new_event_data(){
         event_markers.forEach(function (marker) { marker.setMap(null) });
         event_markers = [];
+        if (route_path) route_path.setMap(null);
+
         if (event_data) {
             document.getElementById('title').innerText = event_data.title;
             document.title = event_data.title;
@@ -183,6 +186,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 event_markers.push(marker);
             });
             map.fitBounds(bounds);
+
+            if (event_data.hasOwnProperty('routes') && event_data.routes.length > 0){
+                route_path = new google.maps.Polyline({
+                    map: map,
+                    path: event_data.routes[0].map(function (point) {return new google.maps.LatLng(point[0], point[1])}),
+                    geodesic: true,
+                    strokeColor: 'black',
+                    strokeOpacity: 0.7,
+                    strokeWeight: 2,
+                    zIndex: -1
+                })
+            }
         }
     }
 
@@ -191,6 +206,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!rider) return;
         var rider_items = riders_client_items[rider_name] || (riders_client_items[rider_name] = {
             'paths': {},
+            'marker': null,
             'current_values': {},
             'last_position_point': null,
             'position_point': null,
@@ -234,6 +250,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     var riders_detail_el = document.getElementById('riders_detail');
+    var riders_el = [];
     function update_rider_table(){
         if (event_data) {
             var sorted_riders = Array.from(event_data.riders);
@@ -281,7 +298,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     speed = Math.round((position_point[DIST_RIDDEN] - last_position_point[DIST_RIDDEN]) / (position_point[TIME] - last_position_point[TIME]) * 3.6 * 10) /10
                 }
                 if (show_detail) {
-                    return '<tr>'+
+                    return '<tr rider_name="' + rider.name + '" class="rider">' +
                            '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
                            '<td>' + rider.name + '</td>' +
                            '<td>' + (current_values[STATUS] || '') + '</td>' +
@@ -292,7 +309,7 @@ document.addEventListener('DOMContentLoaded', function() {
                            '<td style="text-align: right">' + (finished_time || '') + '</td>' +
                            '</tr>';
                 } else {
-                    return '<tr>'+
+                    return '<tr rider_name="' + rider.name + '" class="rider">' +
                            '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
                            '<td>' + rider.name + '</td>' +
                            '<td style="text-align: right">' + (finished_time || (current_values.hasOwnProperty(DIST_ROUTE) ? (Math.round(current_values[DIST_ROUTE] / 100) / 10) +' km': '')) + '</td>' +
@@ -315,10 +332,61 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('riders_actual').innerHTML =
                     '<table>' + rider_rows.join('') + '</table>';
             }
+            riders_el = document.getElementById('riders_actual').querySelectorAll('.rider');
+            Array.prototype.forEach.call(riders_el, function (row){
+                var rider_name = row.getAttribute('rider_name');
+                row.onclick = rider_onclick.bind(null, row, rider_name);
+                if (rider_name == selected_rider) row.classList.add('selected');
+            });
         }
     }
     setInterval(update_rider_table());
     riders_detail_el.onclick = update_rider_table;
+
+    var selected_rider = null;
+    function rider_onclick(row, rider_name) {
+        Array.prototype.forEach.call(riders_el, function (el){
+            el.classList.remove('selected');
+        });
+        if (selected_rider == rider_name) {
+            selected_rider = null;
+        } else {
+            selected_rider = rider_name;
+            row.classList.add('selected');
+        }
+        var selected_position;
+        event_data.riders.forEach(function (rider){
+            var rider_items = riders_client_items[rider.name] || {'paths': {}, 'marker': null};
+
+            var zIndex;
+            var opacity;
+            if (selected_rider && selected_rider==rider.name){
+                zIndex = 1000;
+                opacity = 1;
+                if (rider_items.marker) selected_position = rider_items.marker.getPosition();
+            } else if (selected_rider && selected_rider!=rider.name){
+                zIndex = 1;
+                opacity = 0.3;
+            } else {
+                zIndex = 1;
+                opacity = 1;
+            }
+            if (rider_items.marker) {
+                rider_items.marker.setZIndex(zIndex);
+                rider_items.marker.markerContent_.style.opacity = opacity;
+            }
+            Object.values(rider_items.paths).forEach(function (path) {
+                path.setOptions({zIndex: zIndex, strokeOpacity: opacity});
+            });
+        });
+        if (selected_rider) setTimeout(function(){
+            apply_mobile_selected('map');
+            if (selected_position) {
+                map.panTo(selected_position);
+            }
+        });
+    }
+
 
     var event_data = JSON.parse(window.localStorage.getItem(location.pathname  + '_event_data'))
     var event_markers = []
@@ -347,6 +415,7 @@ document.addEventListener('DOMContentLoaded', function() {
         Array.prototype.forEach.call(mobile_selectors, function (el){
             el.className = (el.getAttribute('show') == selected?'selected':'')
         });
+        if (selected=='map') google.maps.event.trigger(map, 'resize');
     }
     apply_mobile_selected('map');
     Array.prototype.forEach.call(mobile_selectors, function (el){
