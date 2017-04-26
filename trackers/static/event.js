@@ -379,12 +379,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 path.setOptions({zIndex: zIndex, strokeOpacity: opacity});
             });
         });
-        if (selected_rider) setTimeout(function(){
-            apply_mobile_selected('map');
-            if (selected_position) {
-                map.panTo(selected_position);
-            }
-        });
+        if (selected_rider) {
+            setTimeout(function(){
+
+                apply_mobile_selected('map');
+                if (selected_position) {
+                    map.panTo(selected_position);
+                }
+            });
+        }
+        event_markers.forEach(function (marker) { marker.setOpacity((selected_rider ? 0.5 : 1)) });
     }
 
 
