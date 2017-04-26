@@ -145,12 +145,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function format_race_time(seconds){
-        return sprintf('%id %02i:%02i:%02i',
-            Math.floor(seconds / 60 / 60 / 24), /* days */
-            Math.floor(seconds / 60 / 60 % 24), /* hours */
+        return sprintf('%02i:%02i:%02i',
+            Math.floor(seconds / 60 / 60), /* hours */
             Math.floor(seconds / 60 % 60),      /* min */
             Math.floor(seconds % 60)            /* seconds */
             );
+//        return sprintf('%id %02i:%02i:%02i',
+//            Math.floor(seconds / 60 / 60 / 24), /* days */
+//            Math.floor(seconds / 60 / 60 % 24), /* hours */
+//            Math.floor(seconds / 60 % 60),      /* min */
+//            Math.floor(seconds % 60)            /* seconds */
+//            );
     }
 
     var race_time = document.getElementById('race_time');
