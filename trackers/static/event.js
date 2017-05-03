@@ -23,16 +23,33 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     window.onerror = function (messageOrEvent, source, lineno, colno, error){{
+        errors.push(messageOrEvent);
+        update_status();
+        var full_error_message = messageOrEvent + '\n' + (error? error.stack: source + ':' + lineno + ':' + colno)
         setTimeout(function () {{
-            errors.push(messageOrEvent);
-            update_status();
+            var request = new XMLHttpRequest();
+            request.open("POST", '/client_error', true);
+            request.send(full_error_message);
         }}, 100);
-
-        var request = new XMLHttpRequest();
-        request.open("POST", '/client_error', true);
-        request.send(messageOrEvent + '\n' + (error.stack || source + ':' + lineno + ':' + colno));
         return false;
     }}
+
+    var main_el = document.getElementById('main');
+    var mobile_selectors = document.getElementById('mobile_select').querySelectorAll('div');
+    var mobile_selected;
+
+    function apply_mobile_selected(selected){
+        mobile_selected = selected;
+        main_el.className = 'show_' + selected;
+        Array.prototype.forEach.call(mobile_selectors, function (el){
+            el.className = (el.getAttribute('show') == selected?'selected':'')
+        });
+        if (selected=='map') google.maps.event.trigger(map, 'resize');
+    }
+    Array.prototype.forEach.call(mobile_selectors, function (el){
+        var el_selects = el.getAttribute('show')
+        el.onclick = function(){apply_mobile_selected(el_selects);};
+    });
 
     var map = new google.maps.Map(document.getElementById('map'), {
         center: {lat: 0, lng: 0},
@@ -43,6 +60,7 @@ document.addEventListener('DOMContentLoaded', function() {
             position: google.maps.ControlPosition.TOP_RIGHT
         }
     });
+    apply_mobile_selected('map');
 
     var ws;
     var close_reason;
@@ -287,7 +305,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                 }
-                if (position_point) {
+                if (last_position_point) {
                     // TODO more than a day
                     seconds = current_time - last_position_point[TIME];
                     if (seconds < 60) { last_position_time = '< 1 min ago' }
@@ -408,25 +426,6 @@ document.addEventListener('DOMContentLoaded', function() {
     finally {
         setTimeout(ws_connect, 0);
     }
-
-    var main_el = document.getElementById('main');
-    var mobile_selectors = document.getElementById('mobile_select').querySelectorAll('div');
-    var mobile_selected;
-
-    function apply_mobile_selected(selected){
-        mobile_selected = selected;
-        main_el.className = 'show_' + selected;
-        Array.prototype.forEach.call(mobile_selectors, function (el){
-            el.className = (el.getAttribute('show') == selected?'selected':'')
-        });
-        if (selected=='map') google.maps.event.trigger(map, 'resize');
-    }
-    apply_mobile_selected('map');
-    Array.prototype.forEach.call(mobile_selectors, function (el){
-        var el_selects = el.getAttribute('show')
-        el.onclick = function(){apply_mobile_selected(el_selects);};
-    });
-
 
 });
 

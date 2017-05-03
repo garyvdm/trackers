@@ -5,17 +5,19 @@
     <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
     <script>
         window.onerror = function (messageOrEvent, source, lineno, colno, error){{
+            document.getElementById('status').innerText = messageOrEvent;
+            var full_error_message = messageOrEvent + '\n' + (error? error.stack: source + ':' + lineno + ':' + colno)
             setTimeout(function () {{
-                document.getElementById('status').innerText = messageOrEvent;
+                var request = new XMLHttpRequest();
+                request.open("POST", '/client_error', true);
+                request.send(full_error_message);
             }}, 100);
-            var request = new XMLHttpRequest();
-            request.open("POST", '/client_error', true);
-            request.send(messageOrEvent + '\n' + (error.stack || source + ':' + lineno + ':' + colno));
+
             return false;
         }}
         var client_hash = '{client_hash}';
     </script>
-    <script src="https://maps.googleapis.com/maps/api/js?v=3.exp&key={api_key}"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?v=3&key={api_key}"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sprintf/1.0.3/sprintf.min.js"></script>
     <script src="/static/richmarker.js"></script>
     <script src="/static/event.js"></script>
