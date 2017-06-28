@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import datetime
 import collections
@@ -27,7 +28,9 @@ async def config_modules(app, settings):
 async def static_start_event_tracker(app, settings, event_name, event_data, tracker_data):
     tracker = trackers.Tracker('static.{}'.format(tracker_data['name']))
     with open(os.path.join(settings['data_path'], event_name, tracker_data['name'])) as f:
-        points = yaml.load(f)
+        points = json.load(f)
+    for point in points:
+        point['time'] = datetime.datetime.fromtimestamp(point['time'])
     await tracker.new_points(points)
     return tracker
 

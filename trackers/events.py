@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 def load_events(app, settings):
     app['trackers.events_data'] = events_data = {}
-    app['trackers.tracker_tasks'] = []
     app['trackers.events_rider_trackers'] = {}
     app['trackers.events_routes'] = {}
     app['trackers.events_ws_sessions'] = events_ws_sessions ={}

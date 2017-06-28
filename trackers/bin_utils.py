@@ -2,11 +2,13 @@ import argparse
 import asyncio
 import contextlib
 import copy
+import json
 import logging.config
 import os
 import sys
 import xml.etree.ElementTree as xml
 
+import datetime
 import yaml
 
 import trackers.events
@@ -118,20 +120,22 @@ async def convert_to_static_async(settings, event_name, dry_run):
         trackers.events.load_events(app, settings)
         await trackers.events.start_event_trackers(app, settings, event_name)
 
-        for task in app['trackers.tracker_tasks']:
-            await task
-
         event_data = app['trackers.events_data'][event_name]
         rider_trackers = app['trackers.events_rider_trackers'][event_name]
         for rider in event_data['riders']:
             rider_name = rider['name']
             tracker = rider_trackers[rider_name]
+            await tracker.finish()
             with open(os.path.join(os.path.join(settings['data_path'], event_name, rider_name)), 'w') as f:
-                yaml.dump(tracker.points, f)
+                json.dump(tracker.points, f, default=json_encode)
             rider['tracker'] = {'type': 'static', 'name': rider_name}
         if not dry_run:
             trackers.events.save_event(app, settings, event_name)
 
+
+def json_encode(obj):
+    if isinstance(obj, datetime.datetime):
+        return obj.timestamp()
 
 def assign_rider_colors():
     parser = get_base_argparser(description="Assigns unique colors to riders")

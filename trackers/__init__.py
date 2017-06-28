@@ -41,6 +41,10 @@ class Tracker(object):
     async def stop(self):
         pass
 
+    async def finish(self):
+        pass
+
+
 
 async def call_callbacks(callbacks, error_msg, logger, *args, **kwargs):
     loop = asyncio.get_event_loop()
@@ -67,6 +71,10 @@ async def cancel_and_wait_task(task):
         pass
 
 
+async def wait_task(task):
+    return await task
+
+
 def print_tracker(tracker):
 
     import pprint
@@ -83,6 +91,7 @@ async def start_analyse_tracker(tracker, event, event_routes, track_break_time=d
     analyse_tracker.status = None
     analyse_tracker.make_inactive_fut = None
     analyse_tracker.stop = functools.partial(stop_analyse_tracker, analyse_tracker)
+    analyse_tracker.finish = tracker.finish
     analyse_tracker.org_tracker = tracker
     analyse_tracker.last_closest = None
     analyse_tracker.dist_ridden = 0
@@ -109,7 +118,11 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
 
     new_new_points = []
     last_point_with_position = None
-    for point in new_points:
+    log_time = datetime.datetime.now()
+    log_i = 0
+    last_route_point = event_routes[0]['points'][-1]
+
+    for i, point in enumerate(new_points):
         point = copy.deepcopy(point)
         if 'position' in point:
             if analyse_tracker.make_inactive_fut:
@@ -136,7 +149,7 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
                     point['dist_route'] = round(alt_route_dist * route['dist_factor'] + route['start_distance'])
 
                 if not analyse_tracker.finished:
-                    if closest.route_i == 0 and closest.point_pair[1] == event_routes[0]['points'][-1] and closest.dist < 200:
+                    if closest.route_i == 0 and closest.point_pair[1].distance - last_route_point.distance < 100 and distance(point_point, last_route_point) < 100:
                         analyse_tracker.logger.debug('Finished')
                         analyse_tracker.finished = True
                         point['finished_time'] = point['time']
@@ -161,6 +174,20 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
             analyse_tracker.last_point_with_position = last_point_with_position = point
             point['track_id'] = analyse_tracker.current_track_id
         new_new_points.append(point)
+
+        if i % 10 == 9:
+            now = datetime.datetime.now()
+            log_time_delta = (now - log_time).total_seconds()
+            if log_time_delta >= 10:
+                analyse_tracker.logger.info('{}/{} ({:.1f}%) points analysed at {:.2f} points/second.'.format(
+                    i, len(new_points), i / len(new_points) * 100, (i-log_i) / log_time_delta))
+                log_time = now
+                log_i = i
+
+        if analyse_tracker.finished:
+            break
+                
+
     if new_new_points:
         await analyse_tracker.new_points(new_new_points)
 
