@@ -120,7 +120,7 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
     last_point_with_position = None
     log_time = datetime.datetime.now()
     log_i = 0
-    last_route_point = event_routes[0]['points'][-1]
+    last_route_point = event_routes[0]['points'][-1] if event_routes else None
 
     for i, point in enumerate(new_points):
         point = copy.deepcopy(point)
@@ -136,7 +136,7 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
             # TODO only search points after the last route point
             point_point = Point(*point['position'][:2])
             closest = find_closest_point_pair_routes(event_routes, point_point, 1000, analyse_tracker.last_closest, 250)
-            if closest.dist > 5000:
+            if closest and closest.dist > 5000:
                 closest = None
 
             if closest:
