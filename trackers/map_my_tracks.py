@@ -234,7 +234,7 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
             if now > end_date:
                 break
 
-            await asyncio.sleep(60)
+            await asyncio.sleep(30)
         except asyncio.CancelledError:
             break
         except Exception:
