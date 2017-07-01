@@ -22,7 +22,7 @@ async def start_event_tracker(app, settings, event_name, event_data, tracker_dat
     tracker = trackers.Tracker('mapmytracks.{}'.format(tracker_data['name']))
     monitor_task = asyncio.ensure_future(monitor_user(
         app['trackers.mapmytracks_session'], tracker_data['name'], event_data['tracker_start'], event_data['tracker_end'],
-        os.path.join(settings['data_path'], event_name, 'mapmytracks_cache'), tracker))
+        os.path.join(settings['data_path'], event_name, 'mapmytracks_cache'), tracker, set(tracker_data.get('exclude', ()))))
     tracker.stop = functools.partial(trackers.cancel_and_wait_task, monitor_task)
     tracker.finish = functools.partial(trackers.wait_task, monitor_task)
     monitor_task.add_done_callback(functools.partial(trackers.callback_done_callback, 'Error in monitor_user:', tracker.logger))
@@ -126,7 +126,7 @@ async def get_activity(client_session, activity_id, from_time):
 
 
 
-async def monitor_user(client_session, user, start_date, end_date, cache_path, tracker):
+async def monitor_user(client_session, user, start_date, end_date, cache_path, tracker, exclude):
     os.makedirs(cache_path, exist_ok=True)
 
     full_cache_path = os.path.join(cache_path, user)
@@ -140,7 +140,7 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
     except Exception:
         tracker.logger.exception("Error loading cache file: '{}' :".format(full_cache_path))
 
-    activites = set(state.get('activites', []))
+    activites = set([activity for activity in state.get('activites', []) if activity not in exclude])
     completed_activites = set(state.get('completed_activites', ()))
     activities_points = state.setdefault('activities_points', {})
 
@@ -180,7 +180,7 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
                     all_activites = await  get_activites(client_session, user, logger=tracker.logger,
                                                          pages=1 if activites else 5, warn_scrape=first_get_activites)
                     first_get_activites = False
-                    activites.update([activity[0] for activity in all_activites if start_date <= activity[1] < end_date])
+                    activites.update([activity[0] for activity in all_activites if start_date <= activity[1] < end_date and activity[0] not in exclude])
                     uncompleted_activities = activites.difference(completed_activites)
 
                     # Hack to get the incorrectly completed activity out of completed.
