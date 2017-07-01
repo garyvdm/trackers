@@ -209,7 +209,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 route_path = new google.maps.Polyline({
                     map: map,
                     path: event_data.routes[0].map(function (point) {return new google.maps.LatLng(point[0], point[1])}),
-                    geodesic: true,
+                    geodesic: false,
                     strokeColor: 'black',
                     strokeOpacity: 0.7,
                     strokeWeight: 2,
@@ -237,7 +237,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 path = (rider_items.paths[point[TRACK_ID]] || (rider_items.paths[point[TRACK_ID]] = new google.maps.Polyline({
                     map: map,
                     path: [],
-                    geodesic: true,
+                    geodesic: false,
                     strokeColor: path_color,
                     strokeOpacity: 1.0,
                     strokeWeight: 2
