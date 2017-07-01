@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import xml.etree.ElementTree as xml
+from urllib.parse import quote
 
 import aiohttp
 import bs4
@@ -83,11 +84,12 @@ async def get_activites(client_session, author, logger=None, pages=5, warn_scrap
             logger.warning('User "{}" is not a username. Using html scrap to get activities.'.format(author))
 
         activites = []
+        print(repr(author))
         for i in range(1, pages):
             if i == 1:
-                url = 'http://www.mapmytracks.com/{}'.format(author, i)
+                url = 'http://www.mapmytracks.com/{}'.format(quote(author), i)
             else:
-                url = 'http://www.mapmytracks.com/user-embeds/get-tracks/{}/{}'.format(author, i)
+                url = 'http://www.mapmytracks.com/user-embeds/get-tracks/{}/{}'.format(quote(author), i)
             async with client_session.post(url) as response:
                 response.raise_for_status()
                 text = await response.text()
@@ -95,11 +97,13 @@ async def get_activites(client_session, author, logger=None, pages=5, warn_scrap
                 break
             doc = bs4.BeautifulSoup(text, 'html.parser')
 
-            for track in  doc.find_all(class_='grid-entry'):
-                activity_id = int(track.find('a', title='Replay this activity')['href'].rpartition('/')[2])
-                date_text = track.find(class_='act-local').text.partition(' on ')[2].strip()
-                date = datetime.datetime.strptime(date_text, '%d %b %Y')
-                activites.append((activity_id, date))
+            for track in doc.find_all(class_='grid-entry'):
+                link = track.find('a', title='Replay this activity')
+                if link:
+                    activity_id = int(link['href'].rpartition('/')[2])
+                    date_text = track.find(class_='act-local').text.partition(' on ')[2].strip()
+                    date = datetime.datetime.strptime(date_text, '%d %b %Y')
+                    activites.append((activity_id, date))
     return activites
 
 
