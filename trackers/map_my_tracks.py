@@ -84,7 +84,6 @@ async def get_activites(client_session, author, logger=None, pages=5, warn_scrap
             logger.warning('User "{}" is not a username. Using html scrap to get activities.'.format(author))
 
         activites = []
-        print(repr(author))
         for i in range(1, pages):
             if i == 1:
                 url = 'http://www.mapmytracks.com/{}'.format(quote(author), i)
