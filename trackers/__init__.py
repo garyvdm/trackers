@@ -121,6 +121,8 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
     log_time = datetime.datetime.now()
     log_i = 0
     last_route_point = event_routes[0]['points'][-1] if event_routes else None
+    if len(new_points) > 20:
+        await asyncio.sleep(0)
 
     for i, point in enumerate(new_points):
         point = copy.deepcopy(point)
@@ -183,6 +185,7 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
                     i, len(new_points), i / len(new_points) * 100, (i-log_i) / log_time_delta))
                 log_time = now
                 log_i = i
+                await asyncio.sleep(0)
 
         if analyse_tracker.finished:
             break
