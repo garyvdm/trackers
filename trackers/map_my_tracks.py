@@ -194,7 +194,7 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
                 completed_changes = False
 
                 new_points = []
-                for activity_id in uncompleted_activities:
+                for activity_id in sorted(uncompleted_activities):
                     points = activities_points.setdefault(str(activity_id), [])
                     while True:
                         max_timestamp = points[-1][0] if points else 0
