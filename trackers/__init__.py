@@ -39,7 +39,7 @@ class Tracker(object):
     async def new_points(self, new_points):
         self.points.extend(new_points)
         new_tasks = await call_callbacks(self.new_points_callbacks, 'Error calling new_points callback:', self.logger, self, new_points)
-        self.callback_tasks = [task for task in self.callback_tasks + new_tasks if task.done()]
+        self.callback_tasks = [task for task in self.callback_tasks + new_tasks if not task.done()]
 
     async def stop(self):
         await self.stop_specific()
@@ -143,6 +143,8 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
     log_i = 0
     last_route_point = event_routes[0]['points'][-1] if event_routes else None
     loop = asyncio.get_event_loop()
+    last_point_i = len(new_points) -1
+    did_slow_log = False
 
     for i, point in enumerate(new_points):
         point = copy.deepcopy(point)
@@ -160,14 +162,16 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
 
         new_new_points.append(point)
 
-        if i % 10 == 9:
+        is_last_point = i == last_point_i
+        if i % 10 == 9 or is_last_point:
             now = datetime.datetime.now()
             log_time_delta = (now - log_time).total_seconds()
-            if log_time_delta >= 10:
+            if log_time_delta >= 10 or (is_last_point and did_slow_log):
                 analyse_tracker.logger.info('{}/{} ({:.1f}%) points analysed at {:.2f} points/second.'.format(
                     i, len(new_points), i / len(new_points) * 100, (i-log_i) / log_time_delta))
                 log_time = now
                 log_i = i
+                did_slow_log = True
 
         if analyse_tracker.finished:
             break

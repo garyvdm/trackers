@@ -27,7 +27,7 @@ async def start_event_tracker(app, settings, event_name, event_data, tracker_dat
         app['trackers.mapmytracks_session'], tracker_data['name'], event_data['tracker_start'], event_data['tracker_end'],
         os.path.join(settings['data_path'], event_name, 'mapmytracks_cache'), tracker, set(tracker_data.get('exclude', ()))))
     tracker.stop = functools.partial(trackers.cancel_and_wait_task, monitor_task)
-    tracker.finish = functools.partial(trackers.wait_task, monitor_task)
+    tracker.finish_specific = functools.partial(trackers.wait_task, monitor_task)
     monitor_task.add_done_callback(functools.partial(trackers.callback_done_callback, 'Error in monitor_user:', tracker.logger))
     return tracker
 

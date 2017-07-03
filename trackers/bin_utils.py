@@ -93,6 +93,9 @@ def get_combined_settings(specific_defaults_yaml=None, args=None):
     if args and args.debug:
         logging.getLogger('trackers').setLevel(logging.DEBUG)
         logging.getLogger('web_app').setLevel(logging.DEBUG)
+        logging.getLogger('asyncio').setLevel(logging.DEBUG)
+
+    settings['debug'] = args and args.debug
 
     if sys.stdout.isatty() and settings['logging'] != defaults['logging']:
         # Reapply the default logging settings
@@ -112,6 +115,7 @@ def convert_to_static():
     args = parser.parse_args()
     settings = get_combined_settings(args=args)
     with contextlib.closing(asyncio.get_event_loop()) as loop:
+        loop.set_debug(settings['debug'])
         loop.run_until_complete(convert_to_static_async(settings, args.event, args.dry_run))
 
 async def convert_to_static_async(settings, event_name, dry_run):
@@ -124,11 +128,12 @@ async def convert_to_static_async(settings, event_name, dry_run):
         rider_trackers = app['trackers.events_rider_trackers'][event_name]
         for rider in event_data['riders']:
             rider_name = rider['name']
-            tracker = rider_trackers[rider_name]
-            await tracker.finish()
-            with open(os.path.join(os.path.join(settings['data_path'], event_name, rider_name)), 'w') as f:
-                json.dump(tracker.points, f, default=json_encode)
-            rider['tracker'] = {'type': 'static', 'name': rider_name}
+            tracker = rider_trackers.get(rider_name)
+            if tracker:
+                await tracker.finish()
+                with open(os.path.join(os.path.join(settings['data_path'], event_name, rider_name)), 'w') as f:
+                    json.dump(tracker.points, f, default=json_encode)
+                rider['tracker'] = {'type': 'static', 'name': rider_name}
         if not dry_run:
             trackers.events.save_event(app, settings, event_name)
 
@@ -136,6 +141,7 @@ async def convert_to_static_async(settings, event_name, dry_run):
 def json_encode(obj):
     if isinstance(obj, datetime.datetime):
         return obj.timestamp()
+
 
 def assign_rider_colors():
     parser = get_base_argparser(description="Assigns unique colors to riders")
@@ -148,12 +154,11 @@ def assign_rider_colors():
     event_data = app['trackers.events_data'][event_name]
     num_riders = len(event_data['riders'])
     for i, rider in enumerate(event_data['riders']):
-        hue = round(((i * 360 / num_riders)  + (180 * (i % 2))) % 360)
+        hue = round(((i * 360 / num_riders) + (180 * (i % 2))) % 360)
         print(hue)
         rider['color'] = 'hsl({}, 100%, 50%)'.format(hue)
         rider['color_marker'] = 'hsl({}, 100%, 60%)'.format(hue)
     trackers.events.save_event(app, settings, event_name)
-
 
 
 def add_gpx_to_event_routes():
