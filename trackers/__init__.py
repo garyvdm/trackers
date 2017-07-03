@@ -136,6 +136,8 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
                     pass
                 analyse_tracker.make_inactive_fut = None
             await loop.run_in_executor(analyse_executor, analyze_point, analyse_tracker, event, event_routes, track_break_time, last_route_point, track_break_dist, tracker, new_new_points, point)
+            analyse_tracker.last_point_with_position = last_point_with_position = point
+            point['track_id'] = analyse_tracker.current_track_id
 
         new_new_points.append(point)
 
@@ -150,7 +152,6 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
 
         if analyse_tracker.finished:
             break
-                
 
     if new_new_points:
         await analyse_tracker.new_points(new_new_points)
@@ -158,6 +159,7 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
     if last_point_with_position:
         analyse_tracker.make_inactive_fut = asyncio.ensure_future(
             make_inactive(analyse_tracker, last_point_with_position, track_break_time))
+
 
 def analyze_point(analyse_tracker, event, event_routes, track_break_time, last_route_point, track_break_dist, tracker, new_new_points, point):
     # TODO only search points after the last route point
@@ -198,8 +200,6 @@ def analyze_point(analyse_tracker, event, event_routes, track_break_time, last_r
     # TODO what about status from source tracker?
     analyse_apply_status_to_point(analyse_tracker, point, 'Active')
 
-    analyse_tracker.last_point_with_position = last_point_with_position = point
-    point['track_id'] = analyse_tracker.current_track_id
 
 async def make_inactive(analyse_tracker, last_point_with_position, track_break_time):
     delay = (last_point_with_position['time'] - datetime.datetime.now() + track_break_time).total_seconds()
