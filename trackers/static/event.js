@@ -185,11 +185,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }, 1000);
 
-    var route_path = null;
+    var route_paths = [];
     function on_new_event_data(){
         event_markers.forEach(function (marker) { marker.setMap(null) });
         event_markers = [];
-        if (route_path) route_path.setMap(null);
+        route_paths.forEach(function (path) { path.setMap(null) });
 
         if (event_data) {
             document.getElementById('title').innerText = event_data.title;
@@ -205,17 +205,17 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             map.fitBounds(bounds);
 
-            if (event_data.hasOwnProperty('routes') && event_data.routes.length > 0){
-                route_path = new google.maps.Polyline({
+            route_paths = (event_data.routes || []).map(function (route){
+                return new google.maps.Polyline({
                     map: map,
-                    path: event_data.routes[0].map(function (point) {return new google.maps.LatLng(point[0], point[1])}),
+                    path: route.map(function (point) {return new google.maps.LatLng(point[0], point[1])}),
                     geodesic: false,
                     strokeColor: 'black',
                     strokeOpacity: 0.7,
                     strokeWeight: 2,
                     zIndex: -1
                 })
-            }
+            });
         }
     }
 
