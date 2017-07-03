@@ -38,36 +38,29 @@ class Tracker(object):
 
     async def new_points(self, new_points):
         self.points.extend(new_points)
-        new_tasks = await call_callbacks(self.new_points_callbacks, 'Error calling new_points callback:', self.logger, self, new_points)
-        self.callback_tasks = [task for task in self.callback_tasks + new_tasks if not task.done()]
+        await call_callbacks(self.new_points_callbacks, 'Error calling new_points callback:', self.logger, self, new_points)
 
     async def stop(self):
         await self.stop_specific()
-        for task in self.callback_tasks:
-            task.cancel()
 
     async def stop_specific(self):
         pass
 
     async def finish(self):
         await self.finish_specific()
-        if self.callback_tasks:
-            await asyncio.wait(self.callback_tasks)
 
     async def finish_specific(self):
         pass
 
 
-
-
-
 async def call_callbacks(callbacks, error_msg, logger, *args, **kwargs):
-    loop = asyncio.get_event_loop()
-    tasks = [loop.create_task(callback(*args, **kwargs)) for callback in callbacks]
-    done_callback = functools.partial(callback_done_callback, error_msg, logger)
-    for task in tasks:
-        task.add_done_callback(done_callback)
-    return tasks
+    for callback in callbacks:
+        try:
+            await callback(*args, **kwargs)
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception(error_msg)
 
 
 def callback_done_callback(error_msg, logger, fut):
