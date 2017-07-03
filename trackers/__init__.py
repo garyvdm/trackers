@@ -15,6 +15,7 @@ from numpy import (
     arccos,
     deg2rad,
     rad2deg,
+    seterr,
 )
 from nvector import (
     unit,
@@ -24,7 +25,7 @@ from nvector import (
 
 geodesic = geographiclib.geodesic.Geodesic.WGS84
 logger = logging.getLogger()
-
+# seterr(all='raise')
 
 class Tracker(object):
 
@@ -307,6 +308,7 @@ def get_expanded_routes(routes_org):
 def route_with_distance_and_index(route):
     dist = 0
     previous_point = None
+    filtered_points = (point for last_point, point in zip([None] + route[:-1], route) if point != last_point)
 
     def get_point(i, point):
         nonlocal dist
@@ -317,7 +319,7 @@ def route_with_distance_and_index(route):
         point.distance = dist
         previous_point = point
         return point
-    return [get_point(i, point) for i, point in enumerate(route)]
+    return [get_point(i, point) for i, point in enumerate(filtered_points)]
 
 
 DISTANCE = geographiclib.geodesic.Geodesic.DISTANCE
@@ -427,5 +429,14 @@ def get_point_pair_precalc(point1, point2):
     c12 = cross(p1, p2, axis=0)
     p1h = p1.reshape((3, ))
     p2h = p2.reshape((3, ))
-    dp1p2 = arccos(dot(p1h, p2h))
+    try:
+        dp1p2 = arccos(dot(p1h, p2h))
+    except Exception:
+        print(p1h)
+        print(p2h)
+        print(dot(p1h, p2h))
+        print((point1, point2))
+
+        print(arccos(1))
+        raise
     return point1, point2, c12, p1h, p2h, dp1p2
