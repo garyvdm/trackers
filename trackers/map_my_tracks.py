@@ -15,7 +15,10 @@ import trackers
 
 
 async def config(app, settings):
-    app['trackers.mapmytracks_session'] = mapmytracks_session = aiohttp.ClientSession(auth=aiohttp.BasicAuth(*settings['mapmytracks_auth']))
+    app['trackers.mapmytracks_session'] = mapmytracks_session = aiohttp.ClientSession(
+        auth=aiohttp.BasicAuth(*settings['mapmytracks_auth']),
+        connector=aiohttp.TCPConnector(limit=4)
+    )
     return mapmytracks_session
 
 async def start_event_tracker(app, settings, event_name, event_data, tracker_data):
