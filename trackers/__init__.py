@@ -165,6 +165,9 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
                 log_time = now
                 log_i = i
                 did_slow_log = True
+                if new_new_points:
+                    await analyse_tracker.new_points(new_new_points)
+                    new_new_points = []
 
         if analyse_tracker.finished:
             break
