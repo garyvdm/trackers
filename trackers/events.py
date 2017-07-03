@@ -50,6 +50,8 @@ async def stop_event_trackers(app, event_name):
     event_rider_trackers = app['trackers.events_rider_trackers'][event_name]
     for tracker in event_rider_trackers.values():
         await tracker.stop()
+    for tracker in event_rider_trackers.values():
+        await tracker.finish()
 
 
 def save_event(app, settings, event_name):

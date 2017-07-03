@@ -31,7 +31,7 @@ class TestAnalyseTracker(asynctest.TestCase):
             {'time': d('2017/01/01 05:30:00'), 'position': (-27.280315, 27.969365, 1800), 'track_id': 1, 'status': 'Active', 'dist_from_last': 108675, 'dist_ridden': 108906},
             {'time': d('2017/01/01 05:31:00'), 'position': (-27.282870, 27.970620, 1800), 'track_id': 1, 'dist_from_last': 309, 'dist_ridden': 109216},
         ))
-        await analyse_tracker.stop()
+        await analyse_tracker.finish()
 
     async def test_break_inactive_current(self):
         tracker = trackers.Tracker('test')
@@ -56,7 +56,7 @@ class TestAnalyseTracker(asynctest.TestCase):
             {'time': t2, 'position': (-26.302245, 28.051139, 1800), 'track_id': 0, 'dist_from_last': 231, 'dist_ridden': 231,},
             {'time': t2 + break_time, 'status': 'Inactive'},
         ))
-        await analyse_tracker.stop()
+        await analyse_tracker.finish()
 
     async def test_break_inactive_old(self):
         tracker = trackers.Tracker('test')
@@ -69,7 +69,7 @@ class TestAnalyseTracker(asynctest.TestCase):
             {'time': d('2017/01/01 05:00:00'), 'position': (-26.300822, 28.049444, 1800), 'track_id': 0, 'status': 'Active'},
             {'time': d('2017/01/01 05:20:00'), 'status': 'Inactive'},
         ))
-        await analyse_tracker.stop()
+        await analyse_tracker.finish()
 
     async def test_with_route(self):
         tracker = trackers.Tracker('test')
@@ -89,12 +89,13 @@ class TestAnalyseTracker(asynctest.TestCase):
             {'time': d('2017/01/01 05:01:00'), 'position': (-26.322167, 28.042920, 1800)},
         ))
         analyse_tracker = await trackers.start_analyse_tracker(tracker, event_data, event_routes)
-        await analyse_tracker.stop()
+        await analyse_tracker.finish()
 
         pprint.pprint(analyse_tracker.points)
         self.assertSequenceEqual(analyse_tracker.points, (
             {'time': d('2017/01/01 05:00:00'), 'position': (-26.300824, 28.050185, 1800), 'track_id': 0, 'status': 'Active', 'dist_route': 82},
             {'time': d('2017/01/01 05:01:00'), 'position': (-26.322167, 28.042920, 1800), 'track_id': 0, 'dist_from_last': 2473, 'dist_ridden': 2473, 'dist_route': 4198, 'finished_time': d('2017/01/01 05:01:00'),},
+            {'status': 'Inactive', 'time': datetime.datetime(2017, 1, 1, 5, 21)},
         ))
 
     async def test_with_route_alt(self):
@@ -123,11 +124,12 @@ class TestAnalyseTracker(asynctest.TestCase):
             {'time': d('2017/01/01 05:02:00'), 'position': (-26.417149, 28.073087, 1800)},
         ))
         analyse_tracker = await trackers.start_analyse_tracker(tracker, event_data, event_routes)
-        await analyse_tracker.stop()
+        await analyse_tracker.finish()
 
         pprint.pprint(analyse_tracker.points)
         self.assertSequenceEqual(analyse_tracker.points, [
             {'time': d('2017/01/01 05:00:00'), 'position': (-26.300824, 28.050185, 1800), 'track_id': 0, 'status': 'Active', 'dist_route': 82},
             {'time': d('2017/01/01 05:01:00'), 'position': (-26.325051, 27.9856, 1800), 'track_id': 0, 'dist_from_last': 6985, 'dist_ridden': 6985, 'dist_route': 5256,},
             {'time': d('2017/01/01 05:02:00'), 'position': (-26.417149, 28.073087, 1800), 'track_id': 0, 'dist_from_last': 13430, 'dist_ridden': 20415, 'dist_route': 13423, 'finished_time': d('2017/01/01 05:02:00')},
+            {'status': 'Inactive', 'time': datetime.datetime(2017, 1, 1, 5, 22)},
         ])

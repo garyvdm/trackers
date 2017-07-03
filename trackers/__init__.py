@@ -34,16 +34,30 @@ class Tracker(object):
         self.status = None
         self.new_points_callbacks = []
         self.logger = logging.getLogger('trackers.{}'.format(name))
+        self.callback_tasks = []
 
     async def new_points(self, new_points):
         self.points.extend(new_points)
-        await call_callbacks(self.new_points_callbacks, 'Error calling new_points callback:', self.logger, self, new_points)
+        new_tasks = await call_callbacks(self.new_points_callbacks, 'Error calling new_points callback:', self.logger, self, new_points)
+        self.callback_tasks = [task for task in self.callback_tasks + new_tasks if task.done()]
 
     async def stop(self):
+        await self.stop_specific()
+        for task in self.callback_tasks:
+            task.cancel()
+
+    async def stop_specific(self):
         pass
 
     async def finish(self):
+        await self.finish_specific()
+        if self.callback_tasks:
+            await asyncio.wait(self.callback_tasks)
+
+    async def finish_specific(self):
         pass
+
+
 
 
 
@@ -53,6 +67,7 @@ async def call_callbacks(callbacks, error_msg, logger, *args, **kwargs):
     done_callback = functools.partial(callback_done_callback, error_msg, logger)
     for task in tasks:
         task.add_done_callback(done_callback)
+    return tasks
 
 
 def callback_done_callback(error_msg, logger, fut):
@@ -92,8 +107,8 @@ async def start_analyse_tracker(tracker, event, event_routes, track_break_time=d
     analyse_tracker.current_track_id = 0
     analyse_tracker.status = None
     analyse_tracker.make_inactive_fut = None
-    analyse_tracker.stop = functools.partial(stop_analyse_tracker, analyse_tracker)
-    analyse_tracker.finish = tracker.finish
+    analyse_tracker.stop_specific = functools.partial(stop_analyse_tracker, analyse_tracker)
+    analyse_tracker.finish_specific = functools.partial(finish_analyse_tracker, analyse_tracker)
     analyse_tracker.org_tracker = tracker
     analyse_tracker.last_closest = None
     analyse_tracker.dist_ridden = 0
@@ -108,6 +123,10 @@ async def stop_analyse_tracker(analyse_tracker):
     await analyse_tracker.org_tracker.stop()
     if analyse_tracker.make_inactive_fut:
         analyse_tracker.make_inactive_fut.cancel()
+
+async def finish_analyse_tracker(analyse_tracker):
+    await analyse_tracker.org_tracker.finish()
+    if analyse_tracker.make_inactive_fut:
         try:
             await analyse_tracker.make_inactive_fut
         except asyncio.CancelledError:
