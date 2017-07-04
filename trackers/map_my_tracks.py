@@ -166,7 +166,7 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
 
     first_get_activites = True
 
-    inactive_time = datetime.timedelta(minutes=15)
+    inactive_time = datetime.timedelta(minutes=5)
 
     for i in itertools.count():
         try:
