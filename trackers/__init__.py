@@ -202,6 +202,7 @@ def analyze_point(analyse_tracker, event, event_routes, track_break_time, last_r
                 analyse_tracker.logger.debug('Finished')
                 analyse_tracker.finished = True
                 point['finished_time'] = point['time']
+                point['rider_status'] = 'Finished'
 
     analyse_tracker.last_closest = closest
 

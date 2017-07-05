@@ -296,6 +296,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 var last_position_time;
                 var finished_time;
                 var speed;
+                var rider_status = (rider.hasOwnProperty('status') ? rider.status : current_values.status || '' );
                 if (current_values.finished_time) {
                     if (event_data && event_data.hasOwnProperty('event_start')){
                         finished_time = format_race_time(current_values.finished_time - event_data.event_start);
@@ -319,6 +320,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     return '<tr rider_name="' + rider.name + '" class="rider">' +
                            '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
                            '<td>' + rider.name + '</td>' +
+                           '<td>' + rider_status + '</td>' +
                            '<td>' + (current_values[STATUS] || '') + '</td>' +
                            '<td style="text-align: right">' +  (last_position_time || '') + '</td>' +
 //                           '<td style="text-align: right">' + (current_values.hasOwnProperty(DIST_RIDDEN) ? Math.round(current_values[DIST_RIDDEN] / 100) / 10 : '') + '</td>' +
@@ -330,7 +332,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     return '<tr rider_name="' + rider.name + '" class="rider">' +
                            '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
                            '<td>' + rider.name + '</td>' +
-                           '<td style="text-align: right">' + (finished_time || (current_values.hasOwnProperty(DIST_ROUTE) ? (Math.round(current_values[DIST_ROUTE] / 100) / 10) +' km': '')) + '</td>' +
+                           '<td style="text-align: right">' + (finished_time || (current_values.hasOwnProperty(DIST_ROUTE) ? (Math.round(current_values[DIST_ROUTE] / 100) / 10) +' km': '')) + ' ' + rider_status +'</td>' +
                            '</tr>';
                 }
             });
@@ -339,6 +341,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     '<table><tr class="head">' +
                     '<td></td>' +
                     '<td>Name</td>' +
+                    '<td>Rider<br>Status</td>' +
                     '<td>Tracker<br>Status</td>' +
                     '<td style="text-align: right">Last<br>Position</td>' +
 //                    '<td style="text-align: right">Dist<br>Ridden</td>' +
