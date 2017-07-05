@@ -312,7 +312,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     else if (seconds < 60 * 60) { last_position_time = sprintf('%i min ago', Math.floor(seconds / 60))}
                     else { last_position_time = sprintf('%i:%02i ago', Math.floor(seconds / 60 / 60), Math.floor(seconds / 60 % 60))}
                 }
-                if (position_point && last_position_point && position_point.hasOwnProperty(DIST_RIDDEN) && last_position_point.hasOwnProperty(DIST_RIDDEN)) {
+                if (position_point && last_position_point && position_point.hasOwnProperty(DIST_RIDDEN) && last_position_point.hasOwnProperty(DIST_RIDDEN) && current_values[STATUS] == 'active') {
                     speed = Math.round((position_point[DIST_RIDDEN] - last_position_point[DIST_RIDDEN]) / (position_point[TIME] - last_position_point[TIME]) * 3.6 * 10) /10
                 }
                 if (show_detail) {
