@@ -313,7 +313,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     else if (seconds < 60 * 60) { last_position_time = sprintf('%i min ago', Math.floor(seconds / 60))}
                     else { last_position_time = sprintf('%i:%02i ago', Math.floor(seconds / 60 / 60), Math.floor(seconds / 60 % 60))}
                 }
-                if (position_point && last_position_point && position_point.hasOwnProperty(DIST_RIDDEN) && last_position_point.hasOwnProperty(DIST_RIDDEN) && current_values[STATUS] == 'active') {
+                if (position_point && last_position_point && position_point.hasOwnProperty(DIST_RIDDEN) && last_position_point.hasOwnProperty(DIST_RIDDEN) && current_values[STATUS] == 'Active') {
                     speed = Math.round((position_point[DIST_RIDDEN] - last_position_point[DIST_RIDDEN]) / (position_point[TIME] - last_position_point[TIME]) * 3.6 * 10) /10
                 }
                 if (show_detail) {
@@ -323,16 +323,16 @@ document.addEventListener('DOMContentLoaded', function() {
                            '<td>' + rider_status + '</td>' +
                            '<td>' + (current_values[STATUS] || '') + '</td>' +
                            '<td style="text-align: right">' +  (last_position_time || '') + '</td>' +
-//                           '<td style="text-align: right">' + (current_values.hasOwnProperty(DIST_RIDDEN) ? Math.round(current_values[DIST_RIDDEN] / 100) / 10 : '') + '</td>' +
+//                           '<td style="text-align: right">' + (current_values.hasOwnProperty(DIST_RIDDEN) ? sprintf('%.1f', current_values[DIST_RIDDEN] / 1000) : '') + '</td>' +
                            '<td style="text-align: right">' + (speed || '') + '</td>' +
-                           '<td style="text-align: right">' + (current_values.hasOwnProperty(DIST_ROUTE) ? Math.round(current_values[DIST_ROUTE] / 100) / 10 : '') + '</td>' +
+                           '<td style="text-align: right">' + (current_values.hasOwnProperty(DIST_ROUTE) ? sprintf('%.1f', current_values[DIST_ROUTE] / 1000) : '') + '</td>' +
                            '<td style="text-align: right">' + (finished_time || '') + '</td>' +
                            '</tr>';
                 } else {
                     return '<tr rider_name="' + rider.name + '" class="rider">' +
                            '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
                            '<td>' + rider.name + '</td>' +
-                           '<td style="text-align: right">' + (finished_time || (current_values.hasOwnProperty(DIST_ROUTE) ? (Math.round(current_values[DIST_ROUTE] / 100) / 10) +' km': '')) + ' ' + rider_status +'</td>' +
+                           '<td style="text-align: right">' + (finished_time || (current_values.hasOwnProperty(DIST_ROUTE) ? sprintf('%.1f km', current_values[DIST_ROUTE] / 1000) : '')) + ' ' + rider_status +'</td>' +
                            '</tr>';
                 }
             });
