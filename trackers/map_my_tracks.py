@@ -166,7 +166,7 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
 
     first_get_activites = True
 
-    inactive_time = datetime.timedelta(minutes=5)
+    inactive_time = datetime.timedelta(minutes=20)
 
     for i in itertools.count():
         try:
@@ -181,7 +181,7 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
                 if len(uncompleted_activities) == 0 or i % 10 == 0 or (not last_point or now - last_point['time'] > inactive_time):
                     tracker.logger.debug('Getting activities')
                     all_activites = await  get_activites(client_session, user, logger=tracker.logger,
-                                                         pages=1 if activites else 5, warn_scrape=first_get_activites)
+                                                         pages=2 if activites else 5, warn_scrape=first_get_activites)
                     first_get_activites = False
                     activites.update([activity[0] for activity in all_activites if start_date <= activity[1] < end_date and activity[0] not in exclude])
                     uncompleted_activities = activites.difference(completed_activites)
