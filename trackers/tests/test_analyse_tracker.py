@@ -94,7 +94,7 @@ class TestAnalyseTracker(asynctest.TestCase):
         pprint.pprint(analyse_tracker.points)
         self.assertSequenceEqual(analyse_tracker.points, (
             {'time': d('2017/01/01 05:00:00'), 'position': (-26.300824, 28.050185, 1800), 'track_id': 0, 'status': 'Active', 'dist_route': 82},
-            {'time': d('2017/01/01 05:01:00'), 'position': (-26.322167, 28.042920, 1800), 'track_id': 0, 'dist_from_last': 2473, 'dist_ridden': 2473, 'dist_route': 4198, 'finished_time': d('2017/01/01 05:01:00'),},
+            {'time': d('2017/01/01 05:01:00'), 'position': (-26.322167, 28.042920, 1800), 'track_id': 0, 'dist_from_last': 2473, 'dist_ridden': 2473, 'dist_route': 4198, 'finished_time': d('2017/01/01 05:01:00'), 'rider_status': 'Finished'},
             {'status': 'Inactive', 'time': datetime.datetime(2017, 1, 1, 5, 21)},
         ))
 
@@ -130,6 +130,6 @@ class TestAnalyseTracker(asynctest.TestCase):
         self.assertSequenceEqual(analyse_tracker.points, [
             {'time': d('2017/01/01 05:00:00'), 'position': (-26.300824, 28.050185, 1800), 'track_id': 0, 'status': 'Active', 'dist_route': 82},
             {'time': d('2017/01/01 05:01:00'), 'position': (-26.325051, 27.9856, 1800), 'track_id': 0, 'dist_from_last': 6985, 'dist_ridden': 6985, 'dist_route': 5256,},
-            {'time': d('2017/01/01 05:02:00'), 'position': (-26.417149, 28.073087, 1800), 'track_id': 0, 'dist_from_last': 13430, 'dist_ridden': 20415, 'dist_route': 13423, 'finished_time': d('2017/01/01 05:02:00')},
+            {'time': d('2017/01/01 05:02:00'), 'position': (-26.417149, 28.073087, 1800), 'track_id': 0, 'dist_from_last': 13430, 'dist_ridden': 20415, 'dist_route': 13423, 'finished_time': d('2017/01/01 05:02:00'), 'rider_status': 'Finished'},
             {'status': 'Inactive', 'time': datetime.datetime(2017, 1, 1, 5, 22)},
         ])
