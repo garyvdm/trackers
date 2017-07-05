@@ -137,7 +137,7 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
     log_i = 0
     last_route_point = event_routes[0]['points'][-1] if event_routes else None
     loop = asyncio.get_event_loop()
-    last_point_i = len(new_points) -1
+    last_point_i = len(new_points) - 1
     did_slow_log = False
 
     for i, point in enumerate(new_points):
@@ -160,9 +160,9 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
         if i % 10 == 9 or is_last_point:
             now = datetime.datetime.now()
             log_time_delta = (now - log_time).total_seconds()
-            if log_time_delta >= 10 or (is_last_point and did_slow_log):
+            if log_time_delta >= 5 or (is_last_point and did_slow_log):
                 analyse_tracker.logger.info('{}/{} ({:.1f}%) points analysed at {:.2f} points/second.'.format(
-                    i, len(new_points), i / len(new_points) * 100, (i-log_i) / log_time_delta))
+                    i, len(new_points), i / (len(new_points) - 1) * 100, (i-log_i) / log_time_delta))
                 log_time = now
                 log_i = i
                 did_slow_log = True
