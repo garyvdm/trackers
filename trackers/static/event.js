@@ -365,7 +365,7 @@ document.addEventListener('DOMContentLoaded', function() {
     riders_detail_el.onclick = update_rider_table;
 
     var selected_rider = null;
-    function rider_onclick(row, rider_name) {
+    function rider_onclick(row, rider_name, event) {
         Array.prototype.forEach.call(riders_el, function (el){
             el.classList.remove('selected');
         });
@@ -410,6 +410,14 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         event_markers.forEach(function (marker) { marker.setOpacity((selected_rider ? 0.5 : 1)) });
+
+        if (event.ctrlKey) {
+            var rider_items = riders_client_items[rider_name] || {};
+            var position_point = rider_items.position_point;
+            if (position_point) {
+                window.open('https://www.google.com/maps/place/' + position_point[POSITION][0] + ',' + position_point[POSITION][1], '_blank');
+            }
+        }
     }
 
 
