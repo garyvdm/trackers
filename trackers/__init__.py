@@ -440,3 +440,7 @@ def get_point_pair_precalc(point1, point2):
         print(arccos(1))
         raise
     return point1, point2, c12, p1h, p2h, dp1p2
+
+
+
+

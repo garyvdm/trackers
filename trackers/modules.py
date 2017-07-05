@@ -7,6 +7,7 @@ import functools
 
 import yaml
 
+import trackers
 import trackers.garmin_livetrack
 import trackers.map_my_tracks
 from trackers.async_exit_stack import AsyncExitStack
@@ -67,9 +68,31 @@ async def static_replay(tracker, path, event_start_time, speed_multiply):
         await asyncio.sleep((new_time - now).total_seconds())
 
 
+
+async def start_cropped_tracker(app, settings, event_name, event_data, tracker_data):
+    org_tracker = await trackers.modules.start_event_trackers[tracker_data['tracker']['type']](app, settings, event_name, event_data, tracker_data['tracker'])
+    cropped_tracker = trackers.Tracker('croped.{}'.format(org_tracker.name))
+    cropped_tracker.stop_specific = org_tracker.stop
+    cropped_tracker.finish_specific = org_tracker.finish
+    cropped_tracker.org_tracker = org_tracker
+
+    await cropped_tracker_newpoints(cropped_tracker, tracker_data['end'], org_tracker, org_tracker.points)
+    org_tracker.new_points_callbacks.append(
+        functools.partial(cropped_tracker_newpoints, cropped_tracker, tracker_data['end']))
+    return cropped_tracker
+
+
+async def cropped_tracker_newpoints(cropped_tracker, end, org_tracker, new_points):
+    points = [point for point in new_points if point['time'] < end]
+    if points:
+        await cropped_tracker.new_points(points)
+
+
+
 start_event_trackers = {
     'mapmytracks': trackers.map_my_tracks.start_event_tracker,
     'garmin_livetrack': trackers.garmin_livetrack.start_event_tracker,
     'static': static_start_event_tracker,
     'static_replay': static_replay_start_event_tracker,
+    'cropped': start_cropped_tracker,
 }
