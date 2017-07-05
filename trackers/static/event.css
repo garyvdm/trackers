@@ -31,7 +31,7 @@ html, body {
 }
 
 #main {
-    -ms-flex: 2 0 100%; flex: 2 0 100%;
+    -ms-flex: 2 1 100%; flex: 2 1 100%;
     position: relative;
 }
 
