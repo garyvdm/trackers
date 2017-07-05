@@ -321,7 +321,7 @@ document.addEventListener('DOMContentLoaded', function() {
                            '<td>' + rider.name + '</td>' +
                            '<td>' + (current_values[STATUS] || '') + '</td>' +
                            '<td style="text-align: right">' +  (last_position_time || '') + '</td>' +
-                           '<td style="text-align: right">' + (current_values.hasOwnProperty(DIST_RIDDEN) ? Math.round(current_values[DIST_RIDDEN] / 100) / 10 : '') + '</td>' +
+//                           '<td style="text-align: right">' + (current_values.hasOwnProperty(DIST_RIDDEN) ? Math.round(current_values[DIST_RIDDEN] / 100) / 10 : '') + '</td>' +
                            '<td style="text-align: right">' + (speed || '') + '</td>' +
                            '<td style="text-align: right">' + (current_values.hasOwnProperty(DIST_ROUTE) ? Math.round(current_values[DIST_ROUTE] / 100) / 10 : '') + '</td>' +
                            '<td style="text-align: right">' + (finished_time || '') + '</td>' +
@@ -341,7 +341,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     '<td>Name</td>' +
                     '<td>Tracker<br>Status</td>' +
                     '<td style="text-align: right">Last<br>Position</td>' +
-                    '<td style="text-align: right">Dist<br>Ridden</td>' +
+//                    '<td style="text-align: right">Dist<br>Ridden</td>' +
                     '<td style="text-align: right">Current<br>Speed</td>' +
                     '<td style="text-align: right">Dist on<br>Route</td>' +
                     '<td style="text-align: right">Finish<br>Time</td>' +
