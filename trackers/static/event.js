@@ -306,9 +306,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                 }
-                if (last_position_point) {
+                if (position_point) {
                     // TODO more than a day
-                    seconds = current_time - last_position_point[TIME];
+                    seconds = current_time - position_point[TIME];
                     if (seconds < 60) { last_position_time = '< 1 min ago' }
                     else if (seconds < 60 * 60) { last_position_time = sprintf('%i min ago', Math.floor(seconds / 60))}
                     else { last_position_time = sprintf('%i:%02i ago', Math.floor(seconds / 60 / 60), Math.floor(seconds / 60 % 60))}
