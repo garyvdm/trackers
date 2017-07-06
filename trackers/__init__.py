@@ -273,7 +273,7 @@ def get_expanded_routes(routes_org):
         route_points = route_with_distance_and_index(route_points_org)
         route_point_pairs = [get_point_pair_precalc(*point_pair) for point_pair in pairs(route_points)]
         simplfied_point_pairs = [get_point_pair_precalc(*point_pair) for point_pair in pairs(ramer_douglas_peucker(route_points, 500))]
-        logger.debug('Route points: {}, simplified points: {}'.format(len(route_points), len(simplfied_point_pairs)))
+        logger.debug('Route points: {}, simplified points: {}, distance: {}'.format(len(route_points), len(simplfied_point_pairs), route_points[-1].distance))
         if main_route:
             start_closest = find_closest_point_pair_route(main_route, route_points[0], 2000)
             prev_point = start_closest.point_pair[0]
