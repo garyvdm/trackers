@@ -160,6 +160,7 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
         state['activites'] = list(activites)
         state['completed_activites'] = list(completed_activites)
         state['activities_points'] = activities_points
+        tracker.logger.debug('Activity point counts: {}'.format({key: len(values) for key, values in activities_points.items()}))
 
         with open(full_cache_path, 'w') as f:
             json.dump(state, f)
