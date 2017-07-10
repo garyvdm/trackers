@@ -38,7 +38,7 @@ async def start_event_trackers(app, settings, event_name):
     for rider in event_data['riders']:
         if rider['tracker']:
             tracker = await trackers.modules.start_event_trackers[rider['tracker']['type']](
-                app, settings, event_name, event_data, rider['tracker'])
+                app, settings, event_name, event_data, rider['name'], rider['tracker'])
             if analyse:
                 tracker = await trackers.start_analyse_tracker(tracker, event_data, event_routes)
 

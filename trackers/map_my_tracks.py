@@ -14,14 +14,14 @@ import bs4
 import trackers
 
 
-async def config(app, settings):
+def config(app, settings):
     app['trackers.mapmytracks_session'] = mapmytracks_session = aiohttp.ClientSession(
         auth=aiohttp.BasicAuth(*settings['mapmytracks_auth']),
         connector=aiohttp.TCPConnector(limit=4)
     )
     return mapmytracks_session
 
-async def start_event_tracker(app, settings, event_name, event_data, tracker_data):
+async def start_event_tracker(app, settings, event_name, event_data, rider_name, tracker_data):
     tracker = trackers.Tracker('mapmytracks.{}'.format(tracker_data['name']))
     monitor_task = asyncio.ensure_future(monitor_user(
         app['trackers.mapmytracks_session'], tracker_data['name'], event_data['tracker_start'], event_data['tracker_end'],

@@ -10,6 +10,7 @@ import yaml
 import trackers
 import trackers.garmin_livetrack
 import trackers.map_my_tracks
+import trackers.traccar
 from trackers.async_exit_stack import AsyncExitStack
 
 
@@ -18,15 +19,16 @@ async def config_modules(app, settings):
 
     modules = (
         trackers.map_my_tracks.config,
+        trackers.traccar.config,
         # trackers.garmin_livetrack.config,
     )
 
     for module in modules:
-        await exit_stack.enter_context(await module(app, settings))
+        await exit_stack.enter_context(module(app, settings))
     return exit_stack
 
 
-async def static_start_event_tracker(app, settings, event_name, event_data, tracker_data):
+async def static_start_event_tracker(app, settings, event_name, event_data, rider_name, tracker_data):
     tracker = trackers.Tracker('static.{}'.format(tracker_data['name']))
     with open(os.path.join(settings['data_path'], event_name, tracker_data['name'])) as f:
         points = json.load(f)
@@ -92,6 +94,7 @@ async def cropped_tracker_newpoints(cropped_tracker, end, org_tracker, new_point
 start_event_trackers = {
     'mapmytracks': trackers.map_my_tracks.start_event_tracker,
     'garmin_livetrack': trackers.garmin_livetrack.start_event_tracker,
+    'traccar': trackers.traccar.start_event_tracker,
     'static': static_start_event_tracker,
     'static_replay': static_replay_start_event_tracker,
     'cropped': start_cropped_tracker,

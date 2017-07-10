@@ -6,12 +6,12 @@ import logging
 
 import trackers
 
-async def config(app, settings):
+def config(app, settings):
     app['trackers.garmin_livetrack.session'] = garmin_livetrack_session = aiohttp.ClientSession()
     app.router.add_route('POST', '/modules/garmin_livetrack/email', handler=email_recive, name='garmin_livetrack_email')
     return garmin_livetrack_session
 
-async def start_event_tracker(app, settings, event_name, event_data, tracker_data):
+async def start_event_tracker(app, settings, event_name, event_data, rider_name, tracker_data):
     # TODO
     session_token_match = url_session_token_matcher(url).groupdict()
     tracker = trackers.Tracker('garmin_livetrack.{}'.format(session_token_match['session']))

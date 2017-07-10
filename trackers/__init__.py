@@ -93,6 +93,10 @@ def print_tracker(tracker):
 
     tracker.new_points_callbacks.append(functools.partial(print_callback, 'new_points'))
 
+    for point in tracker.points:
+        print('{} {}: \n{}'.format(tracker.name, None, pprint.pformat(point)))
+
+
 analyse_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix='analyse')
 
 async def start_analyse_tracker(tracker, event, event_routes, track_break_time=datetime.timedelta(minutes=20), track_break_dist=10000):

@@ -7,6 +7,7 @@ setuptools.setup(
     include_package_data=True,
     install_requires=[
         'aiohttp>=2.0',
+        'aniso8601',
         'uvloop',
         'beautifulsoup4',
         'pyyaml',
