@@ -22,7 +22,8 @@ async def config(app, settings):
             connector=aiohttp.TCPConnector(limit=4),
             raise_for_status=True,
         )
-        await session.post('{}/api/session'.format(server['url']), data={'email': [server['auth'][0]], 'password': [server['auth'][1]]})
+        session_response = await session.post('{}/api/session'.format(server['url']), data={'email': [server['auth'][0]], 'password': [server['auth'][1]]})
+        logger.debug('session: {}'.format(await session_response.json()))
 
         server['position_received_callbacks'] = position_received_callbacks = {}
         server['ws_task'] = asyncio.ensure_future(server_ws_task(app, settings, session, server_name, server, position_received_callbacks))
