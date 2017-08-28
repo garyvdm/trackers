@@ -76,8 +76,8 @@ def callback_done_callback(error_msg, logger, fut):
 async def cancel_and_wait_task(task):
     task.cancel()
     try:
-        await task
-    except Exception:
+        return await task
+    except asyncio.CancelledError:
         pass
 
 

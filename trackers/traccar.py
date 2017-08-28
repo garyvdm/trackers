@@ -4,11 +4,14 @@ import logging
 import functools
 import time
 
+import more_itertools
 import aiohttp
 from aniso8601 import parse_datetime
 from aiocontext import async_contextmanager
 
 import trackers
+import trackers.web_app
+
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +26,21 @@ async def config(app, settings):
             raise_for_status=True,
         )
         session_response = await session.post('{}/api/session'.format(server['url']), data={'email': [server['auth'][0]], 'password': [server['auth'][1]]})
-        logger.debug('session: {}'.format(await session_response.json()))
+        user = await session_response.json()
+        logger.debug('session: {}'.format(user))
 
+        server['user_id'] = user['id']
         server['position_received_callbacks'] = position_received_callbacks = {}
         server['ws_task'] = asyncio.ensure_future(server_ws_task(app, settings, session, server_name, server, position_received_callbacks))
 
         servers[server_name] = server
+        if isinstance(app, aiohttp.web.Application):
+            app['add_individual_handler']('/traccar/{unique_id}')
+            app.router.add_route('GET', '/traccar/{unique_id}/websocket',
+                                 handler=functools.partial(trackers.web_app.individual_ws, get_individual_key,
+                                                           functools.partial(start_individual_tracker, app, settings)),
+                                 name='tarccar_individual_ws')
+
     try:
         yield
     finally:
@@ -43,6 +55,8 @@ async def config(app, settings):
                 logger.exception('Error in ws_task: ')
             await session.delete('{}/api/session'.format(server['url']))
             await server['session'].close()
+
+
 
 
 async def server_ws_task(app, settings, session, server_name, server, position_received_callbacks):
@@ -80,19 +94,40 @@ async def server_ws_task(app, settings, session, server_name, server, position_r
 
 
 async def start_event_tracker(app, settings, event_name, event_data, rider_name, tracker_data):
-    server_name = tracker_data.get('server', 'local')
-    device_id = tracker_data['device_id']
+    return await start_tracker(app, settings, rider_name,
+                               tracker_data.get('server', 'local'), tracker_data['unique_id'],
+                               event_data['tracker_start'], event_data['tracker_end'])
+
+
+def get_individual_key(request):
+    return "traccar-{unique_id}".format_map(request.match_info)
+
+
+async def start_individual_tracker(app, settings, request):
+    unique_id = request.match_info['unique_id']
+    server_name = 'local'
+    start = datetime.datetime.now() - datetime.timedelta(days=7)
+    return await start_tracker(app, settings, unique_id,
+                               server_name, unique_id,
+                               start, None)
+
+async def start_tracker(app, settings, tracker_name, server_name, device_unique_id, start, end):
     server = app['trackers.traccar_servers'][server_name]
     session = server['session']
     url = '{}/api/positions'.format(server['url'])
-    tracker = trackers.Tracker('traccar.{}.{}-{}'.format(server_name, device_id, rider_name))
+    devices = await (await session.get('{}/api/devices'.format(server['url']), params={'all': 'true'})).json()
+    device_id = more_itertools.first((device['id'] for device in devices if device['uniqueId'] == device_unique_id))
+
+    await session.post('{}/api/permissions/devices'.format(server['url']), json={'userId': server['user_id'], 'deviceId': device_id})
+
+    tracker = trackers.Tracker('traccar.{}.{}-{}'.format(server_name, device_unique_id, tracker_name))
     tracker.server = server
     tracker.device_id = device_id
     tracker.seen_ids = seen_ids = set()
     positions = await (await session.get(url, params={
         'deviceId': device_id,
-        'from': event_data['tracker_start'].isoformat(),
-        'to': event_data['tracker_end'].isoformat()
+        'from': start.isoformat(),
+        'to': (end if end else datetime.datetime.now() + datetime.timedelta(days=1)).isoformat()
     })).json()
     points = [traccar_position_translate(position) for position in positions]
     seen_ids.update([position['id'] for position in positions])
@@ -103,8 +138,9 @@ async def start_event_tracker(app, settings, event_name, event_data, rider_name,
     tracker.finished = asyncio.Event()
     tracker.finish_specific = functools.partial(tracker_finish, tracker)
     tracker.stop_specific = functools.partial(tracker_stop, tracker)
-    asyncio.get_event_loop().call_at(
-        asyncio.get_event_loop().time() - time.time() + event_data['tracker_end'].timestamp(), tracker.finished.set )
+    if end:
+        asyncio.get_event_loop().call_at(
+            asyncio.get_event_loop().time() - time.time() + end.timestamp(), tracker.finished.set )
     return tracker
 
 
@@ -142,16 +178,14 @@ async def main():
             'trackrace_tk':
                 {
                     'url': 'https://traccar.trackrace.tk',
-                    'auth': ['email', 'password'],
+                    'auth': ['admin', ''],
                 }
         }
     }
     import signal
     async with config(app, settings):
-        tracker = await start_event_tracker(
-            app, settings, 'foo',
-            {'tracker_start': datetime.datetime(2017, 6, 9), 'tracker_end': datetime.datetime(2017, 7, 30)},
-            'Gary', {'device_id': 2, 'server': 'trackrace_tk'})
+        tracker = await start_tracker(
+            app, settings, 'gary', 'trackrace_tk', '510586', datetime.datetime(2017, 6, 9), datetime.datetime(2017, 7, 30))
         trackers.print_tracker(tracker)
         # await tracker.finish()
         run_fut = asyncio.Future()

@@ -4,6 +4,7 @@ import datetime
 import hashlib
 import json
 import logging
+import asyncio
 from functools import partial
 
 import aiohttp
@@ -16,6 +17,9 @@ from slugify import slugify
 import trackers
 import trackers.events
 import trackers.modules
+import trackers.traccar
+
+from trackers import cancel_and_wait_task
 
 logger = logging.getLogger(__name__)
 
@@ -26,21 +30,37 @@ async def make_aio_app(loop, settings):
     app['trackers.settings'] = settings
 
     app['trackers.static_etags'] = static_etags = {}
+    app['trackers.individual_trackers'] = {}
 
-    def event_page_body_processor(app, body):
+    def page_body_processor(app, body, related_resources, hash_key):
         hash = hashlib.sha1(body)
-        for resource_name in ('/static/event.js', '/static/event.css', '/static/richmarker.js',):
+        for resource_name in related_resources:
             hash.update(pkg_resources.resource_string('trackers', resource_name))
         client_hash = base64.urlsafe_b64encode(hash.digest()).decode('ascii')
-        app['trackers.client_hash'] = client_hash
+        app[hash_key] = client_hash
         return body.decode('utf8').format(api_key=settings['google_api_key'], client_hash=client_hash).encode('utf8')
 
     with magic.Magic(flags=magic.MAGIC_MIME_TYPE) as m:
         add_static = partial(add_static_resource, app, 'trackers', static_etags, m)
         add_static('/static/event.css', '/static/event.css', charset='utf8', content_type='text/css')
         add_static('/static/event.js', '/static/event.js', charset='utf8', content_type='text/javascript')
+        add_static('/static/individual.js', '/static/individual.js', charset='utf8', content_type='text/javascript')
         add_static('/static/richmarker.js', '/static/richmarker.js', charset='utf8', content_type='text/javascript')
-        add_static('/static/event.html', '/{event}', charset='utf8', content_type='text/html', body_processor=event_page_body_processor)
+        add_static('/static/event.html', '/{event}', charset='utf8', content_type='text/html',
+                   body_processor=partial(
+                       page_body_processor,
+                       related_resources=('/static/event.js', '/static/event.css', '/static/richmarker.js',),
+                       hash_key='trackers.event_client_hash'
+                   ))
+        app['add_individual_handler'] = partial(
+            add_static, '/static/individual.html',
+            charset='utf8', content_type='text/html',
+            body_processor=partial(
+                page_body_processor,
+                related_resources=('/static/individual.js', '/static/event.css'),
+                hash_key='trackers.individual_client_hash'
+            )
+        )
 
         for name in pkg_resources.resource_listdir('trackers', '/static/markers'):
             full_name = '/static/markers/{}'.format(name)
@@ -48,6 +68,8 @@ async def make_aio_app(loop, settings):
 
     app.router.add_route('GET', '/{event}/websocket', handler=event_ws, name='event_ws')
     app.router.add_route('GET', '/{event}/set_start', handler=event_set_start, name='event_set_start')
+
+
 
     app.router.add_route('POST', '/client_error', handler=client_error_logger, name='client_error_logger')
 
@@ -61,6 +83,7 @@ async def make_aio_app(loop, settings):
         await trackers.events.start_event_trackers(app, settings, event_name)
 
     app.on_shutdown.append(shutdown)
+
 
     return app
 
@@ -103,12 +126,14 @@ def add_static_resource(app, package, etags, magic, resource_name, route, *args,
 
 
 @contextlib.contextmanager
-def list_register(list, item):
+def list_register(list, item, on_empty=None):
     list.append(item)
     try:
         yield
     finally:
         list.remove(item)
+        if not list and on_empty:
+            on_empty()
 
 
 async def event_ws(request):
@@ -132,7 +157,7 @@ async def event_ws(request):
 
             exit_stack.enter_context(list_register(request.app['trackers.events_ws_sessions'][event_name], send))
 
-            send({'client_hash': request.app['trackers.client_hash'], 'server_time': datetime.datetime.now()})
+            send({'client_hash': request.app['trackers.event_client_hash'], 'server_time': datetime.datetime.now()})
 
             async for msg in ws:
                 if msg.tp == WSMsgType.text:
@@ -195,12 +220,16 @@ async def tracker_new_points_to_ws(ws_send, rider_name, tracker, new_points):
     try:
         for points in chunked(new_points, 100):
             if len(points) > 50:
-                ws_send({'sending': rider_name})
+                ws_send({'sending': rider_name if rider_name else 'Points'})
             compressed_points = [
                 {point_keys.get(key, key): value for key, value in point.items()}
                 for point in points
             ]
-            ws_send({'rider_points': {'name': rider_name, 'points': compressed_points}})
+            if rider_name:
+                ws_send({'rider_points': {'name': rider_name, 'points': compressed_points}})
+            else:
+                ws_send({'points': compressed_points})
+
     except Exception:
         logger.exception('Error in tracker_new_points_to_ws:')
 
@@ -232,3 +261,86 @@ async def event_set_start(request):
         send({'event_data': event_data, 'server_version': server_version})
 
     return web.Response(text='Start time set to {}'.format(event_data['event_start']))
+
+
+async def individual_ws(get_key, get_tracker, request):
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+    try:
+        with contextlib.ExitStack() as exit_stack:
+            def send(msg):
+                logger.debug('send: {}'.format(str(msg)[:1000]))
+                ws.send_str(json.dumps(msg, default=json_encode))
+
+            send({'client_hash': request.app['trackers.individual_client_hash'], 'server_time': datetime.datetime.now()})
+
+            tracker_key = get_key(request)
+            tracker_info = request.app['trackers.individual_trackers'].get(tracker_key)
+
+            if tracker_info is None:
+                tracker = await get_tracker(request)
+                tracker_info = {
+                    'key': tracker_key,
+                    'tracker': tracker,
+                    'ws_sessions': [],
+                    'discard_task': None
+                }
+                request.app['trackers.individual_trackers'][tracker_key] = tracker_info
+            else:
+                if tracker_info['discard_task']:
+                    cancel_and_wait_task(tracker_info['discard_task'])
+                    tracker_info['discard_task'] = None
+
+                tracker = tracker_info['tracker']
+
+            exit_stack.enter_context(list_register(tracker_info['ws_sessions'], ws))
+
+            async for msg in ws:
+                if msg.tp == WSMsgType.text:
+                    data = json.loads(msg.data)
+                    logger.debug('receive: {}'.format(data))
+                    resend = False
+                    if 'send_points_since' in data:
+                        if resend:
+                            send({'erase_points': 1})
+                            client_point_indexes = 0
+                        else:
+                            client_point_indexes = data['send_points_since']
+
+                        last_index = client_point_indexes
+                        new_points = tracker.points[last_index:]
+                        if new_points:
+                            await tracker_new_points_to_ws(send, None, tracker, new_points)
+                        exit_stack.enter_context(list_register(tracker.new_points_callbacks,
+                                                               partial(tracker_new_points_to_ws, send, None)))
+
+                if msg.tp == WSMsgType.close:
+                    await ws.close()
+                if msg.tp == WSMsgType.error:
+                    raise ws.exception()
+            return ws
+
+    except Exception as e:
+        ws.send_str(json.dumps({'error': 'Error getting tracker: {}'.format(e)}, default=json_encode))
+        logger.exception('')
+        await ws.close(message='Server Error')
+    return ws
+
+
+
+def start_individual_discard_tracker_wait(app, tracker_info):
+    tracker_info['discard_task'] = asyncio.ensure_future(individual_discard_tracker_wait(app, tracker_info))
+
+async def individual_discard_tracker_wait(app, tracker_info):
+    await asyncio.sleep(3600)
+    await asyncio.shield(individual_discard_tracker(app, tracker_info))
+
+
+async def individual_discard_tracker(app, tracker_info):
+    try:
+        tracker = tracker_info['tracker']
+        await tracker.stop()
+        await tracker.finish()
+    finally:
+        del app['trackers.individual_trackers'][tracker_info['key']]
+

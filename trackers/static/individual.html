@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Individual Tracker</title>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <script>
+      window.onerror = function (messageOrEvent, source, lineno, colno, error){{
+        document.getElementById('status').innerText = messageOrEvent;
+        var full_error_message = messageOrEvent + '\n' + (error? error.stack: source + ':' + lineno + ':' + colno)
+        setTimeout(function () {{
+          var request = new XMLHttpRequest();
+          request.open("POST", '/client_error', true);
+          request.send(full_error_message);
+        }}, 100);
+
+        return false;
+      }}
+      var client_hash = '{client_hash}';
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/es5-shim/4.5.9/es5-shim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/es6-shim/0.35.3/es6-shim.min.js"></script>
+    <script src="https://unpkg.co/es7-shim@6.0.0/dist/es7-shim.min.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?v=3&key={api_key}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sprintf/1.0.3/sprintf.min.js"></script>
+    <script src="/static/individual.js"></script>
+    <link rel="stylesheet" type="text/css" href="/static/event.css">
+  </head>
+  <body>
+    <div id="foo">
+      <div id="head">
+        <div id="title_contain">
+          <div id="title">Individual Tracker</div>
+          <div id="last_active">.</div>
+        </div>
+        <div id="status">Loading</div>
+      </div>
+      <div id="main">
+        <div id="map"></div>
+      </div>
+    </div>
+  </body>
+</html>
+
