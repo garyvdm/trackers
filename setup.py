@@ -14,7 +14,6 @@ setuptools.setup(
         'asyncio-contextmanager',
         'python-slugify',
         'filemagic',
-        'geographiclib',
         'asynctest',
         'more-itertools',
         'attrs',

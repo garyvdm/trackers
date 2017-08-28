@@ -8,7 +8,6 @@ import operator
 import concurrent.futures
 
 import attr
-import geographiclib.geodesic
 from numpy import (
     cross,
     dot,
@@ -17,13 +16,14 @@ from numpy import (
     rad2deg,
     seterr,
 )
+from numpy.linalg import norm
 from nvector import (
     unit,
     lat_lon2n_E,
     n_E2lat_lon,
+    n_EB_E2p_EB_E,
 )
 
-geodesic = geographiclib.geodesic.Geodesic.WGS84
 logger = logging.getLogger()
 # seterr(all='raise')
 
@@ -102,6 +102,7 @@ analyse_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_n
 async def start_analyse_tracker(tracker, event, event_routes, track_break_time=datetime.timedelta(minutes=20), track_break_dist=10000):
     analyse_tracker = Tracker('analysed.{}'.format(tracker.name))
     analyse_tracker.last_point_with_position = None
+    analyse_tracker.last_point_with_position_point = None
     analyse_tracker.current_track_id = 0
     analyse_tracker.status = None
     analyse_tracker.make_inactive_fut = None
@@ -216,7 +217,7 @@ async def analyze_point(analyse_tracker, event, event_routes, track_break_time, 
 
     if analyse_tracker.last_point_with_position:
         last_point = analyse_tracker.last_point_with_position
-        dist = geodesic.Inverse(point['position'][0], point['position'][1], last_point['position'][0], last_point['position'][1])['s12']
+        dist = distance(point_point, analyse_tracker.last_point_with_position_point)
         time = point['time'] - last_point['time']
         if time > track_break_time and dist > track_break_dist:
             analyse_tracker.current_track_id += 1
@@ -228,6 +229,7 @@ async def analyze_point(analyse_tracker, event, event_routes, track_break_time, 
 
     # TODO what about status from source tracker?
     analyse_apply_status_to_point(analyse_tracker, point, 'Active')
+    analyse_tracker.last_point_with_position_point = point_point
 
 
 async def make_inactive(analyse_tracker, last_point_with_position, track_break_time):
@@ -254,6 +256,7 @@ class Point(object):
     lat = attr.ib()
     lng = attr.ib()
     _nv = attr.ib(default=None, repr=False, cmp=False)
+    _pv = attr.ib(default=None, repr=False, cmp=False)
 
     def to_point(self):
         return self
@@ -263,6 +266,12 @@ class Point(object):
         if self._nv is None:
             self._nv = lat_lon2n_E(deg2rad(self.lat), deg2rad(self.lng))
         return self._nv
+
+    @property
+    def pv(self):
+        if self._pv is None:
+            self._pv = n_EB_E2p_EB_E(self.nv)
+        return self._pv
 
 
 @attr.s(slots=True)
@@ -331,9 +340,9 @@ def route_with_distance_and_index(route):
     return [get_point(i, point) for i, point in enumerate(filtered_points)]
 
 
-DISTANCE = geographiclib.geodesic.Geodesic.DISTANCE
 def distance(point1, point2):
-    return geodesic.Inverse(point1.lat, point1.lng, point2.lat, point2.lng, outmask=DISTANCE)['s12']
+    dist = norm(point1.pv - point2.pv)
+    return dist
 
 
 def pairs(items):
