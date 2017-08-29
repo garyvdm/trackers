@@ -140,7 +140,11 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
     log_time = datetime.datetime.now()
     log_i = 0
     last_route_point = event_routes[0]['points'][-1] if event_routes else None
+
     loop = asyncio.get_event_loop()
+    analyze_point_wraped = functools.partial(loop.run_in_executor, analyse_executor, analyze_point)
+    # analyze_point_wraped = analyze_point
+
     last_point_i = len(new_points) - 1
     did_slow_log = False
 
@@ -154,7 +158,7 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
                 except asyncio.CancelledError:
                     pass
                 analyse_tracker.make_inactive_fut = None
-            await loop.run_in_executor(analyse_executor, analyze_point, analyse_tracker, event, event_routes, track_break_time, last_route_point, track_break_dist, tracker, new_new_points, point)
+            await analyze_point_wraped(analyse_tracker, event, event_routes, track_break_time, last_route_point, track_break_dist, tracker, new_new_points, point)
             analyse_tracker.last_point_with_position = last_point_with_position = point
             point['track_id'] = analyse_tracker.current_track_id
 
@@ -185,7 +189,7 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
             make_inactive(analyse_tracker, last_point_with_position, track_break_time))
 
 
-def analyze_point(analyse_tracker, event, event_routes, track_break_time, last_route_point, track_break_dist, tracker, new_new_points, point):
+async def analyze_point(analyse_tracker, event, event_routes, track_break_time, last_route_point, track_break_dist, tracker, new_new_points, point):
     # TODO only search points after the last route point
     point_point = Point(*point['position'][:2])
     closest = find_closest_point_pair_routes(event_routes, point_point, 1000, analyse_tracker.last_closest, 250)
