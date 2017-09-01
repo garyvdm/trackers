@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var map = new google.maps.Map(document.getElementById('map'), {
         center: {lat: 0, lng: 0},
-        zoom: 2,
+        zoom: 12,
         mapTypeId: 'terrain',
         mapTypeControl: true,
         mapTypeControlOptions: {
@@ -157,6 +157,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 marker.setPosition(position);
             }
             update_last_point();
+            if (!map.getBounds().contains(position)) map.panTo(position);
         }
     }
 
@@ -168,10 +169,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (seconds < 60) { last_position_time = '< 1 min ago' }
             else if (seconds < 60 * 60) { last_position_time = sprintf('%i min ago', Math.floor(seconds / 60))}
             else { last_position_time = sprintf('%i:%02i ago', Math.floor(seconds / 60 / 60), Math.floor(seconds / 60 % 60))}
+            last_active.innerText = 'Last active: ' + last_position_time
         } else {
-            last_position_time = '&nbsp;';
+            last_active.innerText = '&nbsp;';
         }
-        last_active.innerText = last_position_time
     }
 
     setInterval(update_last_point, 1000);
