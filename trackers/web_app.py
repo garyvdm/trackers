@@ -47,6 +47,7 @@ async def make_aio_app(loop, settings):
         add_static('/static/individual.js', '/static/individual.js', charset='utf8', content_type='text/javascript')
         add_static('/static/richmarker.js', '/static/richmarker.js', charset='utf8', content_type='text/javascript')
         add_static('/static/es7-shim.min.js', '/static/es7-shim.min.js', charset='utf8', content_type='text/javascript')
+        add_static('/static/traccar_testing.html', '/testing', charset='utf8', content_type='text/html')
         add_static('/static/event.html', '/{event}', charset='utf8', content_type='text/html',
                    body_processor=partial(
                        page_body_processor,

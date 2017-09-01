@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Traccar testing</title>
+    <style>
+      .setting {
+        background: lightgray;
+        font-family: monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Traccar testing</h1>
+
+    <ol>
+      <li>Install "Traccar Client" app.<br><br>
+          <a href="https://play.google.com/store/apps/details?id=org.traccar.client">Click here for Android</a><br><br>
+          <a href="https://itunes.apple.com/us/app/traccar-client/id843156974">Click here for iOS</a><br><br>
+      </li>
+      <li>
+        Open app. Set the following settings:
+        <ul>
+          <li>Server address: <span class="setting">traccar.trackrace.tk</span> (Must change this!)</li>
+          <li>Server port: <span class="setting">5055</span> (Default value)</li>
+          <li>Encryption: <span class="setting">disabled</span> (Default value)</li>
+          <li>Frequency: Choose as you desire. Recommended: <span class="setting">300</span> = 5min</li>
+          <li>Distance/Angle: Choose as you desire. Recommended: <span class="setting">&nbsp;</span> (Leave blank) (Default) which will turn this feature off. Turning this on will keep the GPS on all the time, which will use more battery.</li>
+          <li>Location Provider: <span class="setting">GPS Provider</span> (Default)</li>
+        </ul>
+      </li>
+      <li>Start service</li>
+      <li>Note Device identifier</li>
+      <li>View tracker in browser. Go to <span class="setting">https://trackrace.tk/traccar/[DEVICE IDENTIFIER]</span> This page will show tracking for the last 7 days.</li>
+      <li>Go for ride</li>
+      <li>Stop service</li>
+      <li>Let Gary know how it went :-)</li>
+    </ol>
+  </body>
+</html>
+
