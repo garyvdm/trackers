@@ -27,6 +27,9 @@ server_version = 10
 
 async def make_aio_app(loop, settings):
     app = web.Application(loop=loop)
+    app['trackers.ws_sessions'] = []
+    app.on_shutdown.append(shutdown)
+
     app['trackers.settings'] = settings
 
     app['trackers.static_etags'] = static_etags = {}
@@ -75,7 +78,6 @@ async def make_aio_app(loop, settings):
 
     app.router.add_route('POST', '/client_error', handler=client_error_logger, name='client_error_logger')
 
-    app['trackers.ws_sessions'] = []
 
     app['trackers.modules_cm'] = modules_cm = await trackers.modules.config_modules(app, settings)
     await modules_cm.__aenter__()
@@ -83,8 +85,6 @@ async def make_aio_app(loop, settings):
     trackers.events.load_events(app, settings)
     for event_name in app['trackers.events_data']:
         await trackers.events.start_event_trackers(app, settings, event_name)
-
-    app.on_shutdown.append(shutdown)
 
 
     return app
@@ -296,6 +296,7 @@ async def individual_ws(get_key, get_tracker, request):
 
                 tracker = tracker_info['tracker']
 
+            exit_stack.enter_context(list_register(request.app['trackers.ws_sessions'], ws))
             exit_stack.enter_context(list_register(tracker_info['ws_sessions'], ws))
 
             async for msg in ws:
@@ -322,7 +323,6 @@ async def individual_ws(get_key, get_tracker, request):
                 if msg.tp == WSMsgType.error:
                     raise ws.exception()
             return ws
-
     except Exception as e:
         ws.send_str(json.dumps({'error': 'Error getting tracker: {}'.format(e)}, default=json_encode))
         logger.exception('')

@@ -103,7 +103,6 @@ async def serve(loop, settings):
             for signame in ('SIGINT', 'SIGTERM'):
                 loop.remove_signal_handler(getattr(signal, signame))
     finally:
-        # await trackers.web_app.app_cancel_processing(app)
         srv.close()
         await srv.wait_closed()
         await app.shutdown()
