@@ -281,6 +281,7 @@ async def individual_ws(get_key, get_tracker, request):
 
             if tracker_info is None:
                 tracker = await get_tracker(request)
+                tracker = await trackers.start_analyse_tracker(tracker, None, ())
                 tracker_info = {
                     'key': tracker_key,
                     'tracker': tracker,
