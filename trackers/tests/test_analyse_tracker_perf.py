@@ -7,7 +7,8 @@ import sys
 
 import yaml
 
-from trackers import start_analyse_tracker, Tracker, get_expanded_routes
+from trackers.analyse import get_expanded_routes, start_analyse_tracker
+from trackers.base import Tracker
 
 
 tracker = None

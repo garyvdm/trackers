@@ -19,7 +19,7 @@ import trackers.events
 import trackers.modules
 import trackers.traccar
 
-from trackers import cancel_and_wait_task
+from trackers.base import cancel_and_wait_task
 
 logger = logging.getLogger(__name__)
 

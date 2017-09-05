@@ -11,7 +11,7 @@ from urllib.parse import quote
 import aiohttp
 import bs4
 
-import trackers
+from trackers.base import callback_done_callback, cancel_and_wait_task, Tracker, wait_task
 
 
 def config(app, settings):
@@ -22,13 +22,13 @@ def config(app, settings):
     return mapmytracks_session
 
 async def start_event_tracker(app, settings, event_name, event_data, rider_name, tracker_data):
-    tracker = trackers.Tracker('mapmytracks.{}'.format(tracker_data['name']))
+    tracker = Tracker('mapmytracks.{}'.format(tracker_data['name']))
     monitor_task = asyncio.ensure_future(monitor_user(
         app['trackers.mapmytracks_session'], tracker_data['name'], event_data['tracker_start'], event_data['tracker_end'],
         os.path.join(settings['data_path'], event_name, 'mapmytracks_cache'), tracker, set(tracker_data.get('exclude', ()))))
-    tracker.stop = functools.partial(trackers.cancel_and_wait_task, monitor_task)
-    tracker.finish_specific = functools.partial(trackers.wait_task, monitor_task)
-    monitor_task.add_done_callback(functools.partial(trackers.callback_done_callback, 'Error in monitor_user:', tracker.logger))
+    tracker.stop = functools.partial(cancel_and_wait_task, monitor_task)
+    tracker.finish_specific = functools.partial(wait_task, monitor_task)
+    monitor_task.add_done_callback(functools.partial(callback_done_callback, 'Error in monitor_user:', tracker.logger))
     return tracker
 
 

@@ -1,7 +1,6 @@
 import unittest
 
-from trackers import Point, find_c_point, ramer_douglas_peucker, distance
-
+from trackers.analyse import distance, find_c_point, Point, ramer_douglas_peucker
 
 class TestFindCPoint(unittest.TestCase):
 

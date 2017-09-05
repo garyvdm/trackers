@@ -9,9 +9,8 @@ import aiohttp
 from aniso8601 import parse_datetime
 from aiocontext import async_contextmanager
 
-import trackers
 import trackers.web_app
-
+from trackers.base import Tracker, call_callbacks
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +76,7 @@ async def server_ws_task(app, settings, session, server_name, server, position_r
                                 for position in data['positions']:
                                     device_id = position['deviceId']
                                     callbacks = position_received_callbacks.get(device_id, ())
-                                    await trackers.call_callbacks(callbacks, 'Error in position_received_callback:', logger, position)
+                                    await call_callbacks(callbacks, 'Error in position_received_callback:', logger, position)
                         elif msg.type == aiohttp.WSMsgType.CLOSED:
                             break
                         elif msg.type == aiohttp.WSMsgType.ERROR:
@@ -120,7 +119,7 @@ async def start_tracker(app, settings, tracker_name, server_name, device_unique_
 
     await session.post('{}/api/permissions/devices'.format(server['url']), json={'userId': server['user_id'], 'deviceId': device_id})
 
-    tracker = trackers.Tracker('traccar.{}.{}-{}'.format(server_name, device_unique_id, tracker_name))
+    tracker = Tracker('traccar.{}.{}-{}'.format(server_name, device_unique_id, tracker_name))
     tracker.server = server
     tracker.device_id = device_id
     tracker.seen_ids = seen_ids = set()

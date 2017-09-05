@@ -4,7 +4,8 @@ import pprint
 
 import asynctest
 
-import trackers
+from trackers.analyse import get_expanded_routes, start_analyse_tracker
+from trackers.base import Tracker
 
 
 def d(date_string):
@@ -15,14 +16,14 @@ class TestAnalyseTracker(asynctest.TestCase):
     maxDiff = None
 
     async def test_break_tracks_and_inactive(self):
-        tracker = trackers.Tracker('test')
+        tracker = Tracker('test')
         await tracker.new_points((
             {'time': d('2017/01/01 05:00:00'), 'position': (-26.300822, 28.049444, 1800)},
             {'time': d('2017/01/01 05:01:00'), 'position': (-26.302245, 28.051139, 1800)},
             {'time': d('2017/01/01 05:30:00'), 'position': (-27.280315, 27.969365, 1800)},
             {'time': d('2017/01/01 05:31:00'), 'position': (-27.282870, 27.970620, 1800)},
         ))
-        analyse_tracker = await trackers.start_analyse_tracker(tracker, {}, [])
+        analyse_tracker = await start_analyse_tracker(tracker, {}, [])
         pprint.pprint(analyse_tracker.points)
         self.assertSequenceEqual(analyse_tracker.points, (
             {'time': d('2017/01/01 05:00:00'), 'position': (-26.300822, 28.049444, 1800), 'track_id': 0, 'status': 'Active'},
@@ -34,13 +35,13 @@ class TestAnalyseTracker(asynctest.TestCase):
         await analyse_tracker.finish()
 
     async def test_break_inactive_current(self):
-        tracker = trackers.Tracker('test')
+        tracker = Tracker('test')
         t1 = datetime.datetime.now()
         await tracker.new_points((
             {'time': t1, 'position': (-26.300822, 28.049444, 1800)},
         ))
         break_time = datetime.timedelta(seconds=0.1)
-        analyse_tracker = await trackers.start_analyse_tracker(tracker, {}, [], track_break_time=break_time)
+        analyse_tracker = await start_analyse_tracker(tracker, {}, [], track_break_time=break_time)
 
         await asyncio.sleep(0.05)
         # an inactive status should not be added here, as it's too soon.
@@ -59,11 +60,11 @@ class TestAnalyseTracker(asynctest.TestCase):
         await analyse_tracker.finish()
 
     async def test_break_inactive_old(self):
-        tracker = trackers.Tracker('test')
+        tracker = Tracker('test')
         await tracker.new_points((
             {'time': d('2017/01/01 05:00:00'), 'position': (-26.300822, 28.049444, 1800)},
         ))
-        analyse_tracker = await trackers.start_analyse_tracker(tracker, {}, [])
+        analyse_tracker = await start_analyse_tracker(tracker, {}, [])
         await analyse_tracker.make_inactive_fut
         self.assertSequenceEqual(analyse_tracker.points, (
             {'time': d('2017/01/01 05:00:00'), 'position': (-26.300822, 28.049444, 1800), 'track_id': 0, 'status': 'Active'},
@@ -72,7 +73,7 @@ class TestAnalyseTracker(asynctest.TestCase):
         await analyse_tracker.finish()
 
     async def test_with_route(self):
-        tracker = trackers.Tracker('test')
+        tracker = Tracker('test')
         event_data = {
             'routes': [
                 [
@@ -82,13 +83,13 @@ class TestAnalyseTracker(asynctest.TestCase):
                 ]
             ]
         }
-        event_routes = trackers.get_expanded_routes(event_data['routes'])
+        event_routes = get_expanded_routes(event_data['routes'])
 
         await tracker.new_points((
             {'time': d('2017/01/01 05:00:00'), 'position': (-26.300824, 28.050185, 1800)},
             {'time': d('2017/01/01 05:01:00'), 'position': (-26.322167, 28.042920, 1800)},
         ))
-        analyse_tracker = await trackers.start_analyse_tracker(tracker, event_data, event_routes)
+        analyse_tracker = await start_analyse_tracker(tracker, event_data, event_routes)
         await analyse_tracker.finish()
 
         pprint.pprint(analyse_tracker.points)
@@ -99,7 +100,7 @@ class TestAnalyseTracker(asynctest.TestCase):
         ))
 
     async def test_with_route_alt(self):
-        tracker = trackers.Tracker('test')
+        tracker = Tracker('test')
         event_data = {
             'routes': [
                 [
@@ -115,7 +116,7 @@ class TestAnalyseTracker(asynctest.TestCase):
                 ],
             ]
         }
-        event_routes = trackers.get_expanded_routes(event_data['routes'])
+        event_routes = get_expanded_routes(event_data['routes'])
         pprint.pprint(event_routes)
 
         await tracker.new_points((
@@ -123,7 +124,7 @@ class TestAnalyseTracker(asynctest.TestCase):
             {'time': d('2017/01/01 05:01:00'), 'position': (-26.325051, 27.985600, 1800)},
             {'time': d('2017/01/01 05:02:00'), 'position': (-26.417149, 28.073087, 1800)},
         ))
-        analyse_tracker = await trackers.start_analyse_tracker(tracker, event_data, event_routes)
+        analyse_tracker = await start_analyse_tracker(tracker, event_data, event_routes)
         await analyse_tracker.finish()
 
         pprint.pprint(analyse_tracker.points)
