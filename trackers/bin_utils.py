@@ -2,13 +2,13 @@ import argparse
 import asyncio
 import contextlib
 import copy
+import datetime
 import json
 import logging.config
 import os
 import sys
 import xml.etree.ElementTree as xml
 
-import datetime
 import yaml
 
 import trackers.events
@@ -118,6 +118,7 @@ def convert_to_static():
         loop.set_debug(settings['debug'])
         loop.run_until_complete(convert_to_static_async(settings, args.event, args.dry_run))
 
+
 async def convert_to_static_async(settings, event_name, dry_run):
     app = {}
     async with await trackers.modules.config_modules(app, settings):
@@ -186,4 +187,3 @@ def add_gpx_to_event_routes():
     points = [[float(trkpt.attrib['lat']), float(trkpt.attrib['lon'])] for trkpt in trkpts]
     event_data.setdefault('routes', []).append(points)
     trackers.events.save_event(app, settings, event_name)
-

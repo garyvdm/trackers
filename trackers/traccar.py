@@ -1,16 +1,16 @@
 import asyncio
 import datetime
-import logging
 import functools
+import logging
 import time
 
-import more_itertools
 import aiohttp
-from aniso8601 import parse_datetime
+import more_itertools
 from aiocontext import async_contextmanager
+from aniso8601 import parse_datetime
 
 import trackers.web_app
-from trackers.base import Tracker, call_callbacks
+from trackers.base import call_callbacks, Tracker
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +54,6 @@ async def config(app, settings):
                 logger.exception('Error in ws_task: ')
             await session.delete('{}/api/session'.format(server['url']))
             await server['session'].close()
-
-
 
 
 async def server_ws_task(app, settings, session, server_name, server, position_received_callbacks):
@@ -110,6 +108,7 @@ async def start_individual_tracker(app, settings, request):
                                server_name, unique_id,
                                start, None)
 
+
 async def start_tracker(app, settings, tracker_name, server_name, device_unique_id, start, end):
     server = app['trackers.traccar_servers'][server_name]
     session = server['session']
@@ -139,7 +138,7 @@ async def start_tracker(app, settings, tracker_name, server_name, device_unique_
     tracker.stop_specific = functools.partial(tracker_stop, tracker)
     if end:
         asyncio.get_event_loop().call_at(
-            asyncio.get_event_loop().time() - time.time() + end.timestamp(), tracker.finished.set )
+            asyncio.get_event_loop().time() - time.time() + end.timestamp(), tracker.finished.set)
     return tracker
 
 
@@ -165,15 +164,16 @@ def traccar_position_translate(position):
         'battery': position['attributes'].get('batteryLevel'),
         'time': parse_datetime(position['fixTime']).astimezone().replace(tzinfo=None),
         # server_time is null in websocket positions :-( Need to log an issue, and fix it.
-        'server_time': parse_datetime(position['serverTime']).astimezone().replace(tzinfo=None)
-            if position['serverTime'] else datetime.datetime.now(),
+        'server_time': (
+            parse_datetime(position['serverTime']).astimezone().replace(tzinfo=None)
+            if position['serverTime'] else datetime.datetime.now()),
     }
 
 
 async def main():
     app = {}
     settings = {
-        'traccar_servers':{
+        'traccar_servers': {
             'trackrace_tk':
                 {
                     'url': 'https://traccar.trackrace.tk',

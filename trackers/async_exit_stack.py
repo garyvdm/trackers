@@ -1,10 +1,9 @@
 # From https://gist.github.com/thehesiod/b8442ed50e27a23524435a22f10c04a0
 # Hopefully there will be a stdlib or pypi lib soon.
 
-from inspect import iscoroutinefunction, isawaitable
 import sys
 from collections import deque
-
+from inspect import isawaitable, iscoroutinefunction
 
 # NOTE: this follows the contextlib.ExitStack implementation
 
@@ -241,4 +240,3 @@ class AsyncExitStack(_BaseExitStack):
                     result = gen.throw(e)
         except StopIteration as e:
             return e.value
-

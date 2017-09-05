@@ -1,7 +1,6 @@
-import timeit
-import json
-import datetime
 import asyncio
+import datetime
+import json
 import logging
 import sys
 
@@ -13,6 +12,7 @@ from trackers.base import Tracker
 
 tracker = None
 event_routes = None
+
 
 async def setup():
     global tracker, event_routes

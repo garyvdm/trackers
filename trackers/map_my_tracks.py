@@ -21,6 +21,7 @@ def config(app, settings):
     )
     return mapmytracks_session
 
+
 async def start_event_tracker(app, settings, event_name, event_data, rider_name, tracker_data):
     tracker = Tracker('mapmytracks.{}'.format(tracker_data['name']))
     monitor_task = asyncio.ensure_future(monitor_user(
@@ -64,6 +65,7 @@ async def start_activity(client_session, title, points, privacy='public', activi
     activity_id = xml_dom.find('./activity_id').text
     return activity_id
 
+
 async def stop_activity(client_session, activity_id):
     await api_call(client_session, 'stop_activity', (('activity_id', activity_id), ))
 
@@ -78,7 +80,7 @@ async def get_activites(client_session, author, logger=None, pages=5, warn_scrap
     xml_dom = await api_call(client_session, 'get_activities', data)
     if xml_dom.find('./author').text:
         activites_elements = xml_dom.findall('./activities/*')
-        activites = [( int(element.find('id').text), datetime.datetime.fromtimestamp(int(element.find('date').text)))
+        activites = [(int(element.find('id').text), datetime.datetime.fromtimestamp(int(element.find('date').text)))
                      for element in activites_elements]
 
     else:
@@ -113,6 +115,7 @@ def point_from_str(s):
     split = s.split(',')
     return [int(split[0]), float(split[1]), float(split[2]), float(split[3]), ]
 
+
 async def get_activity(client_session, activity_id, from_time):
     data = (
         ('activity_id', activity_id),
@@ -126,7 +129,6 @@ async def get_activity(client_session, activity_id, from_time):
     else:
         points = []
     return complete, points
-
 
 
 async def monitor_user(client_session, user, start_date, end_date, cache_path, tracker, exclude):
@@ -147,7 +149,8 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
     completed_activites = set(state.get('completed_activites', ()))
     activities_points = state.setdefault('activities_points', {})
 
-    tracker_point = lambda point: {'time': datetime.datetime.fromtimestamp(point[0]), 'position': point[1:], }
+    def tracker_point(point):
+        return {'time': datetime.datetime.fromtimestamp(point[0]), 'position': point[1:], }
     last_point = None
 
     old_points = [tracker_point(point) for point in sorted(itertools.chain.from_iterable(activities_points.values()))]
@@ -249,18 +252,18 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
 
 
 async def main():
-
-    async with aiohttp.ClientSession(auth=aiohttp.BasicAuth('USERNAME', 'PASSWORD')) as client_session:
-        pass
-        # activity_id = await start_activity(client_session, 'My activity', points='51.3704583333333 1.15737333333333 1.345 1198052842')
-        # print(activity_id)
-        # await stop_activity(client_session, activity_id)
-        # print(await get_activites(client_session, 'garyvdm'))
-
-        # tracker, monitor_task = await start_monitor_user(client_session, 'garyvdm',
-        #                                                  datetime.datetime(2017, 3, 21), datetime.datetime(2017, 4, 10), '/tmp/')
-        # trackers.print_tracker(tracker)
-        # await monitor_task
+    pass
+    # async with aiohttp.ClientSession(auth=aiohttp.BasicAuth('USERNAME', 'PASSWORD')) as client_session:
+    #     pass
+    #     activity_id = await start_activity(client_session, 'My activity', points='51.3704583333333 1.15737333333333 1.345 1198052842')
+    #     print(activity_id)
+    #     await stop_activity(client_session, activity_id)
+    #     print(await get_activites(client_session, 'garyvdm'))
+    #
+    #     tracker, monitor_task = await start_monitor_user(client_session, 'garyvdm',
+    #                                                      datetime.datetime(2017, 3, 21), datetime.datetime(2017, 4, 10), '/tmp/')
+    #     trackers.print_tracker(tracker)
+    #     await monitor_task
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)

@@ -1,15 +1,18 @@
 import asyncio
-import aiohttp
 import datetime
-import re
 import logging
+import re
 
-from trackers.base import Tracker, print_tracker
+import aiohttp
+
+from trackers.base import print_tracker, Tracker
+
 
 def config(app, settings):
     app['trackers.garmin_livetrack.session'] = garmin_livetrack_session = aiohttp.ClientSession()
     app.router.add_route('POST', '/modules/garmin_livetrack/email', handler=email_recive, name='garmin_livetrack_email')
     return garmin_livetrack_session
+
 
 async def start_event_tracker(app, settings, event_name, event_data, rider_name, tracker_data):
     # TODO
@@ -40,7 +43,7 @@ async def email_recive(request):
 
 
 async def monitor_session(client_session, session_token_match, tracker):
-    service_config = await get_service_config(client_session);
+    service_config = await get_service_config(client_session)
     session_url = 'http://livetrack.garmin.com/services/session/{session}/token/{token}'.format_map(session_token_match)
     tracklog_url = 'http://livetrack.garmin.com/services/trackLog/{session}/token/{token}'.format_map(session_token_match)
     last_status = None
@@ -72,7 +75,7 @@ async def monitor_session(client_session, session_token_match, tracker):
             if tracklog:
                 points = []
                 for item in tracklog:
-                    time = datetime.datetime.fromtimestamp(item['timestamp']/1000)
+                    time = datetime.datetime.fromtimestamp(item['timestamp'] / 1000)
                     point = {'time': time}
                     if item['latitude'] != 0 and item['longitude'] != 0:  # Filter out null island
                         point['position'] = (item['latitude'], item['longitude'], float(item['metaData']['ELEVATION']))
@@ -86,10 +89,9 @@ async def monitor_session(client_session, session_token_match, tracker):
 
         if last_status == 'Complete':
             break
-        await asyncio.sleep(service_config['tracklogRefreshRate']/1000)
+        await asyncio.sleep(service_config['tracklogRefreshRate'] / 1000)
 
     await monitor_status_task
-
 
 
 async def main(url):

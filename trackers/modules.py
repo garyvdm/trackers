@@ -20,8 +20,6 @@ async def config_modules(app, settings):
     return exit_stack
 
 
-
-
 start_event_trackers = {
     'mapmytracks': trackers.map_my_tracks.start_event_tracker,
     'garmin_livetrack': trackers.garmin_livetrack.start_event_tracker,

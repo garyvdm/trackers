@@ -1,16 +1,15 @@
+import asyncio
 import base64
 import contextlib
 import datetime
 import hashlib
 import json
 import logging
-import asyncio
 from functools import partial
 
-import aiohttp
 import magic
 import pkg_resources
-from aiohttp import web, WSMsgType
+from aiohttp import web, WSCloseCode, WSMsgType
 from more_itertools import chunked
 from slugify import slugify
 
@@ -24,6 +23,7 @@ from trackers.base import cancel_and_wait_task
 logger = logging.getLogger(__name__)
 
 server_version = 10
+
 
 async def make_aio_app(loop, settings):
     app = web.Application(loop=loop)
@@ -74,10 +74,7 @@ async def make_aio_app(loop, settings):
     app.router.add_route('GET', '/{event}/websocket', handler=event_ws, name='event_ws')
     app.router.add_route('GET', '/{event}/set_start', handler=event_set_start, name='event_set_start')
 
-
-
     app.router.add_route('POST', '/client_error', handler=client_error_logger, name='client_error_logger')
-
 
     app['trackers.modules_cm'] = modules_cm = await trackers.modules.config_modules(app, settings)
     await modules_cm.__aenter__()
@@ -86,13 +83,12 @@ async def make_aio_app(loop, settings):
     for event_name in app['trackers.events_data']:
         await trackers.events.start_event_trackers(app, settings, event_name)
 
-
     return app
 
 
 async def shutdown(app):
     for ws in app['trackers.ws_sessions']:
-        await ws.close(code=aiohttp.WSCloseCode.GOING_AWAY,
+        await ws.close(code=WSCloseCode.GOING_AWAY,
                        message='Server shutdown')
 
     for event_name in app['trackers.events_data']:
@@ -195,7 +191,6 @@ async def event_ws(request):
                                 exit_stack.enter_context(list_register(tracker.new_points_callbacks,
                                                                        partial(tracker_new_points_to_ws, send, rider_name)))
 
-
                 if msg.tp == WSMsgType.close:
                     await ws.close()
                 if msg.tp == WSMsgType.error:
@@ -236,10 +231,10 @@ async def tracker_new_points_to_ws(ws_send, rider_name, tracker, new_points):
         logger.exception('Error in tracker_new_points_to_ws:')
 
 
-
 def json_encode(obj):
     if isinstance(obj, datetime.datetime):
         return obj.timestamp()
+
 
 async def client_error_logger(request):
     body = await request.text()
@@ -249,7 +244,7 @@ async def client_error_logger(request):
     forwared_for = request.headers.get('X-Forwarded-For')
     client = forwared_for or (peername[0] if peername else '')
     logger.error('\n'.join((body, agent, client)))
-    return aiohttp.web.Response()
+    return web.Response()
 
 
 async def event_set_start(request):
@@ -330,9 +325,9 @@ async def individual_ws(get_key, get_tracker, request):
     return ws
 
 
-
 def start_individual_discard_tracker_wait(app, tracker_info):
     tracker_info['discard_task'] = asyncio.ensure_future(individual_discard_tracker_wait(app, tracker_info))
+
 
 async def individual_discard_tracker_wait(app, tracker_info):
     await asyncio.sleep(3600)
@@ -346,4 +341,3 @@ async def individual_discard_tracker(app, tracker_info):
         await tracker.finish()
     finally:
         del app['trackers.individual_trackers'][tracker_info['key']]
-

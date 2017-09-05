@@ -1,14 +1,14 @@
-import logging.config
 import asyncio
-import socket
+import logging.config
 import os
 import signal
+import socket
 import sys
 
 import uvloop
 
-import trackers.web_app
 import trackers.bin_utils
+import trackers.web_app
 
 defaults_yaml = """
     server_type: inet
