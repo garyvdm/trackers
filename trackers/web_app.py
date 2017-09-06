@@ -19,6 +19,7 @@ import trackers.modules
 import trackers.traccar
 
 from trackers.base import cancel_and_wait_task
+from trackers.analyse import start_analyse_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -276,7 +277,7 @@ async def individual_ws(get_key, get_tracker, request):
 
             if tracker_info is None:
                 tracker = await get_tracker(request)
-                tracker = await trackers.start_analyse_tracker(tracker, None, ())
+                tracker = await start_analyse_tracker(tracker, None, ())
                 tracker_info = {
                     'key': tracker_key,
                     'tracker': tracker,
