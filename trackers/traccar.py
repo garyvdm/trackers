@@ -24,11 +24,6 @@ async def config(app, settings):
             connector=aiohttp.TCPConnector(limit=4),
             raise_for_status=True,
         )
-        session_response = await session.post('{}/api/session'.format(server['url']), data={'email': [server['auth'][0]], 'password': [server['auth'][1]]})
-        user = await session_response.json()
-        logger.debug('session: {}'.format(user))
-
-        server['user_id'] = user['id']
         server['position_received_callbacks'] = position_received_callbacks = {}
         server['ws_task'] = asyncio.ensure_future(server_ws_task(app, settings, session, server_name, server, position_received_callbacks))
 
@@ -52,19 +47,42 @@ async def config(app, settings):
                 pass
             except Exception:
                 logger.exception('Error in ws_task: ')
-            await session.delete('{}/api/session'.format(server['url']))
+            await logout(app, server_name)
             await server['session'].close()
+
+
+async def ensure_login(app, server_name):
+    server = app['trackers.traccar_servers'][server_name]
+    logger = logging.getLogger('{}.{}'.format(__name__, server_name))
+    if not server.get('user_id'):
+        session_response = await server['session'].post('{url}/api/session'.format_map(server), data={'email': [server['auth'][0]], 'password': [server['auth'][1]]})
+        user = await session_response.json()
+        server['user_id'] = user['id']
+        logger.info('Successfull login to {url}'.format_map(server))
+
+
+async def logout(app, server_name):
+    server = app['trackers.traccar_servers'][server_name]
+    logger = logging.getLogger('{}.{}'.format(__name__, server_name))
+    if server.get('user_id'):
+        try:
+            await server['session'].delete('{}/api/session'.format(server['url']))
+        except aiohttp.client_exceptions.ClientError as e:
+            logger.error('Error in delete session: {!r}'.format(e))
+        except Exception:
+            logger.exception('Error in delete session:')
+        del server['user_id']
 
 
 async def server_ws_task(app, settings, session, server_name, server, position_received_callbacks):
     try:
         url = '{}/api/socket'.format(server['url'])
         logger = logging.getLogger('{}.{}'.format(__name__, server_name))
-        reconnect_sleep_time = 1
+        reconnect_sleep_time = 5
         while True:
             try:
-                logger.info('Connecting to ws {}'.format(url))
-
+                await ensure_login(app, server_name)
+                logger.debug('Connecting to ws {}'.format(url))
                 async with session.ws_connect(url) as ws:
                     reconnect_sleep_time = 1
                     async for msg in ws:
@@ -81,11 +99,16 @@ async def server_ws_task(app, settings, session, server_name, server, position_r
                             break
             except asyncio.CancelledError:
                 break
+            except aiohttp.client_exceptions.ClientError as e:
+                logger.error('Error in ws_task: {!r}'.format(e))
+                await logout(app, server_name)
             except Exception:
                 logger.exception('Error in ws_task: ')
-            logger.info('Reconnecting in {} sec'.format(reconnect_sleep_time))
+            logger.debug('Reconnecting in {} sec'.format(reconnect_sleep_time))
             await asyncio.sleep(reconnect_sleep_time)
-            reconnect_sleep_time = min((reconnect_sleep_time * 2, 60))
+            reconnect_sleep_time = min((reconnect_sleep_time * 2, 30))
+    except asyncio.CancelledError:
+        pass
     except Exception:
         logger.exception('Error in ws_task: ')
 
