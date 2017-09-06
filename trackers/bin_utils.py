@@ -19,6 +19,7 @@ defaults_yaml = """
 
     logging:
         version: 1
+        disable_existing_loggers: false        
         handlers:
             console:
                 formatter: generic
@@ -30,25 +31,9 @@ defaults_yaml = """
             generic:
                 format: '%(levelname)-5.5s [%(name)s] %(message)s'
         root:
-            level: NOTSET
+            level: INFO
             handlers: [console, ]
 
-        loggers:
-            trackers:
-                 level: INFO
-                 qualname: trackers
-            web_app:
-                 level: INFO
-                 qualname: web_app
-            events:
-                 level: INFO
-                 qualname: events
-            aiohttp:
-                 level: INFO
-                 qualname: aiohttp
-            asyncio:
-                 level: INFO
-                 qualname: asyncio
 """
 
 
