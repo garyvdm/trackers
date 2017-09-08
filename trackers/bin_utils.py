@@ -10,6 +10,7 @@ import sys
 import xml.etree.ElementTree as xml
 
 import yaml
+import msgpack
 
 import trackers.events
 import trackers.modules
@@ -96,15 +97,16 @@ def convert_to_static():
     parser = get_base_argparser(description="Convert live trackers to static data.")
     parser.add_argument('event', action='store')
     parser.add_argument('--dry-run', '-d', action='store_true')
+    parser.add_argument('--format', '-f', choices=['msgpack', 'json'], default='msgpack')
 
     args = parser.parse_args()
     settings = get_combined_settings(args=args)
     with contextlib.closing(asyncio.get_event_loop()) as loop:
         loop.set_debug(settings['debug'])
-        loop.run_until_complete(convert_to_static_async(settings, args.event, args.dry_run))
+        loop.run_until_complete(convert_to_static_async(settings, args.event, args.dry_run, args.format))
 
 
-async def convert_to_static_async(settings, event_name, dry_run):
+async def convert_to_static_async(settings, event_name, dry_run, format):
     app = {}
     async with await trackers.modules.config_modules(app, settings):
         trackers.events.load_events(app, settings)
@@ -117,12 +119,18 @@ async def convert_to_static_async(settings, event_name, dry_run):
             tracker = rider_trackers.get(rider_name)
             if tracker:
                 await tracker.finish()
-                with open(os.path.join(os.path.join(settings['data_path'], event_name, rider_name)), 'w') as f:
-                    json.dump(tracker.points, f, default=json_encode)
-                rider['tracker'] = {'type': 'static', 'name': rider_name}
+                path = os.path.join(os.path.join(settings['data_path'], event_name, rider_name))
+                if format == 'msgpack':
+                    with open(path, 'wb') as f:
+                        msgpack.dump(tracker.points, f, default=json_encode)
+
+                if format == 'json':
+                    with open(path, 'w') as f:
+                        json.dump(tracker.points, f, default=json_encode)
+
+                rider['tracker'] = {'type': 'static', 'name': rider_name, 'format': format}
         if not dry_run:
             trackers.events.save_event(app, settings, event_name)
-
 
 def json_encode(obj):
     if isinstance(obj, datetime.datetime):
@@ -171,4 +179,16 @@ def add_gpx_to_event_routes():
     trkpts = xml_doc.findall('./gpx:trk/gpx:trkseg/gpx:trkpt', gpx_ns)
     points = [[float(trkpt.attrib['lat']), float(trkpt.attrib['lon'])] for trkpt in trkpts]
     event_data.setdefault('routes', []).append(points)
+    trackers.events.save_event(app, settings, event_name)
+
+
+
+def reformat_event():
+    parser = get_base_argparser(description="Open and save event. Side effect is convert to new formats")
+    parser.add_argument('event', action='store')
+    args = parser.parse_args()
+    settings = get_combined_settings(args=args)
+    app = {}
+    event_name = args.event
+    trackers.events.load_events(app, settings)
     trackers.events.save_event(app, settings, event_name)

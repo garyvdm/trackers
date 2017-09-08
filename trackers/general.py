@@ -6,6 +6,7 @@ import json
 import os
 
 import yaml
+import msgpack
 
 import trackers.modules
 from trackers.base import callback_done_callback, cancel_and_wait_task, Tracker
@@ -13,8 +14,15 @@ from trackers.base import callback_done_callback, cancel_and_wait_task, Tracker
 
 async def static_start_event_tracker(app, settings, event_name, event_data, rider_name, tracker_data):
     tracker = Tracker('static.{}'.format(tracker_data['name']))
-    with open(os.path.join(settings['data_path'], event_name, tracker_data['name'])) as f:
-        points = json.load(f)
+    format = tracker_data.get('format', 'json')
+    path = os.path.join(settings['data_path'], event_name, tracker_data['name'])
+    if format == 'json':
+        with open(path) as f:
+            points = json.load(f)
+    if format == 'msgpack':
+        with open(path, 'rb') as f:
+            points = msgpack.load(f, encoding='utf-8')
+
     for point in points:
         point['time'] = datetime.datetime.fromtimestamp(point['time'])
     await tracker.new_points(points)

@@ -1,7 +1,10 @@
 import logging
 import os
+import copy
+import contextlib
 
 import yaml
+import msgpack
 
 import trackers
 import trackers.modules
@@ -21,6 +24,12 @@ def load_events(app, settings):
     for event_name in event_names:
         with open(os.path.join(settings['data_path'], event_name, 'data.yaml')) as f:
             event_data = yaml.load(f)
+
+        routes_path = os.path.join(settings['data_path'], event_name, 'routes')
+        if os.path.exists(routes_path):
+            with open(routes_path, 'rb') as f:
+                event_data['routes'] = msgpack.load(f)
+
         events_data[event_name] = event_data
         events_ws_sessions[event_name] = []
 
@@ -56,5 +65,15 @@ async def stop_event_trackers(app, event_name):
 
 def save_event(app, settings, event_name):
     app['trackers.events_data'][event_name]['data_version'] += 1
+    data = copy.copy(app['trackers.events_data'][event_name])
+    routes = data.pop('routes', None)
     with open(os.path.join(settings['data_path'], event_name, 'data.yaml'), 'w') as f:
-        yaml.dump(app['trackers.events_data'][event_name], f)
+        yaml.dump(data, f)
+
+    routes_path = os.path.join(settings['data_path'], event_name, 'routes')
+    if routes:
+        with open(routes_path, 'wb') as f:
+            msgpack.dump(routes, f)
+    else:
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(routes_path)
