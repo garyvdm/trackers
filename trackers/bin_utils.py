@@ -9,8 +9,8 @@ import os
 import sys
 import xml.etree.ElementTree as xml
 
-import yaml
 import msgpack
+import yaml
 
 import trackers.events
 import trackers.modules
@@ -20,7 +20,7 @@ defaults_yaml = """
 
     logging:
         version: 1
-        disable_existing_loggers: false        
+        disable_existing_loggers: false
         handlers:
             console:
                 formatter: generic
@@ -109,14 +109,12 @@ def convert_to_static():
 async def convert_to_static_async(settings, event_name, dry_run, format):
     app = {}
     async with await trackers.modules.config_modules(app, settings):
-        trackers.events.load_events(app, settings)
-        await trackers.events.start_event_trackers(app, settings, event_name)
+        event = trackers.events.Event(settings, event_name)
+        await event.start_trackers(app)
 
-        event_data = app['trackers.events_data'][event_name]
-        rider_trackers = app['trackers.events_rider_trackers'][event_name]
-        for rider in event_data['riders']:
+        for rider in event.data['riders']:
             rider_name = rider['name']
-            tracker = rider_trackers.get(rider_name)
+            tracker = event.rider_trackers.get(rider_name)
             if tracker:
                 await tracker.finish()
                 path = os.path.join(os.path.join(settings['data_path'], event_name, rider_name))
@@ -130,7 +128,8 @@ async def convert_to_static_async(settings, event_name, dry_run, format):
 
                 rider['tracker'] = {'type': 'static', 'name': rider_name, 'format': format}
         if not dry_run:
-            trackers.events.save_event(app, settings, event_name)
+            event.save()
+
 
 def json_encode(obj):
     if isinstance(obj, datetime.datetime):
@@ -142,17 +141,15 @@ def assign_rider_colors():
     parser.add_argument('event', action='store')
     args = parser.parse_args()
     settings = get_combined_settings(args=args)
-    app = {}
     event_name = args.event
-    trackers.events.load_events(app, settings)
-    event_data = app['trackers.events_data'][event_name]
-    num_riders = len(event_data['riders'])
-    for i, rider in enumerate(event_data['riders']):
+    event = trackers.events.Event(settings, event_name)
+    num_riders = len(event.data['riders'])
+    for i, rider in enumerate(event.data['riders']):
         hue = round(((i * 360 / num_riders) + (180 * (i % 2))) % 360)
         print(hue)
         rider['color'] = 'hsl({}, 100%, 50%)'.format(hue)
         rider['color_marker'] = 'hsl({}, 100%, 60%)'.format(hue)
-    trackers.events.save_event(app, settings, event_name)
+    event.save()
 
 
 def add_gpx_to_event_routes():
@@ -161,10 +158,6 @@ def add_gpx_to_event_routes():
     parser.add_argument('gpx_file', action='store')
     args = parser.parse_args()
     settings = get_combined_settings(args=args)
-    app = {}
-    event_name = args.event
-    trackers.events.load_events(app, settings)
-    event_data = app['trackers.events_data'][event_name]
 
     with open(args.gpx_file) as f:
         gpx_text = f.read()
@@ -178,9 +171,11 @@ def add_gpx_to_event_routes():
 
     trkpts = xml_doc.findall('./gpx:trk/gpx:trkseg/gpx:trkpt', gpx_ns)
     points = [[float(trkpt.attrib['lat']), float(trkpt.attrib['lon'])] for trkpt in trkpts]
-    event_data.setdefault('routes', []).append(points)
-    trackers.events.save_event(app, settings, event_name)
 
+    event_name = args.event
+    event = trackers.events.Event(settings, event_name)
+    event.routes.append(points)
+    event.save()
 
 
 def reformat_event():
@@ -188,7 +183,6 @@ def reformat_event():
     parser.add_argument('event', action='store')
     args = parser.parse_args()
     settings = get_combined_settings(args=args)
-    app = {}
     event_name = args.event
-    trackers.events.load_events(app, settings)
-    trackers.events.save_event(app, settings, event_name)
+    event = trackers.events.Event(settings, event_name)
+    event.save()

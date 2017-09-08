@@ -113,10 +113,10 @@ async def server_ws_task(app, settings, session, server_name, server, position_r
         logger.exception('Error in ws_task: ')
 
 
-async def start_event_tracker(app, settings, event_name, event_data, rider_name, tracker_data):
-    return await start_tracker(app, settings, rider_name,
+async def start_event_tracker(app, event, rider_name, tracker_data):
+    return await start_tracker(app, rider_name,
                                tracker_data.get('server', 'local'), tracker_data['unique_id'],
-                               event_data['tracker_start'], event_data['tracker_end'])
+                               event.data['tracker_start'], event.data['tracker_end'])
 
 
 def get_individual_key(request):
@@ -127,12 +127,12 @@ async def start_individual_tracker(app, settings, request):
     unique_id = request.match_info['unique_id']
     server_name = 'local'
     start = datetime.datetime.now() - datetime.timedelta(days=7)
-    return await start_tracker(app, settings, unique_id,
+    return await start_tracker(app, unique_id,
                                server_name, unique_id,
                                start, None)
 
 
-async def start_tracker(app, settings, tracker_name, server_name, device_unique_id, start, end):
+async def start_tracker(app, tracker_name, server_name, device_unique_id, start, end):
     server = app['trackers.traccar_servers'][server_name]
     session = server['session']
     url = '{}/api/positions'.format(server['url'])

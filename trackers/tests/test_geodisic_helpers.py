@@ -7,12 +7,12 @@ class TestFindCPoint(unittest.TestCase):
 
     def test_between(self):
         result = find_c_point(Point(0.0001, 15), Point(0, 0), Point(0, 30))
-        self.assertEquals(result.dist, 11.057427582158148)
-        self.assertEquals(result.point, Point(lat=0.0, lng=14.999999999999998))  # Rounding wtf?
+        self.assertEqual(result.dist, 11.057427582158148)
+        self.assertEqual(result.point, Point(lat=0.0, lng=14.999999999999998))  # Rounding wtf?
 
     def test_outside(self):
         result = find_c_point(Point(0.0001, 40), Point(0, 0), Point(0, 30))
-        self.assertEquals(result.point, Point(lat=0.0, lng=30))
+        self.assertEqual(result.point, Point(lat=0.0, lng=30))
 
 
 class TestRamerDouglasPeucker(unittest.TestCase):
@@ -27,7 +27,7 @@ class TestRamerDouglasPeucker(unittest.TestCase):
         ]
 
         simple_points = ramer_douglas_peucker(points, 20)
-        self.assertEquals(
+        self.assertEqual(
             simple_points,
             (
                 Point(0, 0),

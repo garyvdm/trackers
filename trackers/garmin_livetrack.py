@@ -14,7 +14,7 @@ def config(app, settings):
     return garmin_livetrack_session
 
 
-async def start_event_tracker(app, settings, event_name, event_data, rider_name, tracker_data):
+async def start_event_tracker(app, event, rider_name, tracker_data):
     # TODO
     session_token_match = url_session_token_matcher(url).groupdict()
     tracker = Tracker('garmin_livetrack.{}'.format(session_token_match['session']))

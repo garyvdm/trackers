@@ -18,8 +18,8 @@ import trackers.events
 import trackers.modules
 import trackers.traccar
 
-from trackers.base import cancel_and_wait_task
 from trackers.analyse import start_analyse_tracker
+from trackers.base import cancel_and_wait_task
 
 logger = logging.getLogger(__name__)
 
@@ -81,8 +81,8 @@ async def make_aio_app(loop, settings):
     await modules_cm.__aenter__()
 
     trackers.events.load_events(app, settings)
-    for event_name in app['trackers.events_data']:
-        await trackers.events.start_event_trackers(app, settings, event_name)
+    for event in app['trackers.events'].values():
+        await event.start_trackers(app)
 
     return app
 
@@ -92,8 +92,8 @@ async def shutdown(app):
         await ws.close(code=WSCloseCode.GOING_AWAY,
                        message='Server shutdown')
 
-    for event_name in app['trackers.events_data']:
-        await trackers.events.stop_event_trackers(app, event_name)
+    for event in app['trackers.events'].values():
+        await event.stop_trackers()
 
     await app['trackers.modules_cm'].__aexit__(None, None, None)
 
@@ -142,21 +142,19 @@ async def event_ws(request):
         try:
             exit_stack.enter_context(list_register(request.app['trackers.ws_sessions'], ws))
 
-            event_name = request.match_info['event']
-            event_data = request.app['trackers.events_data'].get(event_name)
-            if event_data is None:
-                await ws.close(message='Error: Event not found.')
-                return ws
-
-            trackers = request.app['trackers.events_rider_trackers'].get(event_name)
-
             def send(msg):
                 logger.debug('send: {}'.format(str(msg)[:1000]))
                 ws.send_str(json.dumps(msg, default=json_encode))
 
-            exit_stack.enter_context(list_register(request.app['trackers.events_ws_sessions'][event_name], send))
+            event_name = request.match_info['event']
+            event = request.app['trackers.events'].get(event_name)
+            if event is None:
+                await ws.close(message='Error: Event not found.')
+                return ws
 
             send({'client_hash': request.app['trackers.event_client_hash'], 'server_time': datetime.datetime.now()})
+
+            exit_stack.enter_context(list_register(event.ws_sessions, send))
 
             async for msg in ws:
                 if msg.tp == WSMsgType.text:
@@ -167,22 +165,22 @@ async def event_ws(request):
                         resend = (
                             not data.get('event_data_version') or
                             not data.get('server_version') or
-                            data['event_data_version'] != event_data['data_version'] or
+                            data['event_data_version'] != event.data['data_version'] or
                             data['server_version'] != server_version
                         )
                         if resend:
                             # TODO: massage data to remove stuff that is only approiate to server
                             send({'sending': 'event data'})
-                            send({'event_data': event_data, 'server_version': server_version})
+                            send({'event_data': event.data, 'server_version': server_version})
                     if 'rider_indexes' in data:
                         if resend:
                             send({'erase_rider_points': 1})
                             client_rider_point_indexes = {}
                         else:
                             client_rider_point_indexes = data['rider_indexes']
-                        for rider in event_data['riders']:
+                        for rider in event.data['riders']:
                             rider_name = rider['name']
-                            tracker = trackers.get(rider_name)
+                            tracker = event.rider_trackers.get(rider_name)
                             if tracker:
                                 last_index = client_rider_point_indexes.get(rider_name, 0)
                                 new_points = tracker.points[last_index:]

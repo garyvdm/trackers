@@ -33,8 +33,9 @@ async def test():
     await start_analyse_tracker(tracker, None, event_routes)
 
 
-logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+if __name__ == '__main__':
+    logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 
-loop = asyncio.get_event_loop()
-loop.run_until_complete(setup())
-loop.run_until_complete(test())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(setup())
+    loop.run_until_complete(test())

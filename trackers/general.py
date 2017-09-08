@@ -5,17 +5,17 @@ import functools
 import json
 import os
 
-import yaml
 import msgpack
+import yaml
 
 import trackers.modules
 from trackers.base import callback_done_callback, cancel_and_wait_task, Tracker
 
 
-async def static_start_event_tracker(app, settings, event_name, event_data, rider_name, tracker_data):
+async def static_start_event_tracker(app, event, rider_name, tracker_data):
     tracker = Tracker('static.{}'.format(tracker_data['name']))
     format = tracker_data.get('format', 'json')
-    path = os.path.join(settings['data_path'], event_name, tracker_data['name'])
+    path = os.path.join(event.base_path, tracker_data['name'])
     if format == 'json':
         with open(path) as f:
             points = json.load(f)
@@ -29,10 +29,10 @@ async def static_start_event_tracker(app, settings, event_name, event_data, ride
     return tracker
 
 
-async def static_replay_start_event_tracker(app, settings, event_name, event_data, tracker_data):
+async def static_replay_start_event_tracker(app, event, tracker_data):
     tracker = Tracker('static.{}'.format(tracker_data['name']))
     monitor_task = asyncio.ensure_future(static_replay(
-        tracker, os.path.join(settings['data_path'], event_name, tracker_data['name']), event_data['start'], 2000))
+        tracker, os.path.join(event.base_path, tracker_data['name']), event.data['start'], 2000))
     tracker.stop = functools.partial(cancel_and_wait_task, monitor_task)
     monitor_task.add_done_callback(functools.partial(callback_done_callback, 'Error in static_replay:', tracker.logger))
     return tracker
@@ -61,8 +61,8 @@ async def static_replay(tracker, path, event_start_time, speed_multiply):
         await asyncio.sleep((new_time - now).total_seconds())
 
 
-async def start_cropped_tracker(app, settings, event_name, event_data, tracker_data):
-    org_tracker = await trackers.modules.start_event_trackers[tracker_data['tracker']['type']](app, settings, event_name, event_data, tracker_data['tracker'])
+async def start_cropped_tracker(app, event, tracker_data):
+    org_tracker = await trackers.modules.start_trackers[tracker_data['tracker']['type']](app, event, tracker_data['tracker'])
     cropped_tracker = Tracker('croped.{}'.format(org_tracker.name))
     cropped_tracker.stop_specific = org_tracker.stop
     cropped_tracker.finish_specific = org_tracker.finish
