@@ -1,3 +1,5 @@
+"use strict";
+
 var TIME = 't'
 var POSITION = 'p'
 var TRACK_ID = 'i'
@@ -12,7 +14,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var time_offset = 0;
 
     function update_status(){
-        text = errors.slice(-4).concat([status_msg]).join('<br>');
+        var text = errors.slice(-4).concat([status_msg]).join('<br>');
 //        console.log(text);
         status.innerHTML = text;
     }
@@ -66,7 +68,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var close_reason;
     var reconnect_time = 1000;
 
-    loader_html = '<span class="l1"></span><span class="l2"></span><span class="l3"></span> '
+    var loader_html = '<span class="l1"></span><span class="l2"></span><span class="l3"></span> '
 
     function ws_connect(){
         set_status(loader_html + 'Connecting');
@@ -121,11 +123,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.client_hash != client_hash) {
                 location.reload();
             } else {
-                current_state = {
+                var current_state = {
                     'event_data_version': (event_data? event_data.data_version || null : null),
                     'server_version': (event_data? event_data.server_version || null : null),
                 }
-                rider_indexes = current_state['rider_indexes'] = {}
+                var rider_indexes = current_state['rider_indexes'] = {}
                 Object.keys(riders_points).forEach(function (name) {rider_indexes[name] = riders_points[name].length})
                 ws.send(JSON.stringify(current_state))
             }
@@ -229,12 +231,12 @@ document.addEventListener('DOMContentLoaded', function() {
             'last_position_point': null,
             'position_point': null,
         });
-        path_color = rider.color || 'black';
+        var path_color = rider.color || 'black';
         var rider_current_values = rider_items.current_values;
 
         riders_points[rider_name].slice(index).forEach(function (point) {
             if (point.hasOwnProperty(POSITION)) {
-                path = (rider_items.paths[point[TRACK_ID]] || (rider_items.paths[point[TRACK_ID]] = new google.maps.Polyline({
+                var path = (rider_items.paths[point[TRACK_ID]] || (rider_items.paths[point[TRACK_ID]] = new google.maps.Polyline({
                     map: map,
                     path: [],
                     geodesic: false,
@@ -252,7 +254,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (rider_items.hasOwnProperty('position_point')) {
             var position = new google.maps.LatLng(rider_items.position_point[POSITION][0], rider_items.position_point[POSITION][1])
             if (!rider_items.marker) {
-                marker_color = rider.color_marker || 'white';
+                var marker_color = rider.color_marker || 'white';
                 rider_items.marker = new RichMarker({
                     map: map,
                     position: position,
@@ -288,7 +290,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             var current_time = (new Date().getTime() / 1000) - time_offset;
             var show_detail = riders_detail_el.checked;
-            rider_rows = sorted_riders.map(function (rider){
+            var rider_rows = sorted_riders.map(function (rider){
                 var rider_items = riders_client_items[rider.name] || {};
                 var current_values = rider_items.current_values || {};
                 var last_position_point = rider_items.last_position_point;
@@ -308,7 +310,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 if (position_point) {
                     // TODO more than a day
-                    seconds = current_time - position_point[TIME];
+                    var seconds = current_time - position_point[TIME];
                     if (seconds < 60) { last_position_time = '< 1 min ago' }
                     else if (seconds < 60 * 60) { last_position_time = sprintf('%i min ago', Math.floor(seconds / 60))}
                     else { last_position_time = sprintf('%i:%02i ago', Math.floor(seconds / 60 / 60), Math.floor(seconds / 60 % 60))}
