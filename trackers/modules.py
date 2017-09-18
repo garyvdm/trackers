@@ -1,4 +1,3 @@
-import trackers
 import trackers.garmin_livetrack
 import trackers.general
 import trackers.map_my_tracks
@@ -25,6 +24,5 @@ start_event_trackers = {
     'garmin_livetrack': trackers.garmin_livetrack.start_event_tracker,
     'traccar': trackers.traccar.start_event_tracker,
     'static': trackers.general.static_start_event_tracker,
-    'static_replay': trackers.general.static_replay_start_event_tracker,
     'cropped': trackers.general.start_cropped_tracker,
 }

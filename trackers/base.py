@@ -16,6 +16,7 @@ class Tracker(object):
         self.new_points_callbacks = []
         self.logger = logging.getLogger('trackers.{}'.format(name))
         self.callback_tasks = []
+        self.is_finished = False
 
     async def new_points(self, new_points):
         self.points.extend(new_points)
@@ -29,6 +30,7 @@ class Tracker(object):
 
     async def finish(self):
         await self.finish_specific()
+        self.is_finished = True
 
     async def finish_specific(self):
         pass

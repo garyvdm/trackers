@@ -1,5 +1,6 @@
 import contextlib
 import copy
+import datetime
 import logging
 import os
 
@@ -7,6 +8,7 @@ import msgpack
 import yaml
 
 from trackers.analyse import get_expanded_routes, start_analyse_tracker
+from trackers.general import start_replay_tracker
 from trackers.modules import start_event_trackers
 
 logger = logging.getLogger(__name__)
@@ -60,14 +62,21 @@ class Event(object):
         logger.info('Starting {}'.format(self.name))
 
         analyse = self.data.get('analyse', False)
+        replay = self.data.get('replay', False)
 
         if analyse:
             expanded_routes = get_expanded_routes(self.routes)
+
+        if replay:
+            replay_start = datetime.datetime.now() + datetime.timedelta(seconds=10)
+            event_start = self.data['start']
 
         for rider in self.data['riders']:
             if rider['tracker']:
                 start_tracker = start_event_trackers[rider['tracker']['type']]
                 tracker = await start_tracker(app, self, rider['name'], rider['tracker'])
+                if replay:
+                    tracker = await start_replay_tracker(tracker, event_start, replay_start)
                 if analyse:
                     tracker = await start_analyse_tracker(tracker, self, expanded_routes)
 
