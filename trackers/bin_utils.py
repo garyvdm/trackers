@@ -2,8 +2,6 @@ import argparse
 import asyncio
 import contextlib
 import copy
-import datetime
-import json
 import logging.config
 import os
 import sys
@@ -14,6 +12,7 @@ import yaml
 
 import trackers.events
 import trackers.modules
+from trackers.general import json_dumps, json_encode
 
 defaults_yaml = """
     data_path: data
@@ -124,16 +123,11 @@ async def convert_to_static_async(settings, event_name, dry_run, format):
 
                 if format == 'json':
                     with open(path, 'w') as f:
-                        json.dump(tracker.points, f, default=json_encode)
+                        json_dumps(tracker.points)
 
                 rider['tracker'] = {'type': 'static', 'name': rider_name, 'format': format}
         if not dry_run:
             event.save()
-
-
-def json_encode(obj):
-    if isinstance(obj, datetime.datetime):
-        return obj.timestamp()
 
 
 def assign_rider_colors():

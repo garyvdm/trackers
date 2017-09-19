@@ -1,6 +1,8 @@
+import base64
 import contextlib
 import copy
 import datetime
+import hashlib
 import logging
 import os
 
@@ -8,7 +10,7 @@ import msgpack
 import yaml
 
 from trackers.analyse import get_expanded_routes, start_analyse_tracker
-from trackers.general import start_replay_tracker
+from trackers.general import index_and_hash_tracker, start_replay_tracker
 from trackers.modules import start_event_trackers
 
 logger = logging.getLogger(__name__)
@@ -31,22 +33,25 @@ class Event(object):
         self.base_path = os.path.join(settings['data_path'], self.name)
         self.ws_sessions = []
         self.rider_trackers = {}
-        self.load()
 
-    def load(self):
-        with open(os.path.join(self.base_path, 'data.yaml')) as f:
-            self.data = yaml.load(f)
+        with open(os.path.join(self.base_path, 'data.yaml'), 'rb') as f:
+            data_bytes = f.read()
+
+        self.data = yaml.load(data_bytes.decode())
+        self.data_hash = base64.urlsafe_b64encode(hashlib.sha1(data_bytes).digest()).decode('ascii')
 
         routes_path = os.path.join(self.base_path, 'routes')
         if os.path.exists(routes_path):
             with open(routes_path, 'rb') as f:
-                self.routes = msgpack.load(f)
+                routes_bytes = f.read()
+            self.routes = msgpack.loads(routes_bytes)
         else:
             self.routes = ()
+            routes_bytes = b''
+        self.routes_hash = base64.urlsafe_b64encode(hashlib.sha1(routes_bytes).digest()).decode('ascii')
 
     def save(self):
         data = copy.copy(self.data)
-        data['data_version'] += 1
         with open(os.path.join(self.base_path, 'data.yaml'), 'w') as f:
             yaml.dump(data, f)
 
@@ -79,7 +84,7 @@ class Event(object):
                     tracker = await start_replay_tracker(tracker, event_start, replay_start)
                 if analyse:
                     tracker = await start_analyse_tracker(tracker, self, expanded_routes)
-
+                tracker = await index_and_hash_tracker(tracker)
                 self.rider_trackers[rider['name']] = tracker
                 # trackers.print_tracker(tracker)
 

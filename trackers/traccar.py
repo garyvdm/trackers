@@ -9,7 +9,6 @@ import more_itertools
 from aiocontext import async_contextmanager
 from aniso8601 import parse_datetime
 
-import trackers.web_app
 from trackers.base import call_callbacks, Tracker
 
 logger = logging.getLogger(__name__)
@@ -29,6 +28,7 @@ async def config(app, settings):
 
         servers[server_name] = server
         if isinstance(app, aiohttp.web.Application):
+            import trackers.web_app
             app['add_individual_handler']('/traccar/{unique_id}')
             app.router.add_route('GET', '/traccar/{unique_id}/websocket',
                                  handler=functools.partial(trackers.web_app.individual_ws, get_individual_key,
@@ -208,7 +208,6 @@ async def main():
     async with config(app, settings):
         tracker = await start_tracker(
             app, settings, 'gary', 'trackrace_tk', '510586', datetime.datetime(2017, 6, 9), datetime.datetime(2017, 7, 30))
-        trackers.print_tracker(tracker)
         # await tracker.finish()
         run_fut = asyncio.Future()
         for signame in ('SIGINT', 'SIGTERM'):

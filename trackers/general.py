@@ -1,12 +1,24 @@
 import asyncio
-import datetime
 import functools
+import hashlib
 import json
 import os
+
+from base64 import urlsafe_b64encode
+from copy import copy
+from datetime import datetime
 
 import msgpack
 
 from trackers.base import callback_done_callback, cancel_and_wait_task, Tracker
+
+
+def json_encode(obj):
+    if isinstance(obj, datetime):
+        return obj.timestamp()
+
+
+json_dumps = functools.partial(json.dumps, default=json_encode, sort_keys=True)
 
 
 async def static_start_event_tracker(app, event, rider_name, tracker_data):
@@ -21,7 +33,7 @@ async def static_start_event_tracker(app, event, rider_name, tracker_data):
             points = msgpack.load(f, encoding='utf-8')
 
     for point in points:
-        point['time'] = datetime.datetime.fromtimestamp(point['time'])
+        point['time'] = datetime.fromtimestamp(point['time'])
     tracker.is_finished = True
     await tracker.new_points(points)
     return tracker
@@ -39,7 +51,7 @@ async def start_replay_tracker(org_tracker, event_start_time, replay_start, spee
 async def static_replay(replay_tracker, org_tracker, event_start_time, replay_start, speed_multiply):
     point_i = 0
     while not org_tracker.is_finished or point_i < len(org_tracker.points):
-        now = datetime.datetime.now()
+        now = datetime.now()
         new_points = []
         while point_i < len(org_tracker.points):
             point = org_tracker.points[point_i]
@@ -76,3 +88,31 @@ async def cropped_tracker_newpoints(cropped_tracker, end, org_tracker, new_point
     points = [point for point in new_points if point['time'] < end]
     if points:
         await cropped_tracker.new_points(points)
+
+
+async def index_and_hash_tracker(org_tracker, hasher=None):
+    ih_tracker = Tracker('indexed_and_hashed.{}'.format(org_tracker.name))
+    ih_tracker.stop_specific = org_tracker.stop
+    ih_tracker.finish_specific = org_tracker.finish
+    ih_tracker.org_tracker = org_tracker
+    if hasher is None:
+        hasher = hashlib.sha1()
+    ih_tracker.hasher = hasher
+
+    await index_and_hash_tracker_newpoints(ih_tracker, org_tracker, org_tracker.points)
+    org_tracker.new_points_callbacks.append(
+        functools.partial(index_and_hash_tracker_newpoints, ih_tracker))
+    return ih_tracker
+
+
+def index_and_hash_list(points, start, hasher):
+    ih_points = [copy(point) for point in points]
+    for i, (ih_point, org_point) in enumerate(zip(ih_points, points), start=start):
+        ih_point['index'] = i
+        hasher.update(json_dumps(org_point).encode())
+        ih_point['hash'] = urlsafe_b64encode(hasher.digest()[:3]).decode('ascii')
+    return ih_points
+
+
+async def index_and_hash_tracker_newpoints(ih_tracker, org_tracker, new_points):
+    await ih_tracker.new_points(index_and_hash_list(new_points, len(ih_tracker.points), ih_tracker.hasher))
