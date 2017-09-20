@@ -5,7 +5,6 @@ import datetime
 import hashlib
 import json
 import logging
-from copy import copy
 from functools import partial, wraps
 
 import magic
@@ -165,54 +164,64 @@ def event_handler(func):
     return event_handler_inner
 
 
-def get_list_update(source, existing, block_len=50, compress_item=None):
+def get_list_update(source, existing, smallest_block_len=10, compress_item=None):
     if not source:
         return {'empty': True}, []
 
-    good_existing = []
-    len_source = len(source)
-    for item in existing:
-        if item['index'] > len_source or source[item['index']]['hash'] != item['hash']:
+    source_len = len(source)
+    block_i = 0
+    blocks = []
+    for block_pow in range(4, 0, -1):
+        block_len = pow(smallest_block_len, block_pow)
+
+        while block_i + block_len < source_len:
+            end_index = block_i + block_len - 1
+            blocks.append({'start_index': block_i, 'end_index': end_index, 'end_hash': source[end_index]['hash']})
+            block_i += block_len
+    existing = list(existing)
+    existing_i = 0
+    existing_len = len(existing)
+    for block in blocks:
+        if existing_i < existing_len and existing[existing_i]['hash'] == block['end_hash']:
+            # Good existing. Move on
+            existing_i += 1
+        else:
+            # Bad existing. Discard existing from here on
             break
-        good_existing.append(item)
 
-    last_block_end_index = (len_source // block_len * block_len) - 1
+    blocks = blocks[existing_i:]
+    if blocks:
+        existing = existing[:existing_i]
+        existing += [{'index': block['end_index'], 'hash': block['end_hash']} for block in blocks]
+        existing_len = len(existing)
+        existing_i = existing_len
 
-    # Drop any partial blocks that should be in full block
-    if good_existing and good_existing[-1]['index'] < last_block_end_index:
-        existing_last_block_end_index = ((good_existing[-1]['index'] + 1) // block_len * block_len) - 1
-        if existing_last_block_end_index < good_existing[-1]['index']:
-            good_existing.pop()
+    if existing_i >= existing_len:
+        existing = existing[:existing_i + 1]
 
-    first_block_start_index = good_existing[-1]['index'] + 1 if good_existing else 0
+    partial_existing = existing[existing_i] if existing_i < existing_len else None
 
-    full_blocks = [{'start_index': start_index,
-                    'end_index': start_index + block_len - 1,
-                    'end_hash': source[start_index + block_len - 1]['hash']}
-                   for start_index in range(first_block_start_index, last_block_end_index, block_len)]
+    if partial_existing and partial_existing['index'] < source_len and partial_existing['hash'] == source[partial_existing['index']]['hash']:
+        partial_block = source[existing[existing_i]['index'] + 1:]
+    else:
+        partial_block = source[block_i:]
 
-    partial_block_start_index = max(last_block_end_index + 1, first_block_start_index)
-    partial_block = [item for item in source[partial_block_start_index:]]
-
-    new_existing = copy(good_existing)
-    if partial_block and new_existing and new_existing[-1]['index'] > last_block_end_index:
-        new_existing.pop()
-    new_existing += [{'index': block['end_index'], 'hash': block['end_hash']} for block in full_blocks]
     if partial_block:
+        existing = existing[:existing_i]
         item = partial_block[-1]
-        new_existing += [{'index': item['index'], 'hash': item['hash']}]
+        existing += [{'index': item['index'], 'hash': item['hash']}]
 
     update = {}
-    if full_blocks:
-        update['full_blocks'] = full_blocks
+    if blocks:
+        update['blocks'] = blocks
     if partial_block:
         update['partial_block'] = [compress_item(item) for item in partial_block]
-    return update, new_existing
+    return update, existing
 
 
 def get_list_update_full_block(source):
     if source:
-        return {'full_blocks': [{'start_index': 0, 'end_index': source[-1]['index'], 'end_hash': source[-1]['hash'], }]}
+        return {'blocks': [{'start_index': 0, 'end_index': source[-1]['index'], 'end_hash': source[-1]['hash'], }]}
     else:
         return {'empty': True}
 
@@ -288,7 +297,7 @@ async def rider_points(request, event):
     end_hash = request.query.get('end_hash')
 
     points = event.rider_trackers[rider_name].points[start_index:end_index + 1]
-    if points or points[-1]['hash'] != end_hash:
+    if points and points[-1]['hash'] != end_hash:
         raise web.HTTPInternalServerError(text='Wrong end_hash')
 
     headers = {'ETag': end_hash, 'Cache-Control': 'public, max-age=31536000'}

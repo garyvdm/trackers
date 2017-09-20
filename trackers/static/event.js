@@ -96,9 +96,9 @@ document.addEventListener('DOMContentLoaded', function() {
             on_new_routes_hash();
             Object.keys(state.riders_points).forEach(function(name) {
                 var update = state.riders_points[name];
-                state.riders_points[name] = {'full_blocks': [], 'partial_block': []};
+                state.riders_points[name] = {'blocks': [], 'partial_block': []};
                 if (update.empty) {
-                    update.full_blocks = [];
+                    update.blocks = [];
                     update.partial_block = [];
                     delete update.empty;
                 }
@@ -140,10 +140,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function load_update_list(url, state, update, list, on_loaded){
 
-        var full_blocks = update.full_blocks || [];
+        var blocks = update.blocks || [];
         var partial_block = update.partial_block || [];
 
-        if (!full_blocks.length && ! partial_block.length && !update.empty) return; // if no changes, don't do anything.
+        if (!blocks.length && ! partial_block.length && !update.empty) return; // if no changes, don't do anything.
 
         var start_index;
         var end_index;
@@ -151,23 +151,23 @@ document.addEventListener('DOMContentLoaded', function() {
         if (update.empty) {
             start_index = [];
             end_index = [];
-            state.full_blocks = [];
+            state.blocks = [];
             state.partial_block = [];
         } else {
-            start_index = ( full_blocks.length ? full_blocks[0].start_index : partial_block[0][INDEX] )
-            end_index = ( partial_block.length ? partial_block[partial_block.length - 1][INDEX] : full_blocks[full_blocks.length - 1].end_index )
+            start_index = ( blocks.length ? blocks[0].start_index : partial_block[0][INDEX] )
+            end_index = ( partial_block.length ? partial_block[partial_block.length - 1][INDEX] : blocks[blocks.length - 1].end_index )
 
-            state.full_blocks = state.full_blocks.filter(function (block) {return block.end_index < start_index});
+            state.blocks = state.blocks.filter(function (block) {return block.end_index < start_index});
             state.partial_block = state.partial_block.filter(function (item) {return item[INDEX] < start_index});
 
-            state.full_blocks.extend(full_blocks);
+            state.blocks.extend(blocks);
             state.partial_block.extend(partial_block);
         }
 
         var old_items = list.splice(start_index, list.length);
         list.length = end_index + 1
 
-        var blocks_to_load = ( full_blocks ? full_blocks.length : 0 )
+        var blocks_to_load = ( blocks ? blocks.length : 0 )
 
         function on_block_loaded() {
             // TODO show partially loaded data.
@@ -179,7 +179,7 @@ document.addEventListener('DOMContentLoaded', function() {
         partial_block.forEach(function (item) {
             list[item[INDEX]] = item
         });
-        full_blocks.forEach(function (block) {
+        blocks.forEach(function (block) {
             var block_url = url + '&start_index=' + block.start_index + '&end_index=' + block.end_index + '&end_hash=' + block.end_hash;
             http_get(block_url, function (block_items){
                 blocks_to_load --;
@@ -210,7 +210,7 @@ document.addEventListener('DOMContentLoaded', function() {
         Object.entries(state.riders_points).forEach(function (entry) {
             var name = entry[0];
             var update = entry[1];
-            var points = (update.full_blocks || []).map(function (block) {
+            var points = (update.blocks || []).map(function (block) {
                 return {'index': block.end_index, 'hash': block.end_hash};
             });
             if (update.partial_block.length) {

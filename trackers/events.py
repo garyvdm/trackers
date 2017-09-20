@@ -73,7 +73,7 @@ class Event(object):
             expanded_routes = get_expanded_routes(self.routes)
 
         if replay:
-            replay_start = datetime.datetime.now() + datetime.timedelta(seconds=10)
+            replay_start = datetime.datetime.now() + datetime.timedelta(seconds=2)
             event_start = self.data['start']
 
         for rider in self.data['riders']:
