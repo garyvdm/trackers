@@ -1,15 +1,5 @@
 "use strict";
 
-var TIME = 't'
-var POSITION = 'p'
-var TRACK_ID = 'i'
-var STATUS = 's'
-var DIST_ROUTE = 'o'
-var DIST_RIDDEN = 'd'
-var HASH = 'h'
-var INDEX = 'x'
-
-
 document.addEventListener('DOMContentLoaded', function() {
     var status = document.getElementById('status');
     var status_msg = '';
@@ -154,11 +144,11 @@ document.addEventListener('DOMContentLoaded', function() {
             state.blocks = [];
             state.partial_block = [];
         } else {
-            start_index = ( blocks.length ? blocks[0].start_index : partial_block[0][INDEX] )
-            end_index = ( partial_block.length ? partial_block[partial_block.length - 1][INDEX] : blocks[blocks.length - 1].end_index )
+            start_index = ( blocks.length ? blocks[0].start_index : partial_block[0].index )
+            end_index = ( partial_block.length ? partial_block[partial_block.length - 1].index : blocks[blocks.length - 1].end_index )
 
             state.blocks = state.blocks.filter(function (block) {return block.end_index < start_index});
-            state.partial_block = state.partial_block.filter(function (item) {return item[INDEX] < start_index});
+            state.partial_block = state.partial_block.filter(function (item) {return item.index < start_index});
 
             state.blocks.extend(blocks);
             state.partial_block.extend(partial_block);
@@ -177,14 +167,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         partial_block.forEach(function (item) {
-            list[item[INDEX]] = item
+            list[item.index] = item
         });
         blocks.forEach(function (block) {
             var block_url = url + '&start_index=' + block.start_index + '&end_index=' + block.end_index + '&end_hash=' + block.end_hash;
             http_get(block_url, function (block_items){
                 blocks_to_load --;
                 block_items.forEach(function (item) {
-                    list[item[INDEX]] = item
+                    list[item.index] = item
                 });
                 on_block_loaded();
             });
@@ -215,7 +205,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             if (update.partial_block.length) {
                 var last_partial_block = update.partial_block[update.partial_block.length - 1]
-                points.push({'index': last_partial_block[INDEX], 'hash': last_partial_block[HASH]})
+                points.push({'index': last_partial_block.index, 'hash': last_partial_block.hash})
             }
             state_riders_points[name] = points;
         });
@@ -403,8 +393,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         riders_points[rider_name].slice(index).forEach(function (point) {
-            if (point.hasOwnProperty(POSITION)) {
-                var path = (rider_items.paths[point[TRACK_ID]] || (rider_items.paths[point[TRACK_ID]] = new google.maps.Polyline({
+            if (point.hasOwnProperty('position')) {
+                var path = (rider_items.paths[point.track_id] || (rider_items.paths[point.track_id] = new google.maps.Polyline({
                     map: map,
                     path: [],
                     geodesic: false,
@@ -412,7 +402,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     strokeOpacity: 1.0,
                     strokeWeight: 2
                 }))).getPath()
-                path.push(new google.maps.LatLng(point[POSITION][0], point[POSITION][1]));
+                path.push(new google.maps.LatLng(point.position[0], point.position[1]));
                 rider_items.last_position_point = rider_items.position_point;
                 rider_items.position_point = point;
             }
@@ -420,7 +410,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         if (rider_items.position_point) {
-            var position = new google.maps.LatLng(rider_items.position_point[POSITION][0], rider_items.position_point[POSITION][1])
+            var position = new google.maps.LatLng(rider_items.position_point.position[0], rider_items.position_point.position[1])
             if (!rider_items.marker) {
                 var marker_color = rider.color_marker || 'white';
                 rider_items.marker = new RichMarker({
@@ -452,8 +442,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (a_current_values.finished_time && !b_current_values.finished_time || a_current_values.finished_time < b_current_values.finished_time) return -1;
                 if (!a_current_values.finished_time && b_current_values.finished_time || a_current_values.finished_time > b_current_values.finished_time) return 1;
 
-                if (a_current_values[DIST_ROUTE] && !b_current_values[DIST_ROUTE] || a_current_values[DIST_ROUTE] > b_current_values[DIST_ROUTE]) return -1;
-                if (!a_current_values[DIST_ROUTE] && b_current_values[DIST_ROUTE] || a_current_values[DIST_ROUTE] < b_current_values[DIST_ROUTE]) return 1;
+                if (a_current_values.dist_route && !b_current_values.dist_route || a_current_values.dist_route > b_current_values.dist_route) return -1;
+                if (!a_current_values.dist_route && b_current_values.dist_route || a_current_values.dist_route < b_current_values.dist_route) return 1;
                 return 0;
             });
 
@@ -479,31 +469,31 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 if (position_point) {
                     // TODO more than a day
-                    var seconds = current_time - position_point[TIME];
+                    var seconds = current_time - position_point.time;
                     if (seconds < 60) { last_position_time = '< 1 min ago' }
                     else if (seconds < 60 * 60) { last_position_time = sprintf('%i min ago', Math.floor(seconds / 60))}
                     else { last_position_time = sprintf('%i:%02i ago', Math.floor(seconds / 60 / 60), Math.floor(seconds / 60 % 60))}
                 }
-                if (position_point && last_position_point && position_point.hasOwnProperty(DIST_RIDDEN) && last_position_point.hasOwnProperty(DIST_RIDDEN) && current_values[STATUS] == 'Active') {
-                    speed = Math.round((position_point[DIST_RIDDEN] - last_position_point[DIST_RIDDEN]) / (position_point[TIME] - last_position_point[TIME]) * 3.6 * 10) /10
+                if (position_point && last_position_point && position_point.hasOwnProperty('dist_ridden') && last_position_point.hasOwnProperty('dist_ridden') && current_values.status == 'Active') {
+                    speed = Math.round((position_point.dist_ridden - last_position_point.dist_ridden) / (position_point.time - last_position_point.time) * 3.6 * 10) /10
                 }
                 if (show_detail) {
                     return '<tr rider_name="' + rider.name + '" class="rider">' +
                            '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
                            '<td>' + rider.name + '</td>' +
                            '<td>' + rider_status + '</td>' +
-                           '<td>' + (current_values[STATUS] || '') + '</td>' +
+                           '<td>' + (current_values.status || '') + '</td>' +
                            '<td style="text-align: right">' +  (last_position_time || '') + '</td>' +
-//                           '<td style="text-align: right">' + (current_values.hasOwnProperty(DIST_RIDDEN) ? sprintf('%.1f', current_values[DIST_RIDDEN] / 1000) : '') + '</td>' +
+//                           '<td style="text-align: right">' + (current_values.hasOwnProperty('dist_ridden') ? sprintf('%.1f', current_values.dist_ridden / 1000) : '') + '</td>' +
                            '<td style="text-align: right">' + (speed || '') + '</td>' +
-                           '<td style="text-align: right">' + (current_values.hasOwnProperty(DIST_ROUTE) ? sprintf('%.1f', current_values[DIST_ROUTE] / 1000) : '') + '</td>' +
+                           '<td style="text-align: right">' + (current_values.hasOwnProperty('dist_route') ? sprintf('%.1f', current_values.dist_route / 1000) : '') + '</td>' +
                            '<td style="text-align: right">' + (finished_time || '') + '</td>' +
                            '</tr>';
                 } else {
                     return '<tr rider_name="' + rider.name + '" class="rider">' +
                            '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
                            '<td>' + rider.name + '</td>' +
-                           '<td style="text-align: right">' + (finished_time || (current_values.hasOwnProperty(DIST_ROUTE) ? sprintf('%.1f km', current_values[DIST_ROUTE] / 1000) : '')) + ' ' + rider_status +'</td>' +
+                           '<td style="text-align: right">' + (finished_time || (current_values.hasOwnProperty('dist_route') ? sprintf('%.1f km', current_values.dist_route / 1000) : '')) + ' ' + rider_status +'</td>' +
                            '</tr>';
                 }
             });
@@ -586,7 +576,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var rider_items = riders_client_items[rider_name] || {};
             var position_point = rider_items.position_point;
             if (position_point) {
-                window.open('https://www.google.com/maps/place/' + position_point[POSITION][0] + ',' + position_point[POSITION][1], '_blank');
+                window.open('https://www.google.com/maps/place/' + position_point.position[0] + ',' + position_point.position[1], '_blank');
             }
         }
     }

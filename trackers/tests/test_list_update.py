@@ -19,7 +19,7 @@ class TestListUpdate(unittest.TestCase):
     maxDiff = None
 
     def check(self, source, existing, expected_update, expected_new_existing, starting_block_len=5):
-        update, new_existing = get_list_update(source, existing, starting_block_len, compress_item=lambda item: item)
+        update, new_existing = get_list_update(source, existing, starting_block_len)
         pprint.pprint(update)
         pprint.pprint(new_existing)
 

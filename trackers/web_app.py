@@ -164,7 +164,7 @@ def event_handler(func):
     return event_handler_inner
 
 
-def get_list_update(source, existing, smallest_block_len=10, compress_item=None):
+def get_list_update(source, existing, smallest_block_len=10):
     if not source:
         return {'empty': True}, []
 
@@ -215,7 +215,7 @@ def get_list_update(source, existing, smallest_block_len=10, compress_item=None)
     if blocks:
         update['blocks'] = blocks
     if partial_block:
-        update['partial_block'] = [compress_item(item) for item in partial_block]
+        update['partial_block'] = partial_block
     return update, existing
 
 
@@ -232,7 +232,7 @@ async def event_initial_data(request, event):
     is_live = event.data.get('live', False)
 
     if is_live:
-        get_update = lambda points: get_list_update(points, (), compress_item=compress_point)[0]  # NOQA: E731
+        get_update = lambda points: get_list_update(points, ())[0]  # NOQA: E731
     else:
         get_update = get_list_update_full_block
     riders_points = {rider_name: get_update(tracker.points) for rider_name, tracker in event.rider_trackers.items()}
@@ -305,7 +305,7 @@ async def rider_points(request, event):
     if request.headers.get('If-None-Match', '') == end_hash:
         return web.Response(status=304, headers=headers)
     else:
-        return web.Response(text=json_dumps([compress_point(point) for point in points]),
+        return web.Response(text=json_dumps(points),
                             headers=headers, content_type='application/json')
 
 
@@ -372,7 +372,7 @@ async def event_ws(request):
 async def tracker_new_points_to_ws(ws_send, rider_name, state_riders_points, tracker, new_points):
     try:
         existing = state_riders_points.get(rider_name, ())
-        update, new_existing = get_list_update(tracker.points, existing, compress_item=compress_point)
+        update, new_existing = get_list_update(tracker.points, existing)
         if update:
             state_riders_points[rider_name] = new_existing
             ws_send({'riders_points': {rider_name: update}})
