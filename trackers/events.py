@@ -10,6 +10,7 @@ import msgpack
 import yaml
 
 from trackers.analyse import get_expanded_routes, start_analyse_tracker
+from trackers.base import BlockedList
 from trackers.general import index_and_hash_tracker, start_replay_tracker
 from trackers.modules import start_event_trackers
 
@@ -33,12 +34,13 @@ class Event(object):
         self.base_path = os.path.join(settings['data_path'], self.name)
         self.ws_sessions = []
         self.rider_trackers = {}
+        self.rider_trackers_blocked_list = {}
 
         with open(os.path.join(self.base_path, 'data.yaml'), 'rb') as f:
-            data_bytes = f.read()
+            config_bytes = f.read()
 
-        self.data = yaml.load(data_bytes.decode())
-        self.data_hash = base64.urlsafe_b64encode(hashlib.sha1(data_bytes).digest()).decode('ascii')
+        self.config = yaml.load(config_bytes.decode())
+        self.config_hash = base64.urlsafe_b64encode(hashlib.sha1(config_bytes).digest()).decode('ascii')
 
         routes_path = os.path.join(self.base_path, 'routes')
         if os.path.exists(routes_path):
@@ -51,9 +53,9 @@ class Event(object):
         self.routes_hash = base64.urlsafe_b64encode(hashlib.sha1(routes_bytes).digest()).decode('ascii')
 
     def save(self):
-        data = copy.copy(self.data)
+        config = copy.copy(self.config)
         with open(os.path.join(self.base_path, 'data.yaml'), 'w') as f:
-            yaml.dump(data, f)
+            yaml.dump(config, f)
 
         routes_path = os.path.join(self.base_path, 'routes')
         if self.routes:
@@ -66,17 +68,18 @@ class Event(object):
     async def start_trackers(self, app):
         logger.info('Starting {}'.format(self.name))
 
-        analyse = self.data.get('analyse', False)
-        replay = self.data.get('replay', False)
+        analyse = self.config.get('analyse', False)
+        replay = self.config.get('replay', False)
+        is_live = self.config.get('live', False)
 
         if analyse:
             expanded_routes = get_expanded_routes(self.routes)
 
         if replay:
             replay_start = datetime.datetime.now() + datetime.timedelta(seconds=2)
-            event_start = self.data['start']
+            event_start = self.config['start']
 
-        for rider in self.data['riders']:
+        for rider in self.config['riders']:
             if rider['tracker']:
                 start_tracker = start_event_trackers[rider['tracker']['type']]
                 tracker = await start_tracker(app, self, rider['name'], rider['tracker'])
@@ -86,7 +89,7 @@ class Event(object):
                     tracker = await start_analyse_tracker(tracker, self, expanded_routes)
                 tracker = await index_and_hash_tracker(tracker)
                 self.rider_trackers[rider['name']] = tracker
-                # trackers.print_tracker(tracker)
+                self.rider_trackers_blocked_list[rider['name']] = BlockedList.from_tracker(tracker, entire_block=not is_live)
 
     async def stop_trackers(self):
         for tracker in self.rider_trackers.values():

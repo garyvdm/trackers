@@ -111,7 +111,7 @@ async def convert_to_static_async(settings, event_name, dry_run, format):
         event = trackers.events.Event(settings, event_name)
         await event.start_trackers(app)
 
-        for rider in event.data['riders']:
+        for rider in event.config['riders']:
             rider_name = rider['name']
             tracker = event.rider_trackers.get(rider_name)
             if tracker:
@@ -137,8 +137,8 @@ def assign_rider_colors():
     settings = get_combined_settings(args=args)
     event_name = args.event
     event = trackers.events.Event(settings, event_name)
-    num_riders = len(event.data['riders'])
-    for i, rider in enumerate(event.data['riders']):
+    num_riders = len(event.config['riders'])
+    for i, rider in enumerate(event.config['riders']):
         hue = round(((i * 360 / num_riders) + (180 * (i % 2))) % 360)
         print(hue)
         rider['color'] = 'hsl({}, 100%, 50%)'.format(hue)

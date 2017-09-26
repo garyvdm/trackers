@@ -116,7 +116,7 @@ async def server_ws_task(app, settings, session, server_name, server, position_r
 async def start_event_tracker(app, event, rider_name, tracker_data):
     return await start_tracker(app, rider_name,
                                tracker_data.get('server', 'local'), tracker_data['unique_id'],
-                               event.data['tracker_start'], event.data['tracker_end'])
+                               event.config['tracker_start'], event.config['tracker_end'])
 
 
 def get_individual_key(request):

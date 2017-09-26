@@ -63,12 +63,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var loader_html = '<span class="l1"></span><span class="l2"></span><span class="l3"></span> '
 
-    function get_initial_state(){
-        http_get('initial_data', function (new_state){
-            state = new_state;
-            save_state();
-            on_state_loaded();
-        });
+    function get_state(){
+        http_get('state', on_new_state_received_non_ws);
     }
 
     function save_state(){
@@ -79,38 +75,75 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function on_state_loaded() {
+    function on_new_state_received_non_ws(new_state){
         try{
-            event_data = state.event_data
-            on_new_event_data();
-            on_new_routes_hash();
-            Object.keys(state.riders_points).forEach(function(name) {
-                var update = state.riders_points[name];
-                state.riders_points[name] = {'blocks': [], 'partial_block': []};
-                if (update.empty) {
-                    update.blocks = [];
-                    update.partial_block = [];
-                    delete update.empty;
-                }
-                var rider_points = riders_points[name] || (riders_points[name] = []);
-                load_update_list('rider_points?name=' + name,
-                                 state.riders_points[name], update, rider_points,
-                                 on_new_rider_points.bind(null, name));
-            });
+            on_new_state_received(new_state);
         }
         finally {
-            if (state.live) {
-                setTimeout(ws_connect, 0);
+            if (new_state.live) {
+                ws_ensure_connect();
             } else {
-                set_status('');
+                ws_close();
             }
         }
+    }
+
+    function on_new_state_received(new_state) {
+        var need_save = false;
+
+        if (new_state.hasOwnProperty('live')) {
+            state.live = new_state.live;
+            need_save = true;
+        }
+        if (new_state.hasOwnProperty('config_hash')) {
+            state.config_hash = new_state.config_hash;
+            on_new_config_hash();
+            need_save = true;
+        }
+        if (new_state.hasOwnProperty('routes_hash')) {
+            state.routes_hash = new_state.routes_hash;
+            on_new_routes_hash()
+            need_save = true;
+        }
+        if (new_state.hasOwnProperty('riders_points')) {
+            state.riders_points = (state.riders_points || {});
+            Object.entries(new_state.riders_points).forEach(function (entry){
+                var name = entry[0];
+                var update = entry[1];
+                var rider_state = state.riders_points[name] || {};
+                if (update.hasOwnProperty('blocks') || update.hasOwnProperty('partial_block')){
+                    state.riders_points[name] = rider_state = update;
+                }
+                if (!rider_state.hasOwnProperty('partial_block')) {
+                    rider_state.partial_block = [];
+                }
+                if (update.hasOwnProperty('add_block')){
+                    rider_state.partial_block.push(update.add_block)
+                }
+                var rider_points = riders_points[name] || (riders_points[name] = []);
+                load_update_list('rider_points?name=' + name, update, rider_points,
+                                 on_new_rider_points.bind(null, name));
+            });
+            need_save = true;
+        }
+
+        if (need_save) save_state();
     }
 
     function on_new_routes_hash(){
         http_get('routes?hash=' + state.routes_hash, function (new_routes){
             routes = new_routes;
             on_new_routes();
+        });
+    }
+
+
+    function on_new_config_hash(){
+        http_get('config?hash=' + state.config_hash, function (new_config){
+            config = new_config;
+            on_new_config();
+            update_rider_table();
+            // todo update rider points, in case of rider points loaded before this
         });
     }
 
@@ -128,97 +161,84 @@ document.addEventListener('DOMContentLoaded', function() {
         req.send();
     }
 
-    function load_update_list(url, state, update, list, on_loaded){
-
-        var blocks = update.blocks || [];
-        var partial_block = update.partial_block || [];
-
-        if (!blocks.length && ! partial_block.length && !update.empty) return; // if no changes, don't do anything.
+    function load_update_list(url, update, list, on_loaded){
 
         var start_index;
-        var end_index;
+        var old_items = [];
+        var new_items = [];
 
-        if (update.empty) {
-            start_index = [];
-            end_index = [];
-            state.blocks = [];
-            state.partial_block = [];
-        } else {
-            start_index = ( blocks.length ? blocks[0].start_index : partial_block[0].index )
-            end_index = ( partial_block.length ? partial_block[partial_block.length - 1].index : blocks[blocks.length - 1].end_index )
-
-            state.blocks = state.blocks.filter(function (block) {return block.end_index < start_index});
-            state.partial_block = state.partial_block.filter(function (item) {return item.index < start_index});
-
-            state.blocks.extend(blocks);
-            state.partial_block.extend(partial_block);
-        }
-
-        var old_items = list.splice(start_index, list.length);
-        list.length = end_index + 1
-
-        var blocks_to_load = ( blocks ? blocks.length : 0 )
-
+        var blocks_to_load = 0;
         function on_block_loaded() {
             // TODO show partially loaded data.
             if (blocks_to_load == 0) {
-                on_loaded(start_index, old_items)
+                new_items.forEach(function (item) {
+                    list[item.index] = item;
+                });
+                if (new_items) {
+                    on_loaded(start_index, old_items);
+                }
             }
         }
 
-        partial_block.forEach(function (item) {
-            list[item.index] = item
-        });
-        blocks.forEach(function (block) {
-            var block_url = url + '&start_index=' + block.start_index + '&end_index=' + block.end_index + '&end_hash=' + block.end_hash;
-            http_get(block_url, function (block_items){
-                blocks_to_load --;
-                block_items.forEach(function (item) {
-                    list[item.index] = item
+        if (update.hasOwnProperty('blocks') || update.hasOwnProperty('partial_block')) {
+            start_index = 0;
+            old_items = list.splice(start_index, list.length);
+            new_items.extend(update.partial_block);
+
+            var blocks = (update.blocks || [] );
+            blocks_to_load = ( blocks ? blocks.length : 0 );
+            blocks.forEach(function (block) {
+                var block_url = url + '&start_index=' + block.start_index + '&end_index=' + block.end_index + '&end_hash=' + block.end_hash;
+                http_get(block_url, function (block_items){
+                    blocks_to_load --;
+                    new_items.extend(block_items);
+                    on_block_loaded();
                 });
-                on_block_loaded();
             });
-        });
+
+        } else {
+            start_index = list.length - 1;
+        }
+        if (update.hasOwnProperty('add_block')) {
+            new_items.extend(update.add_block);
+        }
         on_block_loaded();
     }
 
 
-    function ws_connect(){
-        set_status(loader_html + 'Connecting');
-        ws = new WebSocket(location.protocol.replace('http', 'ws') + '//' + location.host + location.pathname + '/websocket');
-        ws.onopen = ws_onopen;
-        ws.onclose = ws_onclose;
-        ws.onmessage = ws_onmessage;
+    var ws_connection_wanted = false;
+
+
+    function ws_ensure_connect(){
+        ws_connection_wanted = true;
+        if (ws_connection_wanted && !ws) {
+            set_status(loader_html + 'Connecting');
+            ws = new WebSocket(location.protocol.replace('http', 'ws') + '//' + location.host + location.pathname + '/websocket');
+            ws.onopen = ws_onopen;
+            ws.onclose = ws_onclose;
+            ws.onmessage = ws_onmessage;
+        }
+
+    }
+
+    function ws_close(){
+        ws_connection_wanted = false;
+        if (ws){
+            ws.close();
+        } else {
+            set_status('');
+        }
     }
 
     function ws_onopen(event) {
         set_status('&#x2713; Connected');
         reconnect_time = 500;
         close_reason = null;
-
-        var state_riders_points = {}
-        Object.entries(state.riders_points).forEach(function (entry) {
-            var name = entry[0];
-            var update = entry[1];
-            var points = (update.blocks || []).map(function (block) {
-                return {'index': block.end_index, 'hash': block.end_hash};
-            });
-            if (update.partial_block.length) {
-                var last_partial_block = update.partial_block[update.partial_block.length - 1]
-                points.push({'index': last_partial_block.index, 'hash': last_partial_block.hash})
-            }
-            state_riders_points[name] = points;
-        });
-        var current_state = {
-            'event_data_hash': state.event_data_hash || null,
-            'routes_hash': state.routes_hash,
-            'riders_points': state_riders_points,
-        }
-        ws.send(JSON.stringify(current_state))
     }
 
     function ws_onclose(event) {
-        if (!state.live) {
+        ws = null;
+        if (!ws_connection_wanted) {
             set_status('');
         } else if (event.reason.startsWith('Server Error:')) {
             set_status(event.reason);
@@ -226,7 +246,6 @@ document.addEventListener('DOMContentLoaded', function() {
             close_reason = '<span style="color: red; font-weight: bold;">X</span> Disconnected: ' + event.reason;
 //            console.log(close_reason);
             set_status(close_reason);
-            ws = null;
 
             if (event.reason.startsWith('Error:')){
                 reconnect_time = 20000
@@ -241,14 +260,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 setTimeout(reconnect_status, time, time);
             }
 
-            setTimeout(ws_connect, reconnect_time);
+            setTimeout(ws_ensure_connect, reconnect_time);
           }
+
     }
 
     function ws_onmessage(event){
         set_status('&#x2713; Connected');
 //        console.log(event.data);
-        var need_save_state = false;
 
         var data = JSON.parse(event.data);
         if (data.hasOwnProperty('server_time')) {
@@ -264,41 +283,13 @@ document.addEventListener('DOMContentLoaded', function() {
         if (data.hasOwnProperty('sending')) {
             set_status('&#x2713; Conneceted, ' + loader_html + 'Loading '+ data.sending);
         }
+        on_new_state_received(data);
         if (data.hasOwnProperty('live')) {
-            state.live = data.live;
-            need_save_state = true;
-            if (!data.live) {
-                get_initial_state();
-                ws.close() // The server will also close the ws. Do this just incase.
+            if (!data.live){
+                ws_close();
+                get_state();
             }
         }
-        if (data.hasOwnProperty('event_data_hash')) {
-            state.event_data = data.event_data;
-            state.event_data_hash = data.event_data_hash;
-            event_data = state.event_data;
-            need_save_state = true;
-            on_new_event_data();
-            update_rider_table();
-        }
-        if (data.hasOwnProperty('routes_hash')) {
-            state.routes_hash = data.routes_hash;
-            need_save_state = true;
-            on_new_routes_hash()
-        }
-        if (data.hasOwnProperty('riders_points')) {
-            Object.entries(data.riders_points).forEach(function (entry){
-                var name = entry[0];
-                var update = entry[1];
-                var rider_points = riders_points[name] || (riders_points[name] = []);
-                var state_riders_points = state.riders_points[name];
-                load_update_list('rider_points?name=' + name,
-                                 state_riders_points, update, rider_points,
-                                 on_new_rider_points.bind(null, name));
-            });
-            need_save_state = true;
-        }
-
-        if (need_save_state) save_state();
 
     }
 
@@ -318,34 +309,36 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var race_time = document.getElementById('race_time');
     setInterval(function(){
-        if (event_data && event_data.hasOwnProperty('event_start')){
-            race_time.innerText = 'Race time: ' + format_race_time((new Date().getTime() / 1000) - event_data.event_start - time_offset);
+        if (config && config.hasOwnProperty('event_start')){
+            race_time.innerText = 'Race time: ' + format_race_time((new Date().getTime() / 1000) - config.event_start - time_offset);
         } else {
             race_time.innerHTML = '&nbsp;';
         }
     }, 1000);
 
-    function on_new_event_data(){
+    function on_new_config(){
         event_markers.forEach(function (marker) { marker.setMap(null) });
         event_markers = [];
+        Object.keys(riders_client_items).forEach(on_clear_rider_points);
 
-        if (event_data) {
-            document.getElementById('title').innerText = event_data.title;
-            document.title = event_data.title;
+        if (config) {
+            document.getElementById('title').innerText = config.title;
+            document.title = config.title;
             riders_by_name = {};
-            event_data.riders.forEach(function (rider) { riders_by_name[rider.name] = rider});
+            config.riders.forEach(function (rider) {
+                riders_by_name[rider.name] = rider
+                on_new_rider_points(rider.name, 0, [])
+            });
             update_rider_table();
 
             var bounds = new google.maps.LatLngBounds();
-            (event_data.markers || {}).forEach(function (marker_data) {
+            (config.markers || {}).forEach(function (marker_data) {
                 bounds.extend(marker_data.position);
                 var marker = new google.maps.Marker(marker_data);
                 marker.setMap(map);
                 event_markers.push(marker);
             });
             map.fitBounds(bounds);
-
-
         }
     }
 
@@ -362,9 +355,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 zIndex: -1
             })
         });
-     }
+    }
+
+    function on_clear_rider_points(rider_name){
+        if (riders_client_items.hasOwnProperty(rider_name)) {
+            var rider_items = riders_client_items[rider_name]
+            Object.values(rider_items.paths || {}).forEach(function (path){ path.setMap(null) });
+            if (rider_items.marker) rider_items.marker.setMap(null);
+            delete riders_client_items[rider_name];
+        }
+    }
 
     function on_new_rider_points(rider_name, index, old_items){
+
+        if (old_items.length) {
+            on_clear_rider_points(rider_name);
+            index = 0;
+        }
 
         var rider = riders_by_name[rider_name]
         if (!rider) return;
@@ -377,20 +384,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         var path_color = rider.color || 'black';
         var rider_current_values = rider_items.current_values;
-
-        if (old_items.length) {
-
-            Object.values(rider_items.paths || {}).forEach(function (path){ path.setMap(null) });
-            if (rider_items.marker) rider_items.marker.setMap(null);
-            index = 0;
-            rider_items = riders_client_items[rider_name] = {
-                'paths': {},
-                'marker': null,
-                'current_values': {},
-                'last_position_point': null,
-                'position_point': null,
-            };
-        }
 
         riders_points[rider_name].slice(index).forEach(function (point) {
             if (point.hasOwnProperty('position')) {
@@ -431,8 +424,8 @@ document.addEventListener('DOMContentLoaded', function() {
     var riders_detail_el = document.getElementById('riders_detail');
     var riders_el = [];
     function update_rider_table(){
-        if (event_data) {
-            var sorted_riders = event_data.riders.slice();
+        if (config) {
+            var sorted_riders = config.riders.slice();
             sorted_riders.sort(function (a, b){
                 var a_rider_items = riders_client_items[a.name] || {};
                 var a_current_values = a_rider_items.current_values || {};
@@ -459,8 +452,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 var speed;
                 var rider_status = (rider.hasOwnProperty('status') ? rider.status : current_values.status || '' );
                 if (current_values.finished_time) {
-                    if (event_data && event_data.hasOwnProperty('event_start')){
-                        finished_time = format_race_time(current_values.finished_time - event_data.event_start);
+                    if (config && config.hasOwnProperty('event_start')){
+                        finished_time = format_race_time(current_values.finished_time - config.event_start);
                     } else {
                         var time = new Date(current_values.finished_time * 1000);
                         finished_time = sprintf('%s %02i:%02i:%02i', days[time.getDay()], time.getHours(), time.getMinutes(), time.getSeconds() )
@@ -537,7 +530,7 @@ document.addEventListener('DOMContentLoaded', function() {
             row.classList.add('selected');
         }
         var selected_position;
-        event_data.riders.forEach(function (rider){
+        config.riders.forEach(function (rider){
             var rider_items = riders_client_items[rider.name] || {'paths': {}, 'marker': null};
 
             var zIndex;
@@ -582,19 +575,21 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
 
-    var event_data = {};
-    var event_markers = [];
+    var state = {}
+    var config = {};
     var routes = []
+
+    var event_markers = [];
     var route_paths = [];
     var riders_by_name = {}
     var riders_client_items = {}
     var riders_points = {}
 
-    var state = JSON.parse(window.localStorage.getItem(location.pathname))
-    if (!state){
-        get_initial_state();
+    var new_state = JSON.parse(window.localStorage.getItem(location.pathname))
+    if (!new_state){
+        get_state();
     } else {
-        on_state_loaded();
+        on_new_state_received_non_ws(new_state);
     }
 
 });

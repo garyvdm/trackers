@@ -19,7 +19,7 @@ import trackers.modules
 import trackers.traccar
 
 from trackers.analyse import start_analyse_tracker
-from trackers.base import cancel_and_wait_task
+from trackers.base import cancel_and_wait_task, list_register
 from trackers.general import json_dumps
 
 logger = logging.getLogger(__name__)
@@ -74,7 +74,8 @@ async def make_aio_app(loop, settings):
             add_static(full_name, full_name)
 
     app.router.add_route('GET', '/{event}/websocket', handler=event_ws, name='event_ws')
-    app.router.add_route('GET', '/{event}/initial_data', handler=event_initial_data, name='event_initial_data')
+    app.router.add_route('GET', '/{event}/state', handler=event_state, name='event_state')
+    app.router.add_route('GET', '/{event}/config', handler=event_config, name='event_config')
     app.router.add_route('GET', '/{event}/routes', handler=event_routes, name='event_routes')
     app.router.add_route('GET', '/{event}/rider_points', handler=rider_points, name='rider_points')
 
@@ -103,6 +104,32 @@ async def shutdown(app):
     await app['trackers.modules_cm'].__aexit__(None, None, None)
 
 
+def etag_response(request, response, etag, cache_control='public'):
+    headers = {'ETag': etag, 'Cache-Control': cache_control}
+    if request.headers.get('If-None-Match', '') == etag:
+        return web.Response(status=304, headers=headers)
+    else:
+        if callable(response):
+            response = response()
+        response.headers.update(headers)
+        return response
+
+
+def etag_query_hash_response(request, response, etag):
+    query_hash = request.query.get('hash')
+    if query_hash and query_hash != etag:
+        # Redirect to same url with correct hash query
+        return web.HTTPFound(request.app.router[request.match_info.route.name]
+                             .url_for(**request.match_info).with_query({'hash': etag}))
+    else:
+        return etag_response(request, response, etag,
+                             cache_control='public, max-age=31536000' if query_hash else 'public')
+
+
+def json_response(data, **kwargs):
+    return web.Response(text=json_dumps(data), content_type='application/json', **kwargs)
+
+
 def add_static_resource(app, package, etags, magic, resource_name, route, *args, **kwargs):
     body = pkg_resources.resource_string(package, resource_name)
     body_processor = kwargs.pop('body_processor', None)
@@ -129,17 +156,6 @@ def add_static_resource(app, package, etags, magic, resource_name, route, *args,
     return static_resource_handler
 
 
-@contextlib.contextmanager
-def list_register(list, item, on_empty=None):
-    list.append(item)
-    try:
-        yield
-    finally:
-        list.remove(item)
-        if not list and on_empty:
-            on_empty()
-
-
 def say_error_handler(func):
     @wraps(func)
     async def say_error_handler_inner(request):
@@ -149,7 +165,10 @@ def say_error_handler(func):
             raise
         except Exception as e:
             logger.exception('')
-            return web.HTTPInternalServerError(text=str(e))
+            message = getattr(e, 'message', None)
+            if not message:
+                message = '{}: {}'.format(type(e).__name__, e)
+            return web.HTTPInternalServerError(text=message)
     return say_error_handler_inner
 
 
@@ -164,111 +183,42 @@ def event_handler(func):
     return event_handler_inner
 
 
-def get_list_update(source, existing, smallest_block_len=10):
-    if not source:
-        return {'empty': True}, []
+def get_event_state(event):
+    riders_points = {rider_name: blocked_list.full for rider_name, blocked_list in event.rider_trackers_blocked_list.items()}
 
-    source_len = len(source)
-    block_i = 0
-    blocks = []
-    for block_pow in range(4, 0, -1):
-        block_len = pow(smallest_block_len, block_pow)
-
-        while block_i + block_len < source_len:
-            end_index = block_i + block_len - 1
-            blocks.append({'start_index': block_i, 'end_index': end_index, 'end_hash': source[end_index]['hash']})
-            block_i += block_len
-    existing = list(existing)
-    existing_i = 0
-    existing_len = len(existing)
-    for block in blocks:
-        if existing_i < existing_len and existing[existing_i]['hash'] == block['end_hash']:
-            # Good existing. Move on
-            existing_i += 1
-        else:
-            # Bad existing. Discard existing from here on
-            break
-
-    blocks = blocks[existing_i:]
-    if blocks:
-        existing = existing[:existing_i]
-        existing += [{'index': block['end_index'], 'hash': block['end_hash']} for block in blocks]
-        existing_len = len(existing)
-        existing_i = existing_len
-
-    if existing_i >= existing_len:
-        existing = existing[:existing_i + 1]
-
-    partial_existing = existing[existing_i] if existing_i < existing_len else None
-
-    if partial_existing and partial_existing['index'] < source_len and partial_existing['hash'] == source[partial_existing['index']]['hash']:
-        partial_block = source[existing[existing_i]['index'] + 1:]
-    else:
-        partial_block = source[block_i:]
-
-    if partial_block:
-        existing = existing[:existing_i]
-        item = partial_block[-1]
-        existing += [{'index': item['index'], 'hash': item['hash']}]
-
-    update = {}
-    if blocks:
-        update['blocks'] = blocks
-    if partial_block:
-        update['partial_block'] = partial_block
-    return update, existing
-
-
-def get_list_update_full_block(source):
-    if source:
-        return {'blocks': [{'start_index': 0, 'end_index': source[-1]['index'], 'end_hash': source[-1]['hash'], }]}
-    else:
-        return {'empty': True}
-
-
-@say_error_handler
-@event_handler
-async def event_initial_data(request, event):
-    is_live = event.data.get('live', False)
-
-    if is_live:
-        get_update = lambda points: get_list_update(points, ())[0]  # NOQA: E731
-    else:
-        get_update = get_list_update_full_block
-    riders_points = {rider_name: get_update(tracker.points) for rider_name, tracker in event.rider_trackers.items()}
-
-    initial_data = {
-        'live': is_live,
-        'event_data': event.data,
-        'event_data_hash': event.data_hash,
+    return {
+        'live': event.config.get('live', False),
+        'config_hash': event.config_hash,
         'routes_hash': event.routes_hash,
         'riders_points': riders_points,
     }
 
-    response = web.Response(text=json_dumps(initial_data), content_type='application/json')
-    etag = base64.urlsafe_b64encode(hashlib.sha1(response.body).digest()).decode('ascii')
-    headers = {'ETag': etag, 'Cache-Control': 'public'}
-    if request.headers.get('If-None-Match', '') == etag:
-        return web.Response(status=304, headers=headers)
+
+@say_error_handler
+@event_handler
+async def event_state(request, event):
+    if event.config.get('live', False):
+        state = {'live': True}
     else:
-        response.headers.update(headers)
-    return response
+        state = get_event_state(event)
+
+    response = json_response(state)
+    etag = base64.urlsafe_b64encode(hashlib.sha1(response.body).digest()).decode('ascii')
+    return etag_response(request, response, etag)
+
+
+@say_error_handler
+@event_handler
+async def event_config(request, event):
+    get_response = partial(json_response, event.config)
+    return etag_query_hash_response(request, get_response, event.config_hash)
 
 
 @say_error_handler
 @event_handler
 async def event_routes(request, event):
-    etag = event.routes_hash
-    request_etag = request.query.get('hash')
-    if request_etag and request_etag != etag:
-        return web.HTTPFound(request.app.router['event_routes'].url_for(event=event.name).with_query({'hash': etag}))
-
-    headers = {'ETag': etag, 'Cache-Control': 'public, max-age={}'.format(31536000 if request_etag else 60)}
-
-    if request.headers.get('If-None-Match', '') == etag:
-        return web.Response(status=304, headers=headers)
-    else:
-        return web.Response(text=json_dumps(event.routes), headers=headers, content_type='application/json')
+    get_response = partial(json_response, event.routes)
+    return etag_query_hash_response(request, get_response, event.routes_hash)
 
 
 point_keys = {
@@ -300,13 +250,7 @@ async def rider_points(request, event):
     if points and points[-1]['hash'] != end_hash:
         raise web.HTTPInternalServerError(text='Wrong end_hash')
 
-    headers = {'ETag': end_hash, 'Cache-Control': 'public, max-age=31536000'}
-
-    if request.headers.get('If-None-Match', '') == end_hash:
-        return web.Response(status=304, headers=headers)
-    else:
-        return web.Response(text=json_dumps(points),
-                            headers=headers, content_type='application/json')
+    return etag_response(request, json_response(points), end_hash, cache_control='public, max-age=31536000')
 
 
 async def event_ws(request):
@@ -327,36 +271,24 @@ async def event_ws(request):
                 await ws.close(message='Error: Event not found.')
                 return ws
 
-            live = event.data.get('live', False)
-            send({'client_hash': request.app['trackers.event_client_hash'], 'server_time': datetime.datetime.now(),
-                  'live': live})
+            live = event.config.get('live', False)
+            send({'client_hash': request.app['trackers.event_client_hash'], 'server_time': datetime.datetime.now()})
 
             if not live:
+                send({'live': False})
                 ws.close(message='Event not live. Use rest api')
 
-            exit_stack.enter_context(list_register(event.ws_sessions, send))
-            state_riders_points = {}
+            else:
+                send(get_event_state(event))
+                for rider_name, tracker_block_list in event.rider_trackers_blocked_list.items():
+                    exit_stack.enter_context(list_register(tracker_block_list.new_update_callbacks,
+                                                           partial(tracker_updates_to_ws, send, rider_name)))
 
             async for msg in ws:
                 if msg.tp == WSMsgType.text:
                     logger.debug('receive: {}'.format(msg.data))
-                    if live:
-                        data = json.loads(msg.data)
-                        response = {}
-                        if 'event_data_hash' in data and data['event_data_hash'] != event.data_hash:
-                            response['event_data'] = event.data
-                            response['event_data_hash'] = event.data_hash
-                        if 'routes_hash' in data and data['routes_hash'] != event.routes_hash:
-                            response['routes_hash'] = event.routes_hash
-                        if 'riders_points' in data:
-                            for rider_name, tracker in event.rider_trackers.items():
-                                state_riders_points[rider_name] = data['riders_points'].get(rider_name, ())
-                                new_points_call = partial(tracker_new_points_to_ws, send, rider_name, state_riders_points)
-                                await new_points_call(tracker, tracker.points)
-                                exit_stack.enter_context(list_register(tracker.new_points_callbacks, new_points_call))
-
-                        if response:
-                            send(response)
+                    # We used to do stuff here, but now we just send stuff. Will do subscribe stuff later
+                    # Maybe we want to switch to SSE
 
                 if msg.tp == WSMsgType.close:
                     await ws.close()
@@ -369,14 +301,10 @@ async def event_ws(request):
             raise
 
 
-async def tracker_new_points_to_ws(ws_send, rider_name, state_riders_points, tracker, new_points):
+async def tracker_updates_to_ws(ws_send, rider_name, update):
     try:
-        existing = state_riders_points.get(rider_name, ())
-        update, new_existing = get_list_update(tracker.points, existing)
         if update:
-            state_riders_points[rider_name] = new_existing
             ws_send({'riders_points': {rider_name: update}})
-
     except Exception:
         logger.exception('Error in tracker_new_points_to_ws:')
 
