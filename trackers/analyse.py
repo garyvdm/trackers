@@ -263,7 +263,6 @@ def get_expanded_routes(routes_org):
 def route_with_distance_and_index(route):
     dist = 0
     previous_point = None
-    filtered_points = (point for last_point, point in zip([None] + route[:-1], route) if point != last_point)
 
     def get_point(i, point):
         nonlocal dist
@@ -274,7 +273,7 @@ def route_with_distance_and_index(route):
         point.distance = dist
         previous_point = point
         return point
-    return [get_point(i, point) for i, point in enumerate(filtered_points)]
+    return [get_point(i, point) for i, point in enumerate(route)]
 
 
 def distance(point1, point2):

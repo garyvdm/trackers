@@ -12,6 +12,7 @@ import yaml
 
 import trackers.events
 import trackers.modules
+from trackers.analyse import Point, ramer_douglas_peucker
 from trackers.general import json_dumps, json_encode
 
 defaults_yaml = """
@@ -168,7 +169,9 @@ def add_gpx_to_event_routes():
 
     event_name = args.event
     event = trackers.events.Event(settings, event_name)
-    event.routes.append(points)
+    route = {'original_points': points}
+    process_route(route)
+    event.routes.append(route)
     event.save()
 
 
@@ -180,3 +183,24 @@ def reformat_event():
     event_name = args.event
     event = trackers.events.Event(settings, event_name)
     event.save()
+
+
+def process_event_routes():
+    parser = get_base_argparser(description="Reprocess event routes")
+    parser.add_argument('event', action='store')
+    args = parser.parse_args()
+    settings = get_combined_settings(args=args)
+    event_name = args.event
+    event = trackers.events.Event(settings, event_name)
+    for route in event.routes:
+        process_route(route)
+    event.save()
+
+
+def process_route(route):
+    original_points = route['original_points']
+    filtered_points = (point for last_point, point in zip([None] + original_points[:-1], original_points) if point != last_point)
+    point_points = [Point(*point) for point in filtered_points]
+    route['points'] = [(point.lat, point.lng) for point in ramer_douglas_peucker(point_points, 1)]
+    logging.info('Original point count: {}, simplified point count: {}'.format(
+        len(route['original_points']), len(route['points'])))

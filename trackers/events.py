@@ -46,9 +46,10 @@ class Event(object):
         if os.path.exists(routes_path):
             with open(routes_path, 'rb') as f:
                 routes_bytes = f.read()
-            self.routes = msgpack.loads(routes_bytes)
+            self.routes = [{'original_points': route} if isinstance(route, list) else route
+                           for route in msgpack.loads(routes_bytes, encoding='utf8')]
         else:
-            self.routes = ()
+            self.routes = []
             routes_bytes = b''
         self.routes_hash = base64.urlsafe_b64encode(hashlib.sha1(routes_bytes).digest()).decode('ascii')
 
