@@ -217,7 +217,9 @@ async def event_config(request, event):
 @say_error_handler
 @event_handler
 async def event_routes(request, event):
-    get_response = partial(json_response, [route['points'] for route in event.routes])
+    remove_keys = {'original_points'}
+    routes = [{key: value for key, value in route.items() if key not in remove_keys} for route in event.routes]
+    get_response = partial(json_response, routes)
     return etag_query_hash_response(request, get_response, event.routes_hash)
 
 

@@ -7,12 +7,22 @@ import os
 import sys
 import xml.etree.ElementTree as xml
 
+import aiohttp
 import msgpack
+import polyline
 import yaml
 
 import trackers.events
 import trackers.modules
-from trackers.analyse import Point, ramer_douglas_peucker
+from trackers.analyse import (
+    distance,
+    find_closest_point_pair_route,
+    get_analyse_route,
+    get_equal_spaced_points,
+    Point,
+    ramer_douglas_peucker,
+    route_with_distance_and_index,
+)
 from trackers.general import json_dumps, json_encode
 
 defaults_yaml = """
@@ -87,8 +97,8 @@ def get_combined_settings(specific_defaults_yaml=None, args=None):
         # Reapply the default logging settings
         logging.config.dictConfig(defaults['logging'])
 
-    settings_dump = yaml.dump(settings)
-    logging.getLogger('trackers').debug('Combined Settings: \n{}'.format(settings_dump))
+    # settings_dump = yaml.dump(settings)
+    # logging.getLogger('trackers').debug('Combined Settings: \n{}'.format(settings_dump))
 
     return settings
 
@@ -172,6 +182,7 @@ def add_gpx_to_event_routes():
     route = {'original_points': points}
     process_route(route)
     event.routes.append(route)
+    process_secondary_route_details(event.routes)
     event.save()
 
 
@@ -192,15 +203,75 @@ def process_event_routes():
     settings = get_combined_settings(args=args)
     event_name = args.event
     event = trackers.events.Event(settings, event_name)
-    for route in event.routes:
-        process_route(route)
+    with contextlib.closing(asyncio.get_event_loop()) as loop:
+        for route in event.routes:
+            loop.run_until_complete(process_route(settings, route))
+    process_secondary_route_details(event.routes)
     event.save()
 
 
-def process_route(route):
+def process_secondary_route_details(routes):
+    main_route = get_analyse_route(routes[0])
+    for i, route in enumerate(routes):
+        if i > 0:
+            route['main'] = False
+            route_points = route_with_distance_and_index(route['points'])
+            start_closest = find_closest_point_pair_route(main_route, route_points[0], 2000)
+            prev_point = start_closest.point_pair[0]
+            route['prev_point'] = prev_point.index
+            route['start_distance'] = start_distance = prev_point.distance + distance(prev_point, route_points[0])
+            end_closest = find_closest_point_pair_route(main_route, route_points[-1], 2000)
+            next_point = end_closest.point_pair[1]
+            route['next_point'] = next_point.index
+            route['end_distance'] = end_distance = next_point.distance - distance(next_point, route_points[-1])
+            route['dist_factor'] = (end_distance - start_distance) / route_points[-1].distance
+        else:
+            route['main'] = True
+
+
+async def process_route(settings, route):
     original_points = route['original_points']
     filtered_points = (point for last_point, point in zip([None] + original_points[:-1], original_points) if point != last_point)
     point_points = [Point(*point) for point in filtered_points]
-    route['points'] = [(point.lat, point.lng) for point in ramer_douglas_peucker(point_points, 1)]
+    simplified_points = ramer_douglas_peucker(point_points, 2)
+    route['points'] = [(point.lat, point.lng) for point in simplified_points]
     logging.info('Original point count: {}, simplified point count: {}'.format(
         len(route['original_points']), len(route['points'])))
+    elevation_points = list(get_equal_spaced_points(simplified_points, 500))
+    elevations = await get_elevation_for_points(settings, [point for point, distance in elevation_points])
+    route['elevation'] = [(round(point.lat, 6), round(point.lng, 6), elevation, dist) for elevation, (point, dist) in zip(elevations, elevation_points)]
+
+
+async def get_elevation_for_points(settings, points):
+    n = 200
+    result = []
+    async with aiohttp.ClientSession() as session:
+        for i in range(0, len(points), n):
+            section_points = points[i:i + n]
+
+            section_polyline = polyline.encode([(round(point.lat, 6), round(point.lng, 6)) for point in section_points])
+            r = await session.get(
+                'https://maps.googleapis.com/maps/api/elevation/json',
+                params={
+                    'sensor': 'false',
+                    'key': settings['google_api_key'],
+                    'locations': "enc:{}".format(section_polyline)
+                })
+            elevations = await r.json()
+            if elevations['status'] != 'OK':
+                logging.error(elevations)
+            else:
+                result.extend((elv['elevation'] for elv in elevations['results']))
+
+    return result
+
+
+# with contextlib.closing(asyncio.get_event_loop()) as loop:
+#     settings = {'google_api_key': ''}
+#     route = {'original_points': [
+#         (-26.300822, 28.049444),
+#         (-26.302245, 28.051139),
+#         (-27.280315, 27.969365),
+#         (-27.282870, 27.970620),
+#     ]}
+#     loop.run_until_complete(process_route(settings, route))

@@ -55,6 +55,23 @@ document.addEventListener('DOMContentLoaded', function() {
             position: google.maps.ControlPosition.TOP_RIGHT
         }
     });
+    var elevation_chart = Highcharts.chart('elevation', {
+        chart: { type: 'line', height: null },
+        title: { text: 'Elevation', style: {display: 'none'} },
+        legend:{ enabled: false },
+        xAxis: { id: 'xAris', type: 'linear',
+            labels: { formatter: function () { return (Math.round(this.value / 100) / 10).toString() + " km"; }}
+        },
+        yAxis: { title: {text: null}, endOnTick: false, startOnTick: false, labels: {format: '{value} m'} },
+        credits: { enabled: false },
+        tooltip: {
+            formatter: function() {
+                return (Math.round(this.x / 100) / 10).toString() + " km : " +  Math.round(this.y).toString() + ' m';
+            }
+        },
+        series: [],
+    });
+
     apply_mobile_selected('map');
 
     var ws;
@@ -342,12 +359,25 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    var route_marker = new google.maps.Marker({
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 2,
+        strokeColor: 'black',
+      },
+      draggable: false,
+      map: map
+    });;
+    route_marker.setVisible(false)
+
     function on_new_routes(){
         route_paths.forEach(function (path) { path.setMap(null) });
+        elevation_chart.series.forEach(function (series) { series.remove(false) });
+
         route_paths = routes.map(function (route){
             return new google.maps.Polyline({
                 map: map,
-                path: route.map(function (point) {return new google.maps.LatLng(point[0], point[1])}),
+                path: route.points.map(function (point) {return new google.maps.LatLng(point[0], point[1])}),
                 geodesic: false,
                 strokeColor: 'black',
                 strokeOpacity: 0.7,
@@ -355,6 +385,82 @@ document.addEventListener('DOMContentLoaded', function() {
                 zIndex: -1
             })
         });
+
+        all_route_points = [];
+        routes.forEach(function (route){
+            var start_distance, dist_factor
+            if (route.main) {
+                start_distance = 0;
+                dist_factor = 1;
+            } else {
+                start_distance = route.start_distance;
+                dist_factor = route.dist_factor;
+            }
+            var elevation_points = route.elevation.map(function (point) {
+                return {
+                    latlng: new google.maps.LatLng(point[0], point[1]),
+                    dist: (point[3] * dist_factor) + start_distance,
+                    elevation: point[2],
+                }
+            });
+            all_route_points.extend(elevation_points);
+
+            elevation_chart.addSeries({
+                marker: {enabled: false, symbol: 'circle'},
+                color: 'black',
+                turboThreshold: 5000,
+                data: elevation_points.map(function (item) { return {
+                    x: item.dist,
+                    y: item.elevation,
+                    latlng: item.latlng,
+                    events: {
+                      mouseOver: function () {
+                        route_marker.setOptions({position: this.latlng})
+                        route_marker.setVisible(true);
+                        // if (!map.getBounds().contains(this.latlng)) map.panTo(this.latlng);
+                      }
+                    }
+
+                }}),
+                events: {
+                    mouseOut: function () {
+                      route_marker.setVisible(false);
+                    },
+                }
+
+            }, false);
+        });
+        elevation_chart.redraw(false);
+        adjust_elevation_chart_bounds();
+    }
+
+    var bounds_changed_timeout_id;
+    map.addListener('bounds_changed', function() {
+        if (bounds_changed_timeout_id) clearTimeout(bounds_changed_timeout_id);
+        bounds_changed_timeout_id = setTimeout(function (){
+            bounds_changed_timeout_id = null;
+            adjust_elevation_chart_bounds();
+        }, 200);
+
+    });
+
+    function adjust_elevation_chart_bounds() {
+        var bounds = map.getBounds();
+        if (bounds) {
+            // TODO optimise this search.
+            var min = Infinity;
+            var max = -Infinity;
+            all_route_points.forEach( function (point) {
+                if (bounds.contains(point.latlng)) {
+                    if (point.dist < min) min = point.dist;
+                    if (point.dist > max) max = point.dist;
+                }
+            });
+            var adjust = (max - min) * 0.01;
+            elevation_chart.xAxis[0].setExtremes(min - adjust, max + adjust, true, false);
+        } else {
+            elevation_chart.xAxis[0].setExtremes(null, null, true, false);
+        }
     }
 
     function on_clear_rider_points(rider_name){
@@ -362,6 +468,8 @@ document.addEventListener('DOMContentLoaded', function() {
             var rider_items = riders_client_items[rider_name]
             Object.values(rider_items.paths || {}).forEach(function (path){ path.setMap(null) });
             if (rider_items.marker) rider_items.marker.setMap(null);
+            // TODO the following errors on chrome. Need to fix
+            // if (rider_items.elevation_chart_series) rider_items.elevation_chart_series.remove(false);
             delete riders_client_items[rider_name];
         }
     }
@@ -376,16 +484,18 @@ document.addEventListener('DOMContentLoaded', function() {
         var rider = riders_by_name[rider_name]
         if (!rider) return;
         var rider_items = riders_client_items[rider_name] || (riders_client_items[rider_name] = {
-            'paths': {},
-            'marker': null,
-            'current_values': {},
-            'last_position_point': null,
-            'position_point': null,
+            paths: {},
+            marker: null,
+            elevation_chart_series: null,
+            current_values: {},
+            last_position_point: null,
+            position_point: null,
         });
         var path_color = rider.color || 'black';
         var rider_current_values = rider_items.current_values;
+        var rider_points = riders_points[rider_name] || (riders_points[rider_name] = []);
 
-        riders_points[rider_name].slice(index).forEach(function (point) {
+        rider_points.slice(index).forEach(function (point) {
             if (point.hasOwnProperty('position')) {
                 var path = (rider_items.paths[point.track_id] || (rider_items.paths[point.track_id] = new google.maps.Polyline({
                     map: map,
@@ -401,22 +511,60 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             Object.assign(rider_current_values, point);
         });
+        var marker_color = rider.color_marker || 'white';
+        var marker_html = '<div class="rider-marker" style="background: ' + marker_color + ';">' + (rider.name_short || rider.name)+ '</div>' +
+                          '<div class="rider-marker-pointer" style="border-color: transparent ' + marker_color + ' ' + marker_color + ' transparent;"></div>'
 
         if (rider_items.position_point) {
             var position = new google.maps.LatLng(rider_items.position_point.position[0], rider_items.position_point.position[1])
             if (!rider_items.marker) {
-                var marker_color = rider.color_marker || 'white';
                 rider_items.marker = new RichMarker({
                     map: map,
                     position: position,
                     flat: true,
-                    content: '<div class="rider-marker" style="background: ' + marker_color + ';">' + (rider.name_short || rider.name)+ '</div>' +
-                             '<div class="rider-marker-pointer" style="border-color: transparent ' + marker_color + ' ' + marker_color + ' transparent;"></div>'
+                    content: marker_html
                 })
             } else {
                 rider_items.marker.setPosition(position);
             }
         }
+        if (rider_items.position_point && rider_items.position_point.hasOwnProperty('dist_route')) {
+            if (!rider_items.elevation_chart_series) {
+                rider_items.elevation_chart_series = elevation_chart.addSeries({
+                    marker: { symbol: 'circle'},
+                    color: marker_color,
+                    data: [],
+                }, false);
+            }
+            var elevation = null;
+            if (rider_items.position_point && rider_items.position_point.position.length > 2) {
+                elevation = rider_items.position_point.position[2]
+            } else if (routes) {
+                // TODO the server analyse tracker should do this.
+                elevation = binarySearchClosest(
+                    routes[0].elevation,
+                    rider_items.position_point.dist_route,
+                    function (point) { return point[3] }  // [3] = distance
+                )[2];  // [2] = elevation
+            } else {
+                elevation = 0;
+            }
+            rider_items.elevation_chart_series.setData([{
+                x: rider_current_values['dist_route'],
+                y: elevation,
+                dataLabels: {
+                    enabled: true,
+                    format: rider.name_short || rider.name,
+                    allowOverlap: true,
+                    shape: 'callout',
+                    backgroundColor: marker_color,
+                    style: {
+                        textOutline: 'none'
+                    }
+                },
+            }], false)
+        }
+        elevation_chart.redraw()
         update_rider_table();
     }
 
@@ -578,6 +726,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var state = {}
     var config = {};
     var routes = []
+    var all_route_points = [];
 
     var event_markers = [];
     var route_paths = [];
@@ -596,4 +745,30 @@ document.addEventListener('DOMContentLoaded', function() {
 
 Array.prototype.extend = function (other_array) {
     other_array.forEach(function(v) {this.push(v)}, this);
+}
+
+
+function binarySearchClosest(arr, searchElement, key) {
+
+  var minIndex = 0;
+  var maxIndex = arr.length - 1;
+  var currentIndex;
+  var currentElement;
+
+  while (minIndex <= maxIndex) {
+      currentIndex = (minIndex + maxIndex) / 2 | 0;
+      currentElement = key(arr[currentIndex]);
+      nextElement = key(arr[currentIndex + 1]);
+
+      if (searchElement > currentElement && searchElement < nextElement ) {
+          return currentIndex;
+      } else if (currentElement < searchElement) {
+          minIndex = currentIndex + 1;
+      }
+      else if (currentElement > searchElement) {
+          maxIndex = currentIndex - 1;
+      }
+  }
+
+  return -1;
 }

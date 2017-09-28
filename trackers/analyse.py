@@ -18,6 +18,7 @@ from numpy import (
 )
 from numpy.linalg import norm
 from nvector import (
+    interpolate,
     lat_lon2n_E,
     n_E2lat_lon,
     n_EB_E2p_EB_E,
@@ -220,44 +221,17 @@ class IndexedPoint(Point):
         return Point(self.lat, self.lng)
 
 
-def get_expanded_routes(routes_org):
-    routes = []
-    main_route = None
-    for route_points_org in routes_org:
-        route_points = route_with_distance_and_index(route_points_org)
-        route_point_pairs = [get_point_pair_precalc(*point_pair) for point_pair in pairs(route_points)]
-        simplfied_point_pairs = [get_point_pair_precalc(*point_pair) for point_pair in pairs(ramer_douglas_peucker(route_points, 500))]
-        logger.debug('Route points: {}, simplified points: {}, distance: {}'.format(len(route_points), len(simplfied_point_pairs), route_points[-1].distance))
-        if main_route:
-            start_closest = find_closest_point_pair_route(main_route, route_points[0], 2000)
-            prev_point = start_closest.point_pair[0]
-            start_distance = prev_point.distance + distance(prev_point, route_points[0])
-            end_closest = find_closest_point_pair_route(main_route, route_points[-1], 2000)
-            next_point = end_closest.point_pair[1]
-            end_distance = next_point.distance - distance(next_point, route_points[-1])
-            dist_factor = (end_distance - start_distance) / route_points[-1].distance
-            route = {
-                'points': route_points,
-                'route_point_pairs': route_point_pairs,
-                'simplfied_point_pairs': simplfied_point_pairs,
-                'is_main': False,
-                'prev_point': prev_point,
-                'start_distance': start_distance,
-                'next_point': next_point,
-                'end_distance': end_distance,
-                'dist_factor': dist_factor,
-            }
-        else:
-            route = {
-                'points': route_points,
-                'route_point_pairs': route_point_pairs,
-                'simplfied_point_pairs': simplfied_point_pairs,
-                'is_main': True,
-            }
-            main_route = route
+def get_analyse_routes(org_routes):
+    return [get_analyse_route(route) for route in org_routes]
 
-        routes.append(route)
-    return routes
+
+def get_analyse_route(org_route):
+    route = copy.copy(org_route)
+    route['points'] = route_points = route_with_distance_and_index(org_route['points'])
+    route['point_pairs'] = [get_point_pair_precalc(*point_pair) for point_pair in pairs(route_points)]
+    route['simplfied_point_pairs'] = [get_point_pair_precalc(*point_pair) for point_pair in pairs(ramer_douglas_peucker(route_points, 500))]
+    logger.debug('Route points: {}, simplified points: {}, distance: {}'.format(len(route_points), len(route['simplfied_point_pairs']), route_points[-1].distance))
+    return route
 
 
 def route_with_distance_and_index(route):
@@ -341,7 +315,7 @@ def find_closest_point_pair_route(route, to_point, min_search_complex_dist):
     if simplified_closest.dist > min_search_complex_dist or simplified_closest.point_pair[0].index == simplified_closest.point_pair[1].index - 1:
         return simplified_closest
     else:
-        return find_closest_point_pair(route['route_point_pairs'][simplified_closest.point_pair[0].index: simplified_closest.point_pair[1].index + 1], to_point)
+        return find_closest_point_pair(route['point_pairs'][simplified_closest.point_pair[0].index: simplified_closest.point_pair[1].index + 1], to_point)
 
 
 def find_closest_point_pair(point_pairs, to_point):
@@ -358,6 +332,11 @@ def find_c_point(to_point, point1, point2):
 
 
 def find_c_point_from_precalc(to_point, point1, point2, c12, p1h, p2h, dp1p2):
+    if (to_point.lat, to_point.lng) == (point1.lat, point1.lng):
+        return find_c_point_result(0, point1)
+    if (to_point.lat, to_point.lng) == (point2.lat, point2.lng):
+        return find_c_point_result(0, point2)
+
     tpn = to_point.nv
     ctp = cross(tpn, c12, axis=0)
     c = unit(cross(ctp, c12, axis=0))
@@ -397,3 +376,25 @@ def get_point_pair_precalc(point1, point2):
         print(arccos(1))
         raise
     return point1, point2, c12, p1h, p2h, dp1p2
+
+
+def get_equal_spaced_points(points, dist_between_points, start_dist=0):
+    cum_dist = start_dist
+    yield (points[0], cum_dist)
+    dist_from_last_step = 0
+    last_point = points[0]
+    for point in points[1:]:
+        point_distance = distance(last_point, point)
+        point_dist_remaining = point_distance + dist_from_last_step
+        while point_dist_remaining > dist_between_points:
+            point_dist_remaining -= dist_between_points
+            cum_dist += dist_between_points
+            new_point_nv = interpolate((last_point.nv, point.nv), (point_distance - point_dist_remaining) / point_distance)
+            new_point_lat, new_point_lng = n_E2lat_lon(new_point_nv)
+            new_point = Point(rad2deg(new_point_lat[0]), rad2deg(new_point_lng[0]))
+            new_point._nv = new_point_nv
+            yield (new_point, cum_dist)
+        dist_from_last_step = point_dist_remaining
+        last_point = point
+    cum_dist += dist_from_last_step
+    yield (points[-1], cum_dist)

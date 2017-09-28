@@ -9,7 +9,7 @@ import os
 import msgpack
 import yaml
 
-from trackers.analyse import get_expanded_routes, start_analyse_tracker
+from trackers.analyse import get_analyse_routes, start_analyse_tracker
 from trackers.base import BlockedList
 from trackers.general import index_and_hash_tracker, start_replay_tracker
 from trackers.modules import start_event_trackers
@@ -42,26 +42,38 @@ class Event(object):
         self.config = yaml.load(config_bytes.decode())
         self.config_hash = base64.urlsafe_b64encode(hashlib.sha1(config_bytes).digest()).decode('ascii')
 
-        routes_path = os.path.join(self.base_path, 'routes')
-        if os.path.exists(routes_path):
-            with open(routes_path, 'rb') as f:
-                routes_bytes = f.read()
-            self.routes = [{'original_points': route} if isinstance(route, list) else route
-                           for route in msgpack.loads(routes_bytes, encoding='utf8')]
+        if 'routes' in self.config:
+            # older format
+            routes_bytes = None
+            routes = self.config['routes']
+            del self.config['routes']
         else:
-            self.routes = []
-            routes_bytes = b''
+            routes_path = os.path.join(self.base_path, 'routes')
+            if os.path.exists(routes_path):
+                with open(routes_path, 'rb') as f:
+                    routes_bytes = f.read()
+                routes = msgpack.loads(routes_bytes, encoding='utf8')
+            else:
+                routes = []
+                routes_bytes = None
+
+        self.routes = [{'original_points': route} if isinstance(route, list) else route
+                       for route in routes]
+        if routes_bytes is None:
+            routes_bytes = msgpack.dumps(self.routes)
         self.routes_hash = base64.urlsafe_b64encode(hashlib.sha1(routes_bytes).digest()).decode('ascii')
 
     def save(self):
         config = copy.copy(self.config)
+        config_text = yaml.dump(config)
         with open(os.path.join(self.base_path, 'data.yaml'), 'w') as f:
-            yaml.dump(config, f)
+            f.write(config_text)
 
         routes_path = os.path.join(self.base_path, 'routes')
         if self.routes:
+            routes_bytes = msgpack.dumps(self.routes)
             with open(routes_path, 'wb') as f:
-                msgpack.dump(self.routes, f)
+                f.write(routes_bytes)
         else:
             with contextlib.suppress(FileNotFoundError):
                 os.remove(routes_path)
@@ -74,7 +86,7 @@ class Event(object):
         is_live = self.config.get('live', False)
 
         if analyse:
-            expanded_routes = get_expanded_routes(self.routes)
+            analyse_routes = get_analyse_routes(self.routes)
 
         if replay:
             replay_start = datetime.datetime.now() + datetime.timedelta(seconds=2)
@@ -87,7 +99,7 @@ class Event(object):
                 if replay:
                     tracker = await start_replay_tracker(tracker, event_start, replay_start)
                 if analyse:
-                    tracker = await start_analyse_tracker(tracker, self, expanded_routes)
+                    tracker = await start_analyse_tracker(tracker, self, analyse_routes)
                 tracker = await index_and_hash_tracker(tracker)
                 self.rider_trackers[rider['name']] = tracker
                 self.rider_trackers_blocked_list[rider['name']] = BlockedList.from_tracker(tracker, entire_block=not is_live)

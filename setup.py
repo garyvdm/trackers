@@ -16,6 +16,7 @@ setuptools.setup(
         'more-itertools',
         'msgpack-python',
         'nvector',
+        'polyline',
         'python-slugify',
         'pyyaml',
         'uvloop',
