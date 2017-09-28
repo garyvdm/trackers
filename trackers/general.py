@@ -68,9 +68,10 @@ async def static_replay(replay_tracker, org_tracker, event_start_time, replay_st
         await asyncio.sleep((new_time - now).total_seconds())
 
 
-async def start_cropped_tracker(app, event, tracker_data):
+async def start_cropped_tracker(app, event, rider_name, tracker_data):
     import trackers.modules
-    org_tracker = await trackers.modules.start_trackers[tracker_data['tracker']['type']](app, event, tracker_data['tracker'])
+    start_tracker = trackers.modules.start_event_trackers[tracker_data['tracker']['type']]
+    org_tracker = await start_tracker(app, event, rider_name, tracker_data['tracker'])
     cropped_tracker = Tracker('croped.{}'.format(org_tracker.name))
     cropped_tracker.stop_specific = org_tracker.stop
     cropped_tracker.finish_specific = org_tracker.finish
