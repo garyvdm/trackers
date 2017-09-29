@@ -138,7 +138,7 @@ def analyze_point(analyse_tracker, event, event_routes, track_break_time, last_r
     if closest:
         prev_route_point = closest.point_pair[0]
         route = closest.route
-        if route['is_main']:
+        if route['main']:
             point['dist_route'] = round(prev_route_point.distance + distance(prev_route_point, closest.point))
         else:
             alt_route_dist = prev_route_point.distance + distance(prev_route_point, closest.point)

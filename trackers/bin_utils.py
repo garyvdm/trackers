@@ -18,7 +18,6 @@ from trackers.analyse import (
     distance,
     find_closest_point_pair_route,
     get_analyse_route,
-    get_equal_spaced_points,
     Point,
     ramer_douglas_peucker,
     route_with_distance_and_index,
@@ -237,9 +236,10 @@ async def process_route(settings, route):
     route['points'] = [(point.lat, point.lng) for point in simplified_points]
     logging.info('Original point count: {}, simplified point count: {}'.format(
         len(route['original_points']), len(route['points'])))
-    elevation_points = list(get_equal_spaced_points(simplified_points, 500))
-    elevations = await get_elevation_for_points(settings, [point for point, distance in elevation_points])
-    route['elevation'] = [(round(point.lat, 6), round(point.lng, 6), elevation, dist) for elevation, (point, dist) in zip(elevations, elevation_points)]
+
+    # elevation_points = list(get_equal_spaced_points(simplified_points, 500))
+    # elevations = await get_elevation_for_points(settings, [point for point, distance in elevation_points])
+    # route['elevation'] = [(round(point.lat, 6), round(point.lng, 6), elevation, dist) for elevation, (point, dist) in zip(elevations, elevation_points)]
 
 
 async def get_elevation_for_points(settings, points):

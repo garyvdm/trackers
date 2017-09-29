@@ -4,9 +4,7 @@ import json
 import logging
 import sys
 
-import yaml
-
-from trackers.analyse import get_expanded_routes, start_analyse_tracker
+from trackers.analyse import get_analyse_routes, start_analyse_tracker
 from trackers.base import Tracker
 
 
@@ -17,9 +15,10 @@ event_routes = None
 async def setup():
     global tracker, event_routes
 
-    with open('test_analyse_tracker_routes.yaml') as f:
-        routes = yaml.load(f)
-    event_routes = get_expanded_routes(routes)
+    with open('test_analyse_tracker_routes.json') as f:
+        routes = json.load(f)
+
+    event_routes = get_analyse_routes(routes)
 
     tracker = Tracker('perf_test_source')
     with open('test_analyse_tracker_perf_data.json') as f:

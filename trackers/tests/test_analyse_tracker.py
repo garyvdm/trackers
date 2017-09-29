@@ -4,8 +4,9 @@ import pprint
 
 import asynctest
 
-from trackers.analyse import get_expanded_routes, start_analyse_tracker
+from trackers.analyse import get_analyse_routes, start_analyse_tracker
 from trackers.base import Tracker
+from trackers.bin_utils import process_secondary_route_details
 
 
 def d(date_string):
@@ -74,22 +75,23 @@ class TestAnalyseTracker(asynctest.TestCase):
 
     async def test_with_route(self):
         tracker = Tracker('test')
-        event_data = {
-            'routes': [
-                [
+        routes = [
+            {
+                'main': True,
+                'points': [
                     [-26.300420, 28.049410],
                     [-26.315691, 28.062354],
                     [-26.322250, 28.042440],
                 ]
-            ]
-        }
-        event_routes = get_expanded_routes(event_data['routes'])
+            },
+        ]
+        event_routes = get_analyse_routes(routes)
 
         await tracker.new_points((
             {'time': d('2017/01/01 05:00:00'), 'position': (-26.300824, 28.050185, 1800)},
             {'time': d('2017/01/01 05:01:00'), 'position': (-26.322167, 28.042920, 1800)},
         ))
-        analyse_tracker = await start_analyse_tracker(tracker, event_data, event_routes)
+        analyse_tracker = await start_analyse_tracker(tracker, {}, event_routes)
         await analyse_tracker.finish()
 
         pprint.pprint(analyse_tracker.points)
@@ -101,22 +103,26 @@ class TestAnalyseTracker(asynctest.TestCase):
 
     async def test_with_route_alt(self):
         tracker = Tracker('test')
-        event_data = {
-            'routes': [
-                [
+        routes = [
+            {
+                'points': [
                     [-26.300420, 28.049410],
                     [-26.315685, 28.062377],
                     [-26.381378, 28.067689],
                     [-26.417153, 28.072707],
                 ],
-                [
+            },
+            {
+                'points': [
                     [-26.315685, 28.062377],
                     [-26.324918, 27.985781],
                     [-26.381378, 28.067689],
                 ],
-            ]
-        }
-        event_routes = get_expanded_routes(event_data['routes'])
+            },
+        ]
+
+        process_secondary_route_details(routes)
+        event_routes = get_analyse_routes(routes)
         pprint.pprint(event_routes)
 
         await tracker.new_points((
@@ -124,7 +130,7 @@ class TestAnalyseTracker(asynctest.TestCase):
             {'time': d('2017/01/01 05:01:00'), 'position': (-26.325051, 27.985600, 1800)},
             {'time': d('2017/01/01 05:02:00'), 'position': (-26.417149, 28.073087, 1800)},
         ))
-        analyse_tracker = await start_analyse_tracker(tracker, event_data, event_routes)
+        analyse_tracker = await start_analyse_tracker(tracker, {}, event_routes)
         await analyse_tracker.finish()
 
         pprint.pprint(analyse_tracker.points)
