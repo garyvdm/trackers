@@ -25,6 +25,8 @@ from trackers.general import json_dumps
 logger = logging.getLogger(__name__)
 
 server_version = 10
+immutable_cache_control = 'public,max-age=31536000,immutable'
+mutable_cache_control = 'public,max-age=31536000'
 
 
 async def make_aio_app(loop, settings):
@@ -34,25 +36,34 @@ async def make_aio_app(loop, settings):
 
     app['trackers.settings'] = settings
 
-    app['trackers.static_etags'] = static_etags = {}
+    static_urls = {}
     app['trackers.individual_trackers'] = {}
 
     def page_body_processor(app, body, related_resources, hash_key):
         hash = hashlib.sha1(body)
         for resource_name in related_resources:
             hash.update(pkg_resources.resource_string('trackers', resource_name))
+        hash.update(settings['google_api_key'].encode('utf8'))
+        for key, value in static_urls.items():
+            hash.update(key.encode('utf8'))
+            hash.update(value.encode('utf8'))
+
         client_hash = base64.urlsafe_b64encode(hash.digest()).decode('ascii')
         app[hash_key] = client_hash
-        return body.decode('utf8').format(api_key=settings['google_api_key'], client_hash=client_hash).encode('utf8')
+        return body.decode('utf8').format(api_key=settings['google_api_key'],
+                                          client_hash=client_hash,
+                                          static_urls=static_urls).encode('utf8')
 
     with magic.Magic(flags=magic.MAGIC_MIME_TYPE) as m:
-        add_static = partial(add_static_resource, app, 'trackers', static_etags, m)
+        add_static = partial(add_static_resource, app, 'trackers', static_urls, m)
         add_static('/static/event.css', '/static/event.css', charset='utf8', content_type='text/css')
         add_static('/static/event.js', '/static/event.js', charset='utf8', content_type='text/javascript')
         add_static('/static/individual.js', '/static/individual.js', charset='utf8', content_type='text/javascript')
         add_static('/static/richmarker.js', '/static/richmarker.js', charset='utf8', content_type='text/javascript')
         add_static('/static/es7-shim.min.js', '/static/es7-shim.min.js', charset='utf8', content_type='text/javascript')
+        add_static('/static/highcharts.js', '/static/highcharts.js', charset='utf8', content_type='text/javascript')
         add_static('/static/traccar_testing.html', '/testing', charset='utf8', content_type='text/html')
+        # print(list(static_urls.keys()))
         add_static('/static/event.html', '/{event}', charset='utf8', content_type='text/html',
                    body_processor=partial(
                        page_body_processor,
@@ -104,7 +115,9 @@ async def shutdown(app):
     await app['trackers.modules_cm'].__aexit__(None, None, None)
 
 
-def etag_response(request, response, etag, cache_control='public'):
+def etag_response(request, response, etag, cache_control=None):
+    if cache_control is None:
+        cache_control = mutable_cache_control
     headers = {'ETag': etag, 'Cache-Control': cache_control}
     if request.headers.get('If-None-Match', '') == etag:
         return web.Response(status=304, headers=headers)
@@ -122,15 +135,15 @@ def etag_query_hash_response(request, response, etag):
         return web.HTTPFound(request.app.router[request.match_info.route.name]
                              .url_for(**request.match_info).with_query({'hash': etag}))
     else:
-        return etag_response(request, response, etag,
-                             cache_control='public, max-age=31536000' if query_hash else 'public')
+        cache_control = immutable_cache_control if query_hash else mutable_cache_control
+        return etag_response(request, response, etag, cache_control=cache_control)
 
 
 def json_response(data, **kwargs):
     return web.Response(text=json_dumps(data), content_type='application/json', **kwargs)
 
 
-def add_static_resource(app, package, etags, magic, resource_name, route, *args, **kwargs):
+def add_static_resource(app, package, static_urls, magic, resource_name, route, *args, **kwargs):
     body = pkg_resources.resource_string(package, resource_name)
     body_processor = kwargs.pop('body_processor', None)
     if body_processor:
@@ -138,21 +151,20 @@ def add_static_resource(app, package, etags, magic, resource_name, route, *args,
     if 'content_type' not in kwargs:
         kwargs['content_type'] = magic.id_buffer(body)
     kwargs['body'] = body
-    headers = kwargs.setdefault('headers', {})
     etag = base64.urlsafe_b64encode(hashlib.sha1(body).digest()).decode('ascii')
-    headers['ETag'] = etag
-    headers['Cache-Control'] = 'public'
-
-    etags[slugify(resource_name)] = etag
 
     async def static_resource_handler(request):
-        if request.headers.get('If-None-Match', '') == etag:
-            return web.Response(status=304, headers=headers)
-        else:
-            # TODO check etag query string
-            return web.Response(*args, **kwargs)
+        return etag_query_hash_response(request, lambda: web.Response(*args, **kwargs), etag)
+
+    route_name = slugify(resource_name)
     if route:
-        app.router.add_route('GET', route, static_resource_handler, name=slugify(resource_name))
+        app.router.add_route('GET', route, static_resource_handler, name=route_name)
+
+    try:
+        static_urls[route_name] = str(app.router[route_name].url_for().with_query({'hash': etag}))
+    except KeyError:
+        pass  # for routes with match items
+
     return static_resource_handler
 
 
@@ -204,7 +216,7 @@ async def event_state(request, event):
 
     response = json_response(state)
     etag = base64.urlsafe_b64encode(hashlib.sha1(response.body).digest()).decode('ascii')
-    return etag_response(request, response, etag)
+    return etag_response(request, response, etag, cache_control='public')
 
 
 @say_error_handler
@@ -252,7 +264,8 @@ async def rider_points(request, event):
     if points and points[-1]['hash'] != end_hash:
         raise web.HTTPInternalServerError(text='Wrong end_hash')
 
-    return etag_response(request, json_response(points), end_hash, cache_control='public, max-age=31536000')
+    return etag_response(request, json_response(points), end_hash,
+                         cache_control=immutable_cache_control)
 
 
 async def event_ws(request):
