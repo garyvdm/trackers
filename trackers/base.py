@@ -90,14 +90,14 @@ def print_tracker(tracker):
         print('{} {}: \n{}'.format(tracker.name, None, pprint.pformat(point)))
 
 
-def get_blocked_list(source, existing, smallest_block_len=32, entire_block=False):
+def get_blocked_list(source, existing, smallest_block_len=8, entire_block=False):
     source_len = len(source)
 
     if not entire_block:
         block_i = 0
         blocks = []
-        for block_pow in range(4, 0, -1):
-            block_len = pow(smallest_block_len, block_pow)
+        for mul in (16, 8, 4, 1):
+            block_len = smallest_block_len * mul
 
             while block_i + block_len < source_len:
                 end_index = block_i + block_len - 1

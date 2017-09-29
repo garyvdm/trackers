@@ -46,33 +46,8 @@ document.addEventListener('DOMContentLoaded', function() {
         el.onclick = function(){apply_mobile_selected(el_selects);};
     });
 
-    var map = new google.maps.Map(document.getElementById('map'), {
-        center: {lat: 0, lng: 0},
-        zoom: 2,
-        mapTypeId: 'terrain',
-        mapTypeControl: true,
-        mapTypeControlOptions: {
-            position: google.maps.ControlPosition.TOP_RIGHT
-        }
-    });
-    var elevation_chart = Highcharts.chart('elevation', {
-        chart: { type: 'line', height: null },
-        title: { text: 'Elevation', style: {display: 'none'} },
-        legend:{ enabled: false },
-        xAxis: { id: 'xAris', type: 'linear',
-            labels: { formatter: function () { return (Math.round(this.value / 100) / 10).toString() + " km"; }}
-        },
-        yAxis: { title: {text: null}, endOnTick: false, startOnTick: false, labels: {format: '{value} m'} },
-        credits: { enabled: false },
-        tooltip: {
-            formatter: function() {
-                return (Math.round(this.x / 100) / 10).toString() + " km : " +  Math.round(this.y).toString() + ' m';
-            }
-        },
-        series: [],
-    });
-
-    apply_mobile_selected('map');
+    var map;
+    var elevation_chart;
 
     var ws;
     var close_reason;
@@ -112,14 +87,20 @@ document.addEventListener('DOMContentLoaded', function() {
             state.live = new_state.live;
             need_save = true;
         }
-        if (new_state.hasOwnProperty('config_hash')) {
+        if (new_state.hasOwnProperty('config_hash') && state.config_hash != new_state.config_hash) {
             state.config_hash = new_state.config_hash;
-            on_new_config_hash();
+            http_get('config?hash=' + state.config_hash, function (new_config){
+                config = new_config;
+                on_new_config();
+            });
             need_save = true;
         }
-        if (new_state.hasOwnProperty('routes_hash')) {
+        if (new_state.hasOwnProperty('routes_hash') && state.routes_hash != new_state.routes_hash) {
             state.routes_hash = new_state.routes_hash;
-            on_new_routes_hash()
+            http_get('routes?hash=' + state.routes_hash, function (new_routes){
+                routes = new_routes;
+                on_new_routes();
+            });
             need_save = true;
         }
         if (new_state.hasOwnProperty('riders_points')) {
@@ -128,6 +109,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 var name = entry[0];
                 var update = entry[1];
                 var rider_state = state.riders_points[name] || {};
+
                 if (update.hasOwnProperty('blocks') || update.hasOwnProperty('partial_block')){
                     state.riders_points[name] = rider_state = update;
                 }
@@ -147,22 +129,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (need_save) save_state();
     }
 
-    function on_new_routes_hash(){
-        http_get('routes?hash=' + state.routes_hash, function (new_routes){
-            routes = new_routes;
-            on_new_routes();
-        });
-    }
-
-
-    function on_new_config_hash(){
-        http_get('config?hash=' + state.config_hash, function (new_config){
-            config = new_config;
-            on_new_config();
-            update_rider_table();
-            // todo update rider points, in case of rider points loaded before this
-        });
-    }
 
     function http_get(url, load){
         var req = new XMLHttpRequest();
@@ -178,9 +144,18 @@ document.addEventListener('DOMContentLoaded', function() {
         req.send();
     }
 
+    var load_update_list_loading = {};
+
     function load_update_list(url, update, list, on_loaded){
 
-        var start_index;
+        if (load_update_list_loading.hasOwnProperty(url)) {
+            load_update_list_loading[url].push(load_update_list.bind(null, url, update, list, on_loaded));
+            return;
+        } else {
+            load_update_list_loading[url] = [];
+        }
+
+        var start_index = null;
         var old_items = [];
         var new_items = [];
 
@@ -193,16 +168,44 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 if (new_items) {
                     on_loaded(start_index, old_items);
+                    load_update_list_loading[url].forEach(function (callback) { callback(); });
+                    delete load_update_list_loading[url];
                 }
             }
         }
 
         if (update.hasOwnProperty('blocks') || update.hasOwnProperty('partial_block')) {
-            start_index = 0;
-            old_items = list.splice(start_index, list.length);
-            new_items.extend(update.partial_block);
-
             var blocks = (update.blocks || [] );
+            var partial_block = update.partial_block;
+
+            blocks.some(function (block, block_i) {
+                if (block.end_index >= list.length || block.end_hash != list[block.end_index].hash) {
+                    start_index = block.start_index;
+                    blocks = blocks.slice(block_i);
+                    return true;
+                }
+                return false;
+            });
+
+            if (start_index === null) {
+                blocks = [];
+                partial_block.some( function (item, item_i) {
+                    if (item.index >= list.length || item.hash != list[item.index].hash) {
+                        start_index = item.index;
+                        partial_block = partial_block.slice(item_i);
+                        return true;
+                    }
+                });
+            }
+
+            if (start_index === null) {
+                partial_block = [];
+                start_index = list.length - 1;
+            }
+
+            old_items = list.splice(start_index, list.length);
+            new_items.extend(partial_block);
+
             blocks_to_load = ( blocks ? blocks.length : 0 );
             blocks.forEach(function (block) {
                 var block_url = url + '&start_index=' + block.start_index + '&end_index=' + block.end_index + '&end_hash=' + block.end_hash;
@@ -339,12 +342,57 @@ document.addEventListener('DOMContentLoaded', function() {
         Object.keys(riders_client_items).forEach(on_clear_rider_points);
 
         if (config) {
+            if (!map) {
+                map = new google.maps.Map(document.getElementById('map'), {
+                    center: {lat: 0, lng: 0},
+                    zoom: 2,
+                    mapTypeId: 'terrain',
+                    mapTypeControl: true,
+                    mapTypeControlOptions: {
+                        position: google.maps.ControlPosition.TOP_RIGHT
+                    }
+                });
+                apply_mobile_selected('map');
+                map.addListener('bounds_changed', function() {
+                    if (bounds_changed_timeout_id) clearTimeout(bounds_changed_timeout_id);
+                    bounds_changed_timeout_id = setTimeout(function (){
+                        bounds_changed_timeout_id = null;
+                        adjust_elevation_chart_bounds();
+                    }, 200);
+
+                });
+            }
+            if (!elevation_chart) {
+                elevation_chart = Highcharts.chart('elevation', {
+                    chart: { type: 'line', height: null },
+                    title: { text: 'Elevation', style: {display: 'none'} },
+                    legend:{ enabled: false },
+                    xAxis: { id: 'xAris', type: 'linear',
+                        labels: { formatter: function () { return (Math.round(this.value / 100) / 10).toString() + " km"; }}
+                    },
+                    yAxis: { title: {text: null}, endOnTick: false, startOnTick: false, labels: {format: '{value} m'} },
+                    credits: { enabled: false },
+                    tooltip: {
+                        formatter: function() {
+                            return (Math.round(this.x / 100) / 10).toString() + " km : " +  Math.round(this.y).toString() + ' m';
+                        }
+                    },
+                    series: [],
+                });
+            }
+
             document.getElementById('title').innerText = config.title;
             document.title = config.title;
             riders_by_name = {};
             config.riders.forEach(function (rider) {
                 riders_by_name[rider.name] = rider
                 on_new_rider_points(rider.name, 0, [])
+            });
+
+            Object.keys(state.riders_points).forEach(function (rider_name) {
+                if (!riders_by_name.hasOwnProperty(rider_name)) {
+                    delete state.riders_points[rider_name];
+                }
             });
             update_rider_table();
 
@@ -435,14 +483,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     var bounds_changed_timeout_id;
-    map.addListener('bounds_changed', function() {
-        if (bounds_changed_timeout_id) clearTimeout(bounds_changed_timeout_id);
-        bounds_changed_timeout_id = setTimeout(function (){
-            bounds_changed_timeout_id = null;
-            adjust_elevation_chart_bounds();
-        }, 200);
-
-    });
 
     function adjust_elevation_chart_bounds() {
         var bounds = map.getBounds();
@@ -475,6 +515,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function on_new_rider_points(rider_name, index, old_items){
+        if (!config) { return };  // this will get called again when config is loaded.
+        var rider_points = riders_points[rider_name];
 
         if (old_items.length) {
             on_clear_rider_points(rider_name);
@@ -493,7 +535,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         var path_color = rider.color || 'black';
         var rider_current_values = rider_items.current_values;
-        var rider_points = riders_points[rider_name] || (riders_points[rider_name] = []);
 
         rider_points.slice(index).forEach(function (point) {
             if (point.hasOwnProperty('position')) {

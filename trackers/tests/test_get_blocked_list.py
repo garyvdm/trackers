@@ -9,8 +9,9 @@ source = index_and_hash_list([{'x': l} for l in 'Lorem ipsum dolor sit amet posu
 # pprint.pprint(source)
 
 expected_full = {
-    'blocks': [{'start_index': 0, 'end_index': 24, 'end_hash': 'juYX'},
-               {'start_index': 25, 'end_index': 29, 'end_hash': 'k9VG'}],
+    'blocks': [{'end_hash': 'qRd1', 'end_index': 19, 'start_index': 0},
+               {'end_hash': 'juYX', 'end_index': 24, 'start_index': 20},
+               {'end_hash': 'k9VG', 'end_index': 29, 'start_index': 25}],
     'partial_block': [{'hash': 'LaqB', 'index': 30, 'x': 'u'},
                       {'hash': '7is4', 'index': 31, 'x': 'e'},
                       {'hash': 'yG0W', 'index': 32, 'x': 'r'},
@@ -57,8 +58,9 @@ class Test(unittest.TestCase):
 
     def test_all_full_block(self):
         existing = {
-            'blocks': [{'start_index': 0, 'end_index': 24, 'end_hash': 'juYX'},
-                       {'start_index': 25, 'end_index': 29, 'end_hash': 'k9VG'}],
+            'blocks': [{'end_hash': 'qRd1', 'end_index': 19, 'start_index': 0},
+                       {'end_hash': 'juYX', 'end_index': 24, 'start_index': 20},
+                       {'end_hash': 'k9VG', 'end_index': 29, 'start_index': 25}],
             'partial_block': []
         }
         expected_update = {
@@ -82,8 +84,9 @@ class Test(unittest.TestCase):
 
     def test_partial_block(self):
         existing = {
-            'blocks': [{'start_index': 0, 'end_index': 24, 'end_hash': 'juYX'},
-                       {'start_index': 25, 'end_index': 29, 'end_hash': 'k9VG'}],
+            'blocks': [{'end_hash': 'qRd1', 'end_index': 19, 'start_index': 0},
+                       {'end_hash': 'juYX', 'end_index': 24, 'start_index': 20},
+                       {'end_hash': 'k9VG', 'end_index': 29, 'start_index': 25}],
             'partial_block': [{'hash': 'LaqB', 'index': 30, 'x': 'u'},
                               {'hash': '7is4', 'index': 31, 'x': 'e'},
                               {'hash': 'yG0W', 'index': 32, 'x': 'r'}]
@@ -109,8 +112,9 @@ class Test(unittest.TestCase):
 
     def test_partial_wrong_hash(self):
         existing = {
-            'blocks': [{'start_index': 0, 'end_index': 24, 'end_hash': 'juYX'},
-                       {'start_index': 25, 'end_index': 29, 'end_hash': 'k9VG'}],
+            'blocks': [{'end_hash': 'qRd1', 'end_index': 19, 'start_index': 0},
+                       {'end_hash': 'juYX', 'end_index': 24, 'start_index': 20},
+                       {'end_hash': 'k9VG', 'end_index': 29, 'start_index': 25}],
             'partial_block': [{'hash': 'LaqB', 'index': 30, 'x': 'u'},
                               {'hash': '7is4', 'index': 31, 'x': 'e'},
                               {'hash': 'WRONG', 'index': 32, 'x': 'r'},
@@ -129,8 +133,9 @@ class Test(unittest.TestCase):
 
     def test_existing_index_too_far(self):
         existing = {
-            'blocks': [{'start_index': 0, 'end_index': 24, 'end_hash': 'juYX'},
-                       {'start_index': 25, 'end_index': 29, 'end_hash': 'k9VG'}],
+            'blocks': [{'end_hash': 'qRd1', 'end_index': 19, 'start_index': 0},
+                       {'end_hash': 'juYX', 'end_index': 24, 'start_index': 20},
+                       {'end_hash': 'k9VG', 'end_index': 29, 'start_index': 25}],
             'partial_block': [{'hash': 'LaqB', 'index': 30, 'x': 'u'},
                               {'hash': '7is4', 'index': 31, 'x': 'e'},
                               {'hash': 'yG0W', 'index': 32, 'x': 'r'},
