@@ -1,6 +1,7 @@
 import asyncio
 import logging.config
 import os
+import shutil
 import signal
 import socket
 import sys
@@ -83,7 +84,10 @@ async def serve(loop, settings):
             except OSError:
                 logging.exception("Could not unlink socket '{}'".format(unix_path))
         srv = await loop.create_unix_server(handler, unix_path)
-        os.chmod(unix_path, 660)
+        if 'unix_chown' in settings:
+            os.chmod(unix_path, settings['unix_chmod'])
+        if 'unix_chown' in settings:
+            shutil.chown(unix_path, **settings['unix_chown'])
 
     for sock in srv.sockets:
         if sock.family in (socket.AF_INET, socket.AF_INET6):
