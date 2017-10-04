@@ -25,12 +25,11 @@ async def static_start_event_tracker(app, event, rider_name, tracker_data):
     tracker = Tracker('static.{}'.format(tracker_data['name']))
     format = tracker_data.get('format', 'json')
     path = os.path.join(event.base_path, tracker_data['name'])
+    data = event.tree_reader.get(path).data
     if format == 'json':
-        with open(path) as f:
-            points = json.load(f)
+        points = json.loads(data.decode())
     if format == 'msgpack':
-        with open(path, 'rb') as f:
-            points = msgpack.load(f, encoding='utf-8')
+        points = msgpack.loads(data, encoding='utf-8')
 
     for point in points:
         point['time'] = datetime.fromtimestamp(point['time'])

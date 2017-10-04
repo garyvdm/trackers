@@ -8,9 +8,11 @@ import sys
 import xml.etree.ElementTree as xml
 
 import aiohttp
+import dulwich.repo
 import msgpack
 import polyline
 import yaml
+
 
 import trackers.events
 import trackers.modules
@@ -22,10 +24,13 @@ from trackers.analyse import (
     ramer_douglas_peucker,
     route_with_distance_and_index,
 )
+from trackers.async_exit_stack import AsyncExitStack
+from trackers.dulwich_helpers import TreeReader, TreeWriter
 from trackers.general import json_dumps, json_encode
 
 defaults_yaml = """
     data_path: data
+    cache_path: cache
 
     logging:
         version: 1
@@ -102,6 +107,22 @@ def get_combined_settings(specific_defaults_yaml=None, args=None):
     return settings
 
 
+async def app_setup(app, settings):
+    stack = AsyncExitStack()
+
+    app['trackers.data_repo'] = await stack.enter_context(app_setup_basic(app, settings))
+    await stack.enter_context(await trackers.modules.config_modules(app, settings))
+
+    return stack
+
+
+def app_setup_basic(app, settings):
+    app['trackers.settings'] = settings
+    app['trackers.data_repo'] = repo = dulwich.repo.Repo(settings['data_path'])
+    app['trackers.tree_reader'] = TreeReader(app['trackers.data_repo'])
+    return repo
+
+
 def convert_to_static():
     parser = get_base_argparser(description="Convert live trackers to static data.")
     parser.add_argument('event', action='store')
@@ -117,27 +138,28 @@ def convert_to_static():
 
 async def convert_to_static_async(settings, event_name, dry_run, format):
     app = {}
-    async with await trackers.modules.config_modules(app, settings):
-        event = trackers.events.Event(settings, event_name)
+    async with await app_setup(app, settings):
+        event = trackers.events.Event(app, event_name)
         await event.start_trackers(app)
+        tree_writer = TreeWriter(app['trackers.data_repo'])
 
         for rider in event.config['riders']:
             rider_name = rider['name']
             tracker = event.rider_trackers.get(rider_name)
             if tracker:
                 await tracker.finish()
-                path = os.path.join(os.path.join(settings['data_path'], event_name, rider_name))
+                path = os.path.join(event.base_path, rider_name)
                 if format == 'msgpack':
-                    with open(path, 'wb') as f:
-                        msgpack.dump(tracker.points, f, default=json_encode)
+                    tree_writer.set_data(path, msgpack.dumps(tracker.points, default=json_encode))
 
                 if format == 'json':
-                    with open(path, 'w') as f:
-                        json_dumps(tracker.points)
+                    tree_writer.set_data(path, json_dumps(tracker.points).encode())
 
                 rider['tracker'] = {'type': 'static', 'name': rider_name, 'format': format}
+        event.config['analyse'] = False
+        event.config['live'] = False
         if not dry_run:
-            event.save()
+            event.save('convert_to_static: {}'.format(event_name), tree_writer=tree_writer)
 
 
 def assign_rider_colors():
@@ -145,15 +167,17 @@ def assign_rider_colors():
     parser.add_argument('event', action='store')
     args = parser.parse_args()
     settings = get_combined_settings(args=args)
-    event_name = args.event
-    event = trackers.events.Event(settings, event_name)
-    num_riders = len(event.config['riders'])
-    for i, rider in enumerate(event.config['riders']):
-        hue = round(((i * 360 / num_riders) + (180 * (i % 2))) % 360)
-        print(hue)
-        rider['color'] = 'hsl({}, 100%, 50%)'.format(hue)
-        rider['color_marker'] = 'hsl({}, 100%, 60%)'.format(hue)
-    event.save()
+    app = {}
+    with app_setup_basic(app, settings):
+        event_name = args.event
+        event = trackers.events.Event(app, event_name)
+        num_riders = len(event.config['riders'])
+        for i, rider in enumerate(event.config['riders']):
+            hue = round(((i * 360 / num_riders) + (180 * (i % 2))) % 360)
+            print(hue)
+            rider['color'] = 'hsl({}, 100%, 50%)'.format(hue)
+            rider['color_marker'] = 'hsl({}, 100%, 60%)'.format(hue)
+        event.save('assign_rider_colors: {}'.format(event_name))
 
 
 def add_gpx_to_event_routes():
@@ -176,13 +200,16 @@ def add_gpx_to_event_routes():
     trkpts = xml_doc.findall('./gpx:trk/gpx:trkseg/gpx:trkpt', gpx_ns)
     points = [[float(trkpt.attrib['lat']), float(trkpt.attrib['lon'])] for trkpt in trkpts]
 
-    event_name = args.event
-    event = trackers.events.Event(settings, event_name)
-    route = {'original_points': points}
-    process_route(route)
-    event.routes.append(route)
-    process_secondary_route_details(event.routes)
-    event.save()
+    app = {}
+    with app_setup_basic(app, settings):
+        event_name = args.event
+        event = trackers.events.Event(app, event_name)
+        route = {'original_points': points}
+        process_route(route)
+        event.routes.append(route)
+        process_secondary_route_details(event.routes)
+        # TODO - add gpx file to repo
+        event.save('add_gpx_to_event_routes: {} - {}'.format(event_name, args.gpx_file))
 
 
 def reformat_event():
@@ -190,9 +217,11 @@ def reformat_event():
     parser.add_argument('event', action='store')
     args = parser.parse_args()
     settings = get_combined_settings(args=args)
-    event_name = args.event
-    event = trackers.events.Event(settings, event_name)
-    event.save()
+    app = {}
+    with app_setup_basic(app, settings):
+        event_name = args.event
+        event = trackers.events.Event(app, event_name)
+        event.save('reformat_event: {}'.format(event_name))
 
 
 def process_event_routes():
@@ -200,13 +229,15 @@ def process_event_routes():
     parser.add_argument('event', action='store')
     args = parser.parse_args()
     settings = get_combined_settings(args=args)
-    event_name = args.event
-    event = trackers.events.Event(settings, event_name)
-    with contextlib.closing(asyncio.get_event_loop()) as loop:
-        for route in event.routes:
-            loop.run_until_complete(process_route(settings, route))
-    process_secondary_route_details(event.routes)
-    event.save()
+    app = {}
+    with app_setup_basic(app, settings):
+        event_name = args.event
+        event = trackers.events.Event(app, event_name)
+        with contextlib.closing(asyncio.get_event_loop()) as loop:
+            for route in event.routes:
+                loop.run_until_complete(process_route(settings, route))
+        process_secondary_route_details(event.routes)
+        event.save('process_event_routes: {}'.format(event_name))
 
 
 def process_secondary_route_details(routes):

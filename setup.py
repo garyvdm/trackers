@@ -12,6 +12,7 @@ setuptools.setup(
         'asynctest',
         'attrs',
         'beautifulsoup4',
+        'dulwich',
         'filemagic',
         'more-itertools',
         'msgpack-python',

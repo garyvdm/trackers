@@ -7,6 +7,7 @@ import time
 import aiohttp
 import more_itertools
 from aiocontext import async_contextmanager
+from aiohttp.web import Application as WebApplication
 from aniso8601 import parse_datetime
 
 from trackers.base import call_callbacks, Tracker
@@ -27,7 +28,7 @@ async def config(app, settings):
         server['ws_task'] = asyncio.ensure_future(server_ws_task(app, settings, session, server_name, server, position_received_callbacks))
 
         servers[server_name] = server
-        if isinstance(app, aiohttp.web.Application):
+        if isinstance(app, WebApplication):
             import trackers.web_app
             app['add_individual_handler']('/traccar/{unique_id}')
             app.router.add_route('GET', '/traccar/{unique_id}/websocket',

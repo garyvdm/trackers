@@ -13,7 +13,7 @@ from aiohttp import web, WSCloseCode, WSMsgType
 from more_itertools import chunked
 from slugify import slugify
 
-import trackers
+import trackers.bin_utils
 import trackers.events
 import trackers.modules
 import trackers.traccar
@@ -31,11 +31,11 @@ mutable_cache_control = 'public,max-age=31536000'
 
 async def make_aio_app(loop, settings):
     app = web.Application(loop=loop)
-    app['trackers.ws_sessions'] = []
     app.on_shutdown.append(shutdown)
 
     app['trackers.settings'] = settings
 
+    app['trackers.ws_sessions'] = []
     static_urls = {}
     app['trackers.individual_trackers'] = {}
 
@@ -94,8 +94,8 @@ async def make_aio_app(loop, settings):
 
     app.router.add_route('POST', '/client_error', handler=client_error_logger, name='client_error_logger')
 
-    app['trackers.modules_cm'] = modules_cm = await trackers.modules.config_modules(app, settings)
-    await modules_cm.__aenter__()
+    app['trackers.app_setup_cm'] = app_setup_cm = await trackers.bin_utils.app_setup(app, settings)
+    await app_setup_cm.__aenter__()
 
     trackers.events.load_events(app, settings)
     for event in app['trackers.events'].values():
@@ -112,7 +112,7 @@ async def shutdown(app):
     for event in app['trackers.events'].values():
         await event.stop_trackers()
 
-    await app['trackers.modules_cm'].__aexit__(None, None, None)
+    await app['trackers.app_setup_cm'].__aexit__(None, None, None)
 
 
 def etag_response(request, response, etag, cache_control=None):
