@@ -605,7 +605,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
             }], false)
         }
-        elevation_chart.redraw()
+        elevation_chart.redraw(false)
         update_rider_table();
     }
 
