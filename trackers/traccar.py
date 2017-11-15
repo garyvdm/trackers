@@ -26,8 +26,10 @@ async def config(app, settings):
         )
         server['position_received_callbacks'] = position_received_callbacks = {}
         server['ws_task'] = asyncio.ensure_future(server_ws_task(app, settings, session, server_name, server, position_received_callbacks))
+        server['login_lock'] = asyncio.Lock()
 
         servers[server_name] = server
+
         if isinstance(app, WebApplication):
             import trackers.web_app
             app['add_individual_handler']('/traccar/{unique_id}')
@@ -54,12 +56,13 @@ async def config(app, settings):
 
 async def ensure_login(app, server_name):
     server = app['trackers.traccar_servers'][server_name]
-    logger = logging.getLogger('{}.{}'.format(__name__, server_name))
-    if not server.get('user_id'):
-        session_response = await server['session'].post('{url}/api/session'.format_map(server), data={'email': [server['auth'][0]], 'password': [server['auth'][1]]})
-        user = await session_response.json()
-        server['user_id'] = user['id']
-        logger.info('Successfull login to {url}'.format_map(server))
+    async with server['login_lock']:
+        logger = logging.getLogger('{}.{}'.format(__name__, server_name))
+        if not server.get('user_id'):
+            session_response = await server['session'].post('{url}/api/session'.format_map(server), data={'email': [server['auth'][0]], 'password': [server['auth'][1]]})
+            user = await session_response.json()
+            server['user_id'] = user['id']
+            logger.info('Successfull login to {url}'.format_map(server))
 
 
 async def logout(app, server_name):
@@ -134,11 +137,17 @@ async def start_individual_tracker(app, settings, request):
 
 
 async def start_tracker(app, tracker_name, server_name, device_unique_id, start, end):
+    await ensure_login(app, server_name)
     server = app['trackers.traccar_servers'][server_name]
     session = server['session']
     url = '{}/api/positions'.format(server['url'])
     devices = await (await session.get('{}/api/devices'.format(server['url']), params={'all': 'true'})).json()
-    device_id = more_itertools.first((device['id'] for device in devices if device['uniqueId'] == device_unique_id))
+    try:
+        device_id = more_itertools.first((device['id'] for device in devices if device['uniqueId'] == str(device_unique_id)))
+    except ValueError:
+        log_devices = [{'id': device['id'], 'name': device['name'], 'uniqueId': device['uniqueId']} for device in devices]
+        logger.error(f'Could not find {device_unique_id} in {log_devices}')
+        raise
 
     await session.post('{}/api/permissions/devices'.format(server['url']), json={'userId': server['user_id'], 'deviceId': device_id})
 
