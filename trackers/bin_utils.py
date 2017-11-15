@@ -19,6 +19,7 @@ import trackers.modules
 from trackers.analyse import (
     distance,
     find_closest_point_pair_route,
+    get_equal_spaced_points,
     get_analyse_route,
     Point,
     ramer_douglas_peucker,
@@ -201,15 +202,16 @@ def add_gpx_to_event_routes():
     points = [[float(trkpt.attrib['lat']), float(trkpt.attrib['lon'])] for trkpt in trkpts]
 
     app = {}
-    with app_setup_basic(app, settings):
-        event_name = args.event
-        event = trackers.events.Event(app, event_name)
-        route = {'original_points': points}
-        process_route(route)
-        event.routes.append(route)
-        process_secondary_route_details(event.routes)
-        # TODO - add gpx file to repo
-        event.save('add_gpx_to_event_routes: {} - {}'.format(event_name, args.gpx_file))
+    with contextlib.closing(asyncio.get_event_loop()) as loop:
+        with app_setup_basic(app, settings):
+            event_name = args.event
+            event = trackers.events.Event(app, event_name)
+            route = {'original_points': points}
+            loop.run_until_complete(process_route(settings, route))
+            event.routes.append(route)
+            process_secondary_route_details(event.routes)
+            # TODO - add gpx file to repo
+            event.save('add_gpx_to_event_routes: {} - {}'.format(event_name, args.gpx_file))
 
 
 def reformat_event():
@@ -268,9 +270,9 @@ async def process_route(settings, route):
     logging.info('Original point count: {}, simplified point count: {}'.format(
         len(route['original_points']), len(route['points'])))
 
-    # elevation_points = list(get_equal_spaced_points(simplified_points, 500))
-    # elevations = await get_elevation_for_points(settings, [point for point, distance in elevation_points])
-    # route['elevation'] = [(round(point.lat, 6), round(point.lng, 6), elevation, dist) for elevation, (point, dist) in zip(elevations, elevation_points)]
+    elevation_points = list(get_equal_spaced_points(simplified_points, 500))
+    elevations = await get_elevation_for_points(settings, [point for point, distance in elevation_points])
+    route['elevation'] = [(round(point.lat, 6), round(point.lng, 6), elevation, dist) for elevation, (point, dist) in zip(elevations, elevation_points)]
 
 
 async def get_elevation_for_points(settings, points):
