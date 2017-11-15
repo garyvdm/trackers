@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 server_version = 10
 immutable_cache_control = 'public,max-age=31536000,immutable'
-mutable_cache_control = 'public,max-age=31536000'
+mutable_cache_control = 'public'
 
 
 async def make_aio_app(loop, settings):
