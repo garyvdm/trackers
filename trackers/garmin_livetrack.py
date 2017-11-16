@@ -5,7 +5,7 @@ import re
 
 import aiohttp
 
-from trackers.base import print_tracker, Tracker
+# from trackers.base import print_tracker, Tracker
 
 
 def config(app, settings):
@@ -14,13 +14,13 @@ def config(app, settings):
     return garmin_livetrack_session
 
 
-async def start_event_tracker(app, event, rider_name, tracker_data):
-    # TODO
-    session_token_match = url_session_token_matcher(url).groupdict()
-    tracker = Tracker('garmin_livetrack.{}'.format(session_token_match['session']))
-    monitor_task = asyncio.ensure_future(monitor_session(
-        app['trackers.garmin_livetrack.session'], session_token_match, tracker))
-    return tracker, monitor_task
+# async def start_event_tracker(app, event, rider_name, tracker_data):
+#     # TODO
+#     session_token_match = url_session_token_matcher(url).groupdict()
+#     tracker = Tracker('garmin_livetrack.{}'.format(session_token_match['session']))
+#     monitor_task = asyncio.ensure_future(monitor_session(
+#         app['trackers.garmin_livetrack.session'], session_token_match, tracker))
+#     return tracker, monitor_task
 
 
 async def get_service_config(client_session):
@@ -94,14 +94,14 @@ async def monitor_session(client_session, session_token_match, tracker):
     await monitor_status_task
 
 
-async def main(url):
-
-    async with aiohttp.ClientSession() as client_session:
-        service_config = await get_service_config(client_session)
-        tracker, monitor_task = await start_monitor_session(client_session, service_config, url)
-        print_tracker(tracker)
-        await monitor_task
-
-if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main('http://livetrack.garmin.com/session/cad74921-29af-4fe9-99f2-896b5972fbed/token/84D3B791E6C43ED2179CB59FB37CA24'))
+# async def main(url):
+#
+#     async with aiohttp.ClientSession() as client_session:
+#         service_config = await get_service_config(client_session)
+#         tracker, monitor_task = await start_monitor_session(client_session, service_config, url)
+#         print_tracker(tracker)
+#         await monitor_task
+#
+# if __name__ == "__main__":
+#     loop = asyncio.get_event_loop()
+#     loop.run_until_complete(main('http://livetrack.garmin.com/session/cad74921-29af-4fe9-99f2-896b5972fbed/token/84D3B791E6C43ED2179CB59FB37CA24'))

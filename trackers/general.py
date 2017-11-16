@@ -3,7 +3,6 @@ import functools
 import hashlib
 import json
 import os
-
 from base64 import urlsafe_b64encode
 from copy import copy
 from datetime import datetime

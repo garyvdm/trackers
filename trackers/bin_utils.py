@@ -19,8 +19,8 @@ import trackers.modules
 from trackers.analyse import (
     distance,
     find_closest_point_pair_route,
-    get_equal_spaced_points,
     get_analyse_route,
+    get_equal_spaced_points,
     Point,
     ramer_douglas_peucker,
     route_with_distance_and_index,

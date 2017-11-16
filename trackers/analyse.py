@@ -28,7 +28,7 @@ from nvector import (
 from trackers.base import Tracker
 
 logger = logging.getLogger(__name__)
-# seterr(all='raise')
+seterr(all='raise')
 
 analyse_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix='analyse')
 

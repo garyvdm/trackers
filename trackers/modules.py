@@ -21,7 +21,7 @@ async def config_modules(app, settings):
 
 start_event_trackers = {
     'mapmytracks': trackers.map_my_tracks.start_event_tracker,
-    'garmin_livetrack': trackers.garmin_livetrack.start_event_tracker,
+    # 'garmin_livetrack': trackers.garmin_livetrack.start_event_tracker,
     'traccar': trackers.traccar.start_event_tracker,
     'static': trackers.general.static_start_event_tracker,
     'cropped': trackers.general.start_cropped_tracker,
