@@ -365,6 +365,10 @@ function on_new_config(){
                 }, 200);
 
             });
+            map.addListener('click', function(e) {
+                console.log(e.latLng.toUrlValue())
+
+            });
         }
         if (!elevation_chart) {
             elevation_chart = Highcharts.chart('elevation', {
