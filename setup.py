@@ -32,5 +32,5 @@ setuptools.setup(
             'process_event_routes=trackers.bin_utils:process_event_routes',
         ],
     },
-    # test_suite='trackers.tests.suite',
+    test_suite='trackers.tests.suite',
 )
