@@ -14,6 +14,7 @@ setuptools.setup(
         'beautifulsoup4',
         'dulwich',
         'filemagic',
+        'fixtures',
         'more-itertools',
         'msgpack-python',
         'nvector',

@@ -26,8 +26,7 @@ class TreeReader(object):
         tree = self.get(path)
         if not isinstance(tree, Tree):
             raise NotTreeError(path)
-        for item in tree:
-            yield item.decode(self.encoding)
+        return [item.decode(self.encoding) for item in tree]
 
     def exists(self, path):
         try:
@@ -47,8 +46,13 @@ class TreeWriter(TreeReader):
         self._reset()
 
     def _reset(self):
-        self.org_commit_id = self.repo.refs[self.branch]
-        self.tree = parse_tree(self.repo, self.org_commit_id)
+        try:
+            self.org_commit_id = self.repo.refs[self.branch]
+        except KeyError:
+            self.org_commit_id = None
+            self.tree = Tree()
+        else:
+            self.tree = parse_tree(self.repo, self.org_commit_id)
         self.changed_objects = {}
 
     def lookup_obj(self, sha):
@@ -94,6 +98,7 @@ class TreeWriter(TreeReader):
         obj = Blob()
         obj.data = data
         self.set(path, obj, mode)
+        return obj
 
     def remove(self, path):
         self.set(path, None, None)
@@ -111,8 +116,11 @@ class TreeWriter(TreeReader):
         commit.commit_timezone = commit.author_timezone = tz
         commit.message = message.encode(self.encoding)
         commit.encoding = self.encoding.encode('ascii')
-        commit.parents = [self.org_commit_id]
+        if self.org_commit_id:
+            commit.parents = [self.org_commit_id]
+
         commit_id = commit.id
         self.changed_objects[commit_id] = commit
         self.repo.object_store.add_objects([(obj, None) for obj in self.changed_objects.values()])
         self.repo.refs.set_if_equals(self.branch, self.org_commit_id, commit_id)
+        self._reset()
