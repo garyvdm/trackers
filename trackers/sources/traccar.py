@@ -147,7 +147,7 @@ async def start_tracker(app, tracker_name, server_name, device_unique_id, start,
     except ValueError:
         log_devices = [{'id': device['id'], 'name': device['name'], 'uniqueId': device['uniqueId']} for device in devices]
         logger.error(f'Could not find {device_unique_id} in {log_devices}')
-        raise
+        raise Exception(f'Could not find device identifier {device_unique_id}')
 
     await session.post('{}/api/permissions/devices'.format(server['url']), json={'userId': server['user_id'], 'deviceId': device_id})
 
