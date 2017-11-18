@@ -524,7 +524,7 @@ function on_clear_rider_points(rider_name){
 
 function on_new_rider_points(rider_name, index, old_items){
     if (!config) { return };  // this will get called again when config is loaded.
-    var rider_points = riders_points[rider_name];
+    var rider_points = riders_points[rider_name] || [];
 
     if (old_items.length) {
         on_clear_rider_points(rider_name);
