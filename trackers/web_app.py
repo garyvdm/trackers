@@ -16,7 +16,6 @@ from slugify import slugify
 import trackers.bin_utils
 import trackers.events
 import trackers.modules
-import trackers.traccar
 from trackers.analyse import start_analyse_tracker
 from trackers.base import cancel_and_wait_task, list_register
 from trackers.general import json_dumps
