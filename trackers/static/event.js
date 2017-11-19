@@ -1,5 +1,6 @@
 "use strict";
 
+// 1
 
 Array.prototype.extend = function (other_array) {
     other_array.forEach(function(v) {this.push(v)}, this);
@@ -426,6 +427,7 @@ var route_marker = new google.maps.Marker({
   map: map
 });;
 route_marker.setVisible(false)
+
 
 function on_new_routes(){
     if (map) {

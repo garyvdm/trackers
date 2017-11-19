@@ -75,16 +75,16 @@ async def start_cropped_tracker(app, event, rider_name, tracker_data):
     cropped_tracker.finish_specific = org_tracker.finish
     cropped_tracker.org_tracker = org_tracker
 
-    await cropped_tracker_newpoints(cropped_tracker, tracker_data['end'], org_tracker, org_tracker.points)
+    await cropped_tracker_newpoints(cropped_tracker, tracker_data.get('start'), tracker_data.get('end'), org_tracker, org_tracker.points)
     org_tracker.new_points_callbacks.append(
-        functools.partial(cropped_tracker_newpoints, cropped_tracker, tracker_data['end']))
+        functools.partial(cropped_tracker_newpoints, cropped_tracker, tracker_data.get('start'), tracker_data.get('end')))
     return cropped_tracker
 
 
-async def cropped_tracker_newpoints(cropped_tracker, end, org_tracker, new_points):
+async def cropped_tracker_newpoints(cropped_tracker, start, end, org_tracker, new_points):
     if org_tracker.is_finished:
         cropped_tracker.is_finished = True
-    points = [point for point in new_points if point['time'] < end]
+    points = [point for point in new_points if (not end or point['time'] < end) and (not start or point['time'] > start)]
     if points:
         await cropped_tracker.new_points(points)
 
