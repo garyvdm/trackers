@@ -194,7 +194,7 @@ function load_update_list(url, update, list, on_loaded){
         if (start_index === null) {
             blocks = [];
             partial_block.some( function (item, item_i) {
-                if (item.index >= list.length || item.hash != list[item.index].hash) {
+                if (item.index >= list.length || item.hash != (list[item.index]?list[item.index].hash:null)) {
                     start_index = item.index;
                     partial_block = partial_block.slice(item_i);
                     return true;
