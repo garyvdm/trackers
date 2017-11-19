@@ -26,13 +26,17 @@ window.onerror = function (messageOrEvent, source, lineno, colno, error){{
     errors.push(messageOrEvent);
     update_status();
     var full_error_message = messageOrEvent + '\n' + (error? error.stack: source + ':' + lineno + ':' + colno)
+    log_to_server(full_error_message);
+    return false;
+}}
+
+function log_to_server(message) {
     setTimeout(function () {{
         var request = new XMLHttpRequest();
         request.open("POST", '/client_error', true);
-        request.send(full_error_message);
+        request.send(message);
     }}, 100);
-    return false;
-}}
+}
 
 var main_el = document.getElementById('main');
 var mobile_selectors = document.getElementById('mobile_select').querySelectorAll('div');
@@ -262,6 +266,10 @@ function ws_onopen(event) {
     close_reason = null;
 }
 
+function reconnect_status(time){
+    set_status(close_reason + '<br>Reconnecting in ' + Math.floor((reconnect_time - time) / 1000) + ' sec.');
+}
+
 function ws_onclose(event) {
     ws = null;
     if (!ws_connection_wanted) {
@@ -279,9 +287,7 @@ function ws_onclose(event) {
             reconnect_time = Math.min(reconnect_time * 2, 20000)
         }
 
-        function reconnect_status(time){
-            set_status(close_reason + '<br>Reconnecting in ' + Math.floor((reconnect_time - time) / 1000) + ' sec.');
-        }
+
         for(var time = 1000; time < reconnect_time; time += 1000){
             setTimeout(reconnect_status, time, time);
         }
@@ -349,7 +355,8 @@ function on_new_config(){
 
     if (config) {
         if (!map) {
-            map = new google.maps.Map(document.getElementById('map'), {
+
+            map = new google.maps.Map(document.getElementById('map_el'), {
                 center: {lat: 0, lng: 0},
                 zoom: 2,
                 mapTypeId: 'terrain',

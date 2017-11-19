@@ -49,7 +49,7 @@ html, body {
 }
 
 
-#map {
+#map_el {
   position: absolute;
   left: 0;
   right: 0;
