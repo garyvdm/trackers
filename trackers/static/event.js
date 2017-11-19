@@ -96,6 +96,7 @@ function on_new_state_received(new_state) {
         http_get('config?hash=' + state.config_hash, function (new_config){
             config = new_config;
             on_new_config();
+            on_new_routes();
         });
         need_save = true;
     }
@@ -427,67 +428,69 @@ var route_marker = new google.maps.Marker({
 route_marker.setVisible(false)
 
 function on_new_routes(){
-    route_paths.forEach(function (path) { path.setMap(null) });
-    elevation_chart.series.forEach(function (series) { series.remove(false) });
+    if (map) {
+        route_paths.forEach(function (path) { path.setMap(null) });
+        elevation_chart.series.forEach(function (series) { series.remove(false) });
 
-    route_paths = routes.map(function (route){
-        return new google.maps.Polyline({
-            map: map,
-            path: route.points.map(function (point) {return new google.maps.LatLng(point[0], point[1])}),
-            geodesic: false,
-            strokeColor: 'black',
-            strokeOpacity: 0.7,
-            strokeWeight: 2,
-            zIndex: -1
-        })
-    });
-
-    all_route_points = [];
-    routes.forEach(function (route){
-        var start_distance, dist_factor
-        if (route.main) {
-            start_distance = 0;
-            dist_factor = 1;
-        } else {
-            start_distance = route.start_distance;
-            dist_factor = route.dist_factor;
-        }
-        var elevation_points = route.elevation.map(function (point) {
-            return {
-                latlng: new google.maps.LatLng(point[0], point[1]),
-                dist: (point[3] * dist_factor) + start_distance,
-                elevation: point[2],
-            }
+        route_paths = routes.map(function (route){
+            return new google.maps.Polyline({
+                map: map,
+                path: route.points.map(function (point) {return new google.maps.LatLng(point[0], point[1])}),
+                geodesic: false,
+                strokeColor: 'black',
+                strokeOpacity: 0.7,
+                strokeWeight: 2,
+                zIndex: -1
+            })
         });
-        all_route_points.extend(elevation_points);
 
-        elevation_chart.addSeries({
-            marker: {enabled: false, symbol: 'circle'},
-            color: 'black',
-            turboThreshold: 5000,
-            data: elevation_points.map(function (item) { return {
-                x: item.dist,
-                y: item.elevation,
-                latlng: item.latlng,
+        all_route_points = [];
+        routes.forEach(function (route){
+            var start_distance, dist_factor
+            if (route.main) {
+                start_distance = 0;
+                dist_factor = 1;
+            } else {
+                start_distance = route.start_distance;
+                dist_factor = route.dist_factor;
+            }
+            var elevation_points = route.elevation.map(function (point) {
+                return {
+                    latlng: new google.maps.LatLng(point[0], point[1]),
+                    dist: (point[3] * dist_factor) + start_distance,
+                    elevation: point[2],
+                }
+            });
+            all_route_points.extend(elevation_points);
+
+            elevation_chart.addSeries({
+                marker: {enabled: false, symbol: 'circle'},
+                color: 'black',
+                turboThreshold: 5000,
+                data: elevation_points.map(function (item) { return {
+                    x: item.dist,
+                    y: item.elevation,
+                    latlng: item.latlng,
+                    events: {
+                      mouseOver: function () {
+                        route_marker.setOptions({position: this.latlng})
+                        route_marker.setVisible(true);
+                        // if (!map.getBounds().contains(this.latlng)) map.panTo(this.latlng);
+                      }
+                    }
+
+                }}),
                 events: {
-                  mouseOver: function () {
-                    route_marker.setOptions({position: this.latlng})
-                    route_marker.setVisible(true);
-                    // if (!map.getBounds().contains(this.latlng)) map.panTo(this.latlng);
-                  }
+                    mouseOut: function () {
+                      route_marker.setVisible(false);
+                    },
                 }
 
-            }}),
-            events: {
-                mouseOut: function () {
-                  route_marker.setVisible(false);
-                },
-            }
-
-        }, false);
-    });
-    elevation_chart.redraw(false);
-    adjust_elevation_chart_bounds();
+            }, false);
+        });
+        elevation_chart.redraw(false);
+        adjust_elevation_chart_bounds();
+    }
 }
 
 var bounds_changed_timeout_id;
