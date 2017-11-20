@@ -40,25 +40,14 @@ class Event(object):
         self.config = yaml.load(config_bytes.decode())
         self.config_hash = base64.urlsafe_b64encode(hashlib.sha1(config_bytes).digest()).decode('ascii')
 
-        if 'routes' in self.config:
-            # older format
-            routes_bytes = None
-            routes = self.config['routes']
-            del self.config['routes']
+        routes_path = os.path.join(self.base_path, 'routes')
+        if tree_reader.exists(routes_path):
+            routes_bytes = tree_reader.get(routes_path).data
+            self.routes = msgpack.loads(routes_bytes, encoding='utf8')
+            self.routes_hash = base64.urlsafe_b64encode(hashlib.sha1(routes_bytes).digest()).decode('ascii')
         else:
-            routes_path = os.path.join(self.base_path, 'routes')
-            if tree_reader.exists(routes_path):
-                routes_bytes = tree_reader.get(routes_path).data
-                routes = msgpack.loads(routes_bytes, encoding='utf8')
-            else:
-                routes = []
-                routes_bytes = None
-
-        self.routes = [{'original_points': route} if isinstance(route, list) else route
-                       for route in routes]
-        if routes_bytes is None:
-            routes_bytes = msgpack.dumps(self.routes)
-        self.routes_hash = base64.urlsafe_b64encode(hashlib.sha1(routes_bytes).digest()).decode('ascii')
+            self.routes = []
+            self.routes_hash = 'None'
 
     def save(self, message, author=None, tree_writer=None):
         if tree_writer is None:

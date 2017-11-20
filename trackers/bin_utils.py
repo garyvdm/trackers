@@ -111,7 +111,7 @@ def get_combined_settings(specific_defaults_yaml=None, args=None):
 async def app_setup(app, settings):
     stack = AsyncExitStack()
 
-    app['trackers.data_repo'] = await stack.enter_context(app_setup_basic(app, settings))
+    await stack.enter_context(app_setup_basic(app, settings))
     await stack.enter_context(await trackers.modules.config_modules(app, settings))
 
     return stack

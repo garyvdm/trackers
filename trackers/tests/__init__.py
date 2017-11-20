@@ -15,3 +15,13 @@ class TempRepoFixture(fixtures.TempDir):
     def _setUp(self):
         super()._setUp()
         self.repo = Repo.init_bare(self.path)
+        self.addCleanup(self.repo.close)
+
+
+def get_test_app_and_settings(repo, reader):
+    settings = {}
+    app = {}
+    app['trackers.settings'] = settings
+    app['trackers.data_repo'] = repo
+    app['trackers.tree_reader'] = reader
+    return app, settings
