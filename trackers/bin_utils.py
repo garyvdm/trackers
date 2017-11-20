@@ -148,7 +148,7 @@ async def convert_to_static_async(settings, event_name, dry_run, format):
             rider_name = rider['name']
             tracker = event.rider_trackers.get(rider_name)
             if tracker:
-                await tracker.finish()
+                await tracker.complete()
                 path = os.path.join(event.base_path, rider_name)
                 if format == 'msgpack':
                     tree_writer.set_data(path, msgpack.dumps(tracker.points, default=json_encode))

@@ -423,8 +423,8 @@ async def individual_discard_tracker_wait(app, tracker_info):
 async def individual_discard_tracker(app, tracker_info):
     try:
         tracker = tracker_info['tracker']
-        await tracker.stop()
-        await tracker.finish()
+        tracker.stop()
+        await tracker.complete()
     finally:
         del app['trackers.individual_trackers'][tracker_info['key']]
 

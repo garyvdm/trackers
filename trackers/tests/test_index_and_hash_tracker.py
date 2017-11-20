@@ -1,3 +1,4 @@
+import asyncio
 import pprint
 
 import asynctest
@@ -11,6 +12,7 @@ class Test(asynctest.TestCase):
 
     async def test(self):
         tracker = Tracker('test')
+        tracker.completed = asyncio.Future()
         await tracker.new_points((
             {'position': (-26.300822, 28.049444, 1800)},
             {'position': (-26.302245, 28.051139, 1800)},
@@ -20,7 +22,8 @@ class Test(asynctest.TestCase):
             {'position': (-27.280315, 27.969365, 1800)},
             {'position': (-27.282870, 27.970620, 1800)},
         ))
-        await ih_tracker.finish()
+        tracker.completed.set_result(None)
+        await ih_tracker.complete()
 
         pprint.pprint(ih_tracker.points)
         self.assertSequenceEqual(ih_tracker.points, [

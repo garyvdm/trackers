@@ -1,6 +1,5 @@
 import asyncio
 import datetime
-import functools
 import itertools
 import json
 import logging
@@ -11,7 +10,7 @@ from urllib.parse import quote
 import aiohttp
 import bs4
 
-from trackers.base import cancel_and_wait_task, log_error_callback, Tracker, wait_task
+from trackers.base import Tracker
 
 
 def config(app, settings):
@@ -29,9 +28,8 @@ async def start_event_tracker(app, event, rider_name, tracker_data):
         event.config['tracker_start'], event.config['tracker_end'],
         os.path.join(app['trackers.settings']['cache_path'], event.name, 'mapmytracks'),
         tracker, set(tracker_data.get('exclude', ()))))
-    tracker.stop_specific = functools.partial(cancel_and_wait_task, monitor_task)
-    tracker.finish_specific = functools.partial(wait_task, monitor_task)
-    monitor_task.add_done_callback(functools.partial(log_error_callback, tracker.logger, 'Error in monitor_user:'))
+    tracker.stop = monitor_task.cancel
+    tracker.completed = monitor_task
     return tracker
 
 

@@ -9,7 +9,7 @@ from datetime import datetime
 
 import msgpack
 
-from trackers.base import cancel_and_wait_task, log_error_callback, Tracker
+from trackers.base import Tracker
 
 
 def json_encode(obj):
@@ -22,6 +22,7 @@ json_dumps = functools.partial(json.dumps, default=json_encode, sort_keys=True)
 
 async def static_start_event_tracker(app, event, rider_name, tracker_data):
     tracker = Tracker('static.{}'.format(tracker_data['name']))
+    tracker.completed = asyncio.Future()
     format = tracker_data.get('format', 'json')
     path = os.path.join(event.base_path, tracker_data['name'])
     data = event.tree_reader.get(path).data
@@ -29,11 +30,10 @@ async def static_start_event_tracker(app, event, rider_name, tracker_data):
         points = json.loads(data.decode())
     if format == 'msgpack':
         points = msgpack.loads(data, encoding='utf-8')
-
     for point in points:
         point['time'] = datetime.fromtimestamp(point['time'])
-    tracker.is_finished = True
     await tracker.new_points(points)
+    tracker.completed.set_result(None)
     return tracker
 
 
@@ -41,8 +41,8 @@ async def start_replay_tracker(org_tracker, event_start_time, replay_start, spee
     replay_tracker = Tracker('replay.{}'.format(org_tracker.name))
     replay_task = asyncio.ensure_future(
         static_replay(replay_tracker, org_tracker, event_start_time, replay_start, speed_multiply))
-    replay_tracker.stop_specific = functools.partial(cancel_and_wait_task, replay_task)
-    replay_task.add_done_callback(functools.partial(log_error_callback, replay_tracker.logger, 'Error in static_replay:'))
+    replay_tracker.stop = replay_task.cancel
+    replay_tracker.completed = replay_task
     return replay_tracker
 
 
@@ -75,8 +75,8 @@ async def cropped_tracker_start_event(app, event, rider_name, tracker_data):
 
 async def cropped_tracker_start(org_tracker, tracker_data):
     cropped_tracker = Tracker('cropped.{}'.format(org_tracker.name))
-    cropped_tracker.stop_specific = org_tracker.stop
-    cropped_tracker.finish_specific = org_tracker.finish
+    cropped_tracker.completed = org_tracker.completed
+    cropped_tracker.stop = org_tracker.stop
     cropped_tracker.org_tracker = org_tracker
 
     await cropped_tracker_newpoints(cropped_tracker, tracker_data.get('start'), tracker_data.get('end'), org_tracker, org_tracker.points)
@@ -86,8 +86,6 @@ async def cropped_tracker_start(org_tracker, tracker_data):
 
 
 async def cropped_tracker_newpoints(cropped_tracker, start, end, org_tracker, new_points):
-    if org_tracker.is_finished:
-        cropped_tracker.is_finished = True
     points = [point for point in new_points if (not end or point['time'] < end) and (not start or point['time'] > start)]
     if points:
         await cropped_tracker.new_points(points)
@@ -95,8 +93,8 @@ async def cropped_tracker_newpoints(cropped_tracker, start, end, org_tracker, ne
 
 async def index_and_hash_tracker(org_tracker, hasher=None):
     ih_tracker = Tracker('indexed_and_hashed.{}'.format(org_tracker.name))
-    ih_tracker.stop_specific = org_tracker.stop
-    ih_tracker.finish_specific = org_tracker.finish
+    ih_tracker.stop = org_tracker.stop
+    ih_tracker.completed = asyncio.ensure_future(org_tracker.complete())
     ih_tracker.org_tracker = org_tracker
     if hasher is None:
         hasher = hashlib.sha1()

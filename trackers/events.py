@@ -92,6 +92,9 @@ class Event(object):
 
     async def stop_trackers(self):
         for tracker in self.rider_trackers.values():
-            await tracker.stop()
+            tracker.stop()
         for tracker in self.rider_trackers.values():
-            await tracker.finish()
+            try:
+                await tracker.complete()
+            except Exception:
+                tracker.logger.exception('Unhandled error: ')

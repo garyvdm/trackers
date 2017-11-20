@@ -167,8 +167,9 @@ async def start_tracker(app, tracker_name, server_name, device_unique_id, start,
     await tracker.new_points(points)
 
     tracker.finished = asyncio.Event()
-    tracker.finish_specific = functools.partial(tracker_finish, tracker)
-    tracker.stop_specific = functools.partial(tracker_stop, tracker)
+    tracker.stop = functools.partial(tracker_stop, tracker)
+    tracker.completed = asyncio.ensure_future(tracker.finished.wait())
+    tracker.completed.add_done_callback(functools.partial(tracker_on_completed, tracker))
     if end:
         asyncio.get_event_loop().call_at(
             asyncio.get_event_loop().time() - time.time() + end.timestamp(), tracker.finished.set)
@@ -181,8 +182,12 @@ async def tracker_position_received(tracker, position):
         await tracker.new_points([traccar_position_translate(position)])
 
 
-async def tracker_stop(tracker):
+def tracker_stop(tracker):
     tracker.finished.set()
+
+
+def tracker_on_completed(tracker, fut):
+    tracker.server['position_received_callbacks'][tracker.device_id].remove(tracker.position_recived)
 
 
 async def tracker_finish(tracker):
@@ -227,8 +232,8 @@ async def main():
         finally:
             for signame in ('SIGINT', 'SIGTERM'):
                 loop.remove_signal_handler(getattr(signal, signame))
-        await tracker.stop()
-        await tracker.finish()
+        tracker.stop()
+        await tracker.complete()
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)

@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 
 import asynctest
@@ -25,6 +26,7 @@ class TestStatic(asynctest.TestCase, fixtures.TestWithFixtures):
         app, settings = get_test_app_and_settings(repo, writer)
         event = Event(app, 'test_event')
         tracker = await static_start_event_tracker(app, event, 'Test rider', {'name': 'test_rider', 'format': 'msgpack'})
+        await tracker.complete()
         self.assertEqual(len(tracker.points), 1)
         self.assertEqual(tracker.points[0], {
             'time': datetime.datetime(2017, 1, 1),
@@ -41,6 +43,7 @@ class TestStatic(asynctest.TestCase, fixtures.TestWithFixtures):
         app, settings = get_test_app_and_settings(repo, writer)
         event = Event(app, 'test_event')
         tracker = await static_start_event_tracker(app, event, 'Test rider', {'name': 'test_rider', 'format': 'json'})
+        await tracker.complete()
         self.assertEqual(tracker.points, [])
 
 
@@ -48,22 +51,28 @@ class TestCropped(asynctest.TestCase, fixtures.TestWithFixtures):
 
     async def test_with_start(self):
         org_tracker = Tracker('test')
+        org_tracker.completed = asyncio.Future()
         await org_tracker.new_points([
             {'i': 0, 'time': datetime.datetime(2017, 1, 1, 5, 55)},
             {'i': 1, 'time': datetime.datetime(2017, 1, 1, 6, 5)},
         ])
+        org_tracker.completed.set_result(None)
 
         tracker = await cropped_tracker_start(org_tracker, {'start': datetime.datetime(2017, 1, 1, 6, 0)})
+        await tracker.complete()
         self.assertEqual(len(tracker.points), 1)
         self.assertEqual(tracker.points[0]['i'], 1)
 
     async def test_with_end(self):
         org_tracker = Tracker('test')
+        org_tracker.completed = asyncio.Future()
         await org_tracker.new_points([
             {'i': 0, 'time': datetime.datetime(2017, 1, 1, 5, 55)},
             {'i': 1, 'time': datetime.datetime(2017, 1, 1, 6, 5)},
         ])
+        org_tracker.completed.set_result(None)
 
         tracker = await cropped_tracker_start(org_tracker, {'end': datetime.datetime(2017, 1, 1, 6, 0)})
+        await tracker.complete()
         self.assertEqual(len(tracker.points), 1)
         self.assertEqual(tracker.points[0]['i'], 0)

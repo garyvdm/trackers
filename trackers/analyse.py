@@ -68,8 +68,8 @@ async def start_analyse_tracker(tracker, event, event_routes, track_break_time=d
     analyse_tracker.current_track_id = 0
     analyse_tracker.status = None
     analyse_tracker.make_inactive_fut = None
-    analyse_tracker.stop_specific = functools.partial(stop_analyse_tracker, analyse_tracker)
-    analyse_tracker.finish_specific = functools.partial(finish_analyse_tracker, analyse_tracker)
+    analyse_tracker.stop = functools.partial(analyse_tracker_stop, analyse_tracker)
+    analyse_tracker.completed = asyncio.ensure_future(analyse_tracker_completed(analyse_tracker))
     analyse_tracker.org_tracker = tracker
     analyse_tracker.last_closest = None
     analyse_tracker.dist_ridden = 0
@@ -80,14 +80,14 @@ async def start_analyse_tracker(tracker, event, event_routes, track_break_time=d
     return analyse_tracker
 
 
-async def stop_analyse_tracker(analyse_tracker):
-    await analyse_tracker.org_tracker.stop()
+def analyse_tracker_stop(analyse_tracker):
+    analyse_tracker.org_tracker.stop()
     if analyse_tracker.make_inactive_fut:
         analyse_tracker.make_inactive_fut.cancel()
 
 
-async def finish_analyse_tracker(analyse_tracker):
-    await analyse_tracker.org_tracker.finish()
+async def analyse_tracker_completed(analyse_tracker):
+    await analyse_tracker.org_tracker.complete()
     if analyse_tracker.make_inactive_fut:
         try:
             await analyse_tracker.make_inactive_fut

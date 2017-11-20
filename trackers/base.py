@@ -17,24 +17,20 @@ class Tracker(object):
         self.new_points_callbacks = []
         self.logger = logging.getLogger('trackers.{}'.format(name))
         self.callback_tasks = []
-        self.is_finished = False
+        self.completed = None
 
     async def new_points(self, new_points):
         self.points.extend(new_points)
         await call_callbacks(self.new_points_callbacks, 'Error calling new_points callback:', self.logger, self, new_points)
 
-    async def stop(self):
-        await self.stop_specific()
-
-    async def stop_specific(self):
+    def stop(self):
         pass
 
-    async def finish(self):
-        await self.finish_specific()
-        self.is_finished = True
-
-    async def finish_specific(self):
-        pass
+    async def complete(self):
+        try:
+            await self.completed
+        except asyncio.CancelledError:
+            pass
 
 
 async def call_callbacks(callbacks, error_msg, logger, *args, **kwargs):
@@ -47,24 +43,12 @@ async def call_callbacks(callbacks, error_msg, logger, *args, **kwargs):
             logger.exception(error_msg)
 
 
-def log_error_callback(logger, error_msg, fut):
-    """ Callback that checks the future succeeded, and logs and error if it did not """
-    try:
-        fut.result()
-    except Exception:
-        logger.exception(error_msg)
-
-
 async def cancel_and_wait_task(task):
     task.cancel()
     try:
         return await task
     except asyncio.CancelledError:
         pass
-
-
-async def wait_task(task):
-    return await task
 
 
 @contextlib.contextmanager

@@ -2,7 +2,6 @@ import asyncio
 import logging
 import unittest
 import unittest.mock
-from functools import partial
 
 import asynctest
 
@@ -10,7 +9,6 @@ from trackers.base import (
     call_callbacks,
     cancel_and_wait_task,
     list_register,
-    log_error_callback,
     Tracker,
 )
 
@@ -51,30 +49,6 @@ class TestCallCallbacks(asynctest.TestCase):
             await fut
 
 
-class TestLogErrorCallback(asynctest.TestCase):
-
-    async def test_success(self):
-        fut = asyncio.Future()
-        logger = logging.getLogger('callbacks')
-        fut.add_done_callback(partial(log_error_callback, logger, 'error_msg'))
-        fut.set_result(None)
-        # yield to event loop, soo that it call's the callback
-        await asyncio.sleep(0)
-
-    async def test_error(self):
-        logger = logging.getLogger('callbacks')
-        with self.assertLogs(logger, level=logging.ERROR) as (_, log_output):
-            fut = asyncio.Future()
-            fut.add_done_callback(partial(log_error_callback, logger, 'error_msg'))
-            fut.set_exception(Exception('foo'))
-
-            # yield to event loop, soo that it call's the callback
-            await asyncio.sleep(0)
-
-        self.assertEqual(len(log_output), 1)
-        self.assertTrue(log_output[0].startswith('ERROR:callbacks:error_msg'))
-
-
 class TestCancelAndWait(asynctest.TestCase):
 
     async def test(self):
@@ -103,20 +77,15 @@ class TestListRegister(unittest.TestCase):
 class TestTracker(asynctest.TestCase):
 
     async def test(self):
-
         tracker = Tracker('test')
-        tracker.stop_specific = asynctest.CoroutineMock()
-        tracker.finish_specific = asynctest.CoroutineMock()
+        tracker.completed = asyncio.Future()
+        tracker.stop = lambda: tracker.completed.set_result(None)
         new_points_callback = asynctest.CoroutineMock()
         tracker.new_points_callbacks.append(new_points_callback)
 
         await tracker.new_points([{'foo': 'bar'}])
         new_points_callback.assert_called_once_with(tracker, [{'foo': 'bar'}])
 
-        await tracker.stop()
-        tracker.stop_specific.assert_called_once_with()
-
-        self.assertFalse(tracker.is_finished)
-        await tracker.finish()
-        tracker.stop_specific.assert_called_once_with()
-        self.assertTrue(tracker.is_finished)
+        tracker.stop()
+        await tracker.complete()
+        self.assertTrue(tracker.completed.done())
