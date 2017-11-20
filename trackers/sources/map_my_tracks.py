@@ -11,7 +11,7 @@ from urllib.parse import quote
 import aiohttp
 import bs4
 
-from trackers.base import callback_done_callback, cancel_and_wait_task, Tracker, wait_task
+from trackers.base import cancel_and_wait_task, log_error_callback, Tracker, wait_task
 
 
 def config(app, settings):
@@ -29,9 +29,9 @@ async def start_event_tracker(app, event, rider_name, tracker_data):
         event.config['tracker_start'], event.config['tracker_end'],
         os.path.join(app['trackers.settings']['cache_path'], event.name, 'mapmytracks'),
         tracker, set(tracker_data.get('exclude', ()))))
-    tracker.stop = functools.partial(cancel_and_wait_task, monitor_task)
+    tracker.stop_specific = functools.partial(cancel_and_wait_task, monitor_task)
     tracker.finish_specific = functools.partial(wait_task, monitor_task)
-    monitor_task.add_done_callback(functools.partial(callback_done_callback, 'Error in monitor_user:', tracker.logger))
+    monitor_task.add_done_callback(functools.partial(log_error_callback, tracker.logger, 'Error in monitor_user:'))
     return tracker
 
 

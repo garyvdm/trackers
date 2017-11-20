@@ -42,16 +42,15 @@ async def call_callbacks(callbacks, error_msg, logger, *args, **kwargs):
         try:
             await callback(*args, **kwargs)
         except asyncio.CancelledError:
-            pass
+            raise
         except Exception:
             logger.exception(error_msg)
 
 
-def callback_done_callback(error_msg, logger, fut):
+def log_error_callback(logger, error_msg, fut):
+    """ Callback that checks the future succeeded, and logs and error if it did not """
     try:
         fut.result()
-    except asyncio.CancelledError:
-        pass
     except Exception:
         logger.exception(error_msg)
 
@@ -64,19 +63,19 @@ async def cancel_and_wait_task(task):
         pass
 
 
+async def wait_task(task):
+    return await task
+
+
 @contextlib.contextmanager
 def list_register(list, item, on_empty=None, yield_item=None):
     list.append(item)
     try:
-        yield
+        yield yield_item
     finally:
         list.remove(item)
         if not list and on_empty:
             on_empty()
-
-
-async def wait_task(task):
-    return await task
 
 
 def print_tracker(tracker):

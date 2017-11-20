@@ -9,7 +9,7 @@ from datetime import datetime
 
 import msgpack
 
-from trackers.base import callback_done_callback, cancel_and_wait_task, Tracker
+from trackers.base import cancel_and_wait_task, log_error_callback, Tracker
 
 
 def json_encode(obj):
@@ -41,8 +41,8 @@ async def start_replay_tracker(org_tracker, event_start_time, replay_start, spee
     replay_tracker = Tracker('replay.{}'.format(org_tracker.name))
     replay_task = asyncio.ensure_future(
         static_replay(replay_tracker, org_tracker, event_start_time, replay_start, speed_multiply))
-    replay_tracker.stop = functools.partial(cancel_and_wait_task, replay_task)
-    replay_task.add_done_callback(functools.partial(callback_done_callback, 'Error in static_replay:', replay_tracker.logger))
+    replay_tracker.stop_specific = functools.partial(cancel_and_wait_task, replay_task)
+    replay_task.add_done_callback(functools.partial(log_error_callback, replay_tracker.logger, 'Error in static_replay:'))
     return replay_tracker
 
 
