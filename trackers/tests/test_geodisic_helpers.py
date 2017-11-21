@@ -1,6 +1,12 @@
 import unittest
 
-from trackers.analyse import distance, find_c_point, Point, ramer_douglas_peucker
+from trackers.analyse import (
+    distance,
+    find_c_point,
+    get_equal_spaced_points,
+    Point,
+    ramer_douglas_peucker,
+)
 
 
 class TestFindCPoint(unittest.TestCase):
@@ -47,3 +53,21 @@ class TestDistance(unittest.TestCase):
     def test_distance(self):
         dist = distance(Point(0, 0), Point(0.0001, 0))
         self.assertEqual(dist, 11.057427582158146)
+
+
+class TestGetEqualSpacedPoints(unittest.TestCase):
+
+    def test(self):
+        points = list(get_equal_spaced_points([
+            Point(0, 0),
+            Point(0, 0.001),
+            Point(0.001, 0.001),
+        ], 50, ))
+        self.assertEqual(points, [
+            (Point(lat=0, lng=0), 0),
+            (Point(lat=0.0, lng=0.000449), 50),
+            (Point(lat=0.0, lng=0.000898), 100),
+            (Point(lat=0.000350, lng=0.001), 150),
+            (Point(lat=0.000802, lng=0.001), 200),
+            (Point(lat=0.001, lng=0.001), 221.89376661216434)
+        ])

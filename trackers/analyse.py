@@ -401,7 +401,7 @@ def get_point_pair_precalc(point1, point2):
     return point1, point2, c12, p1h, p2h, dp1p2
 
 
-def get_equal_spaced_points(points, dist_between_points, start_dist=0):
+def get_equal_spaced_points(points, dist_between_points, start_dist=0, round_digits=6):
     cum_dist = start_dist
     yield (points[0], cum_dist)
     dist_from_last_step = 0
@@ -414,7 +414,7 @@ def get_equal_spaced_points(points, dist_between_points, start_dist=0):
             cum_dist += dist_between_points
             new_point_nv = interpolate((last_point.nv, point.nv), (point_distance - point_dist_remaining) / point_distance)
             new_point_lat, new_point_lng = n_E2lat_lon(new_point_nv)
-            new_point = Point(rad2deg(new_point_lat[0]), rad2deg(new_point_lng[0]))
+            new_point = Point(round(rad2deg(new_point_lat[0]), round_digits), round(rad2deg(new_point_lng[0]), round_digits))
             new_point._nv = new_point_nv
             yield (new_point, cum_dist)
         dist_from_last_step = point_dist_remaining
