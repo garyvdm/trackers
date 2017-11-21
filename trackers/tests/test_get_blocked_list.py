@@ -1,8 +1,11 @@
+import asyncio
 import hashlib
 import pprint
 import unittest
 
-from trackers.base import get_blocked_list
+import asynctest
+
+from trackers.base import BlockedList, get_blocked_list, Tracker
 from trackers.general import index_and_hash_list
 
 source = index_and_hash_list([{'x': l} for l in 'Lorem ipsum dolor sit amet posuere.'], 0, hashlib.sha1())
@@ -23,8 +26,8 @@ expected_full = {
 class Test(unittest.TestCase):
     maxDiff = None
 
-    def check(self, source, existing, expected_full, expected_update, starting_block_len=5):
-        full, update = get_blocked_list(source, existing, starting_block_len)
+    def check(self, source, existing, expected_full, expected_update, starting_block_len=5, entire_block=False):
+        full, update = get_blocked_list(source, existing, starting_block_len, entire_block=entire_block)
         pprint.pprint(full)
         pprint.pprint(update)
 
@@ -152,3 +155,36 @@ class Test(unittest.TestCase):
         }
 
         self.check(source, existing, expected_full, expected_update)
+
+    def test_entire_block(self):
+        existing = {}
+        expected = {
+            'blocks': [{'end_hash': 'opj8', 'end_index': 34, 'start_index': 0}],
+            'partial_block': []
+        }
+        self.check(source, existing, expected, expected, entire_block=True)
+
+    def test_entire_block_empty_source(self):
+        existing = {}
+        expected = {
+            'blocks': [],
+            'partial_block': []
+        }
+        self.check([], existing, expected, expected, entire_block=True)
+
+
+class TestBlockedList(asynctest.TestCase):
+
+    async def test_from_tracker(self):
+        tracker = Tracker('test')
+        tracker.completed = asyncio.Future()
+
+        blocked_list = BlockedList.from_tracker(tracker)
+        new_update_callback = asynctest.CoroutineMock()
+        blocked_list.new_update_callbacks.append(new_update_callback)
+
+        await tracker.new_points(source[:1])
+        tracker.completed.set_result(None)
+        await tracker.complete()
+
+        new_update_callback.assert_called_once_with({'add_block': [{'x': 'L', 'index': 0, 'hash': 'u0Zw'}]})
