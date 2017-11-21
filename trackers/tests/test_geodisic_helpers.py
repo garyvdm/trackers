@@ -14,6 +14,10 @@ class TestFindCPoint(unittest.TestCase):
         result = find_c_point(Point(0.0001, 40), Point(0, 0), Point(0, 30))
         self.assertEqual(result.point, Point(lat=0.0, lng=30))
 
+    def test_same(self):
+        result = find_c_point(Point(0, 0), Point(0, 0), Point(0, 30))
+        self.assertEqual(result.point, Point(lat=0, lng=0))
+
 
 class TestRamerDouglasPeucker(unittest.TestCase):
 

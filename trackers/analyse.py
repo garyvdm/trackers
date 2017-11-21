@@ -14,7 +14,7 @@ from numpy import (
     deg2rad,
     dot,
     rad2deg,
-    # seterr,
+    seterr,
 )
 from numpy.linalg import norm
 from nvector import (
@@ -56,7 +56,8 @@ except ImportError:
 from trackers.base import Tracker
 
 logger = logging.getLogger(__name__)
-# seterr(all='raise')
+
+seterr(all='raise')
 
 analyse_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix='analyse')
 
@@ -359,28 +360,23 @@ def find_c_point(to_point, point1, point2):
     return find_c_point_from_precalc(to_point, *get_point_pair_precalc(point1, point2))
 
 
-def find_c_point_from_precalc(to_point, point1, point2, c12, p1h, p2h, dp1p2):
-    if (to_point.lat, to_point.lng) == (point1.lat, point1.lng):
-        return find_c_point_result(0, point1)
-    if (to_point.lat, to_point.lng) == (point2.lat, point2.lng):
-        return find_c_point_result(0, point2)
+def arccos_limit(n):
+    if n > 1:
+        return 1
+    if n < -1:
+        return -1
+    return n
 
+
+def find_c_point_from_precalc(to_point, point1, point2, c12, p1h, p2h, dp1p2):
     tpn = to_point.nv
     ctp = cross(tpn, c12, axis=0)
     c = unit(cross(ctp, c12, axis=0))
     sutable_c = None
     for co in (c, 0 - c):
         co_rs = co.reshape((3, ))
-        try:
-            dp1co = arccos(dot(p1h, co_rs))
-        except Exception:
-            print(p1h)
-            print(p2h)
-            print(dot(p1h, p2h))
-            print((to_point, point1, point2))
-            raise
-
-        dp2co = arccos(dot(p2h, co_rs))
+        dp1co = arccos(arccos_limit(dot(p1h, co_rs)))
+        dp2co = arccos(arccos_limit(dot(p2h, co_rs)))
         if abs(dp1co + dp2co - dp1p2) < 0.000001:
             sutable_c = co
             break
