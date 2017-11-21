@@ -151,3 +151,19 @@ class TestAnalyseTracker(asynctest.TestCase):
             {'time': d('2017/01/01 05:02:00'), 'position': (-26.417149, 28.073087, 1800), 'track_id': 0, 'dist_from_last': 13430, 'dist_ridden': 20415, 'dist_route': 13423, 'finished_time': d('2017/01/01 05:02:00'), 'rider_status': 'Finished'},
             {'status': 'Inactive', 'time': datetime.datetime(2017, 1, 1, 5, 22)},
         ])
+
+    async def test_stop(self):
+        tracker = Tracker('test')
+        tracker.completed = asyncio.Future()
+        tracker.stop = lambda: tracker.completed.cancel()
+
+        t1 = datetime.datetime.now()
+        await tracker.new_points((
+            {'time': t1, 'position': (-26.300822, 28.049444, 1800)},
+        ))
+        break_time = datetime.timedelta(seconds=1)
+        analyse_tracker = await start_analyse_tracker(tracker, {}, [], track_break_time=break_time)
+
+        await asyncio.sleep(0.05)
+        analyse_tracker.stop()
+        await analyse_tracker.complete()
