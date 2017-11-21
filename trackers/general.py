@@ -40,15 +40,15 @@ async def static_start_event_tracker(app, event, rider_name, tracker_data):
 async def start_replay_tracker(org_tracker, event_start_time, replay_start, speed_multiply=2000):
     replay_tracker = Tracker('replay.{}'.format(org_tracker.name))
     replay_task = asyncio.ensure_future(
-        static_replay(replay_tracker, org_tracker, event_start_time, replay_start, speed_multiply))
+        replay(replay_tracker, org_tracker, event_start_time, replay_start, speed_multiply))
     replay_tracker.stop = replay_task.cancel
     replay_tracker.completed = replay_task
     return replay_tracker
 
 
-async def static_replay(replay_tracker, org_tracker, event_start_time, replay_start, speed_multiply):
+async def replay(replay_tracker, org_tracker, event_start_time, replay_start, speed_multiply):
     point_i = 0
-    while not org_tracker.is_finished or point_i < len(org_tracker.points):
+    while not org_tracker.completed.done() or point_i < len(org_tracker.points):
         now = datetime.now()
         new_points = []
         while point_i < len(org_tracker.points):
