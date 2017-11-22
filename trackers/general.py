@@ -23,13 +23,12 @@ json_dumps = functools.partial(json.dumps, default=json_encode, sort_keys=True)
 async def static_start_event_tracker(app, event, rider_name, tracker_data):
     tracker = Tracker('static.{}'.format(tracker_data['name']))
     tracker.completed = asyncio.Future()
-    format = tracker_data.get('format', 'json')
     path = os.path.join(event.base_path, tracker_data['name'])
     data = event.tree_reader.get(path).data
-    if format == 'json':
-        points = json.loads(data.decode())
-    if format == 'msgpack':
-        points = msgpack.loads(data, encoding='utf-8')
+    points = {
+        'json': lambda data: json.loads(data.decode()),
+        'msgpack': lambda data: msgpack.loads(data, encoding='utf-8')
+    }[tracker_data.get('format', 'json')](data)
     for point in points:
         point['time'] = datetime.fromtimestamp(point['time'])
     await tracker.new_points(points)

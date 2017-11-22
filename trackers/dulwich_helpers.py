@@ -11,9 +11,14 @@ class TreeReader(object):
 
     def __init__(self, repo, treeish='HEAD', encoding="UTF-8"):
         self.repo = repo
-        self.tree = parse_tree(repo, treeish)
+        self.treeish = treeish
+        self.tree = None
         self.lookup_obj = repo.__getitem__
         self.encoding = encoding
+        self.reset()
+
+    def reset(self):
+        self.tree = parse_tree(self.repo, self.treeish)
 
     def lookup(self, path):
         return self.tree.lookup_path(self.lookup_obj, path.encode(self.encoding))
@@ -43,9 +48,9 @@ class TreeWriter(TreeReader):
         self.repo = repo
         self.encoding = encoding
         self.branch = branch
-        self._reset()
+        self.reset()
 
-    def _reset(self):
+    def reset(self):
         try:
             self.org_commit_id = self.repo.refs[self.branch]
         except KeyError:
@@ -123,4 +128,4 @@ class TreeWriter(TreeReader):
         self.changed_objects[commit_id] = commit
         self.repo.object_store.add_objects([(obj, None) for obj in self.changed_objects.values()])
         self.repo.refs.set_if_equals(self.branch, self.org_commit_id, commit_id)
-        self._reset()
+        self.reset()

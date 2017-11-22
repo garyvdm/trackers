@@ -1,4 +1,5 @@
 import asyncio
+from textwrap import dedent
 
 import asynctest
 import fixtures
@@ -78,13 +79,25 @@ class TestEvents(fixtures.TestWithFixtures):
 
         self.assertFalse(writer.exists('events/test_event/routes'))
 
+    def test_save_no_routes_before_and_after(self):
+        repo = self.useFixture(TempRepoFixture()).repo
+        writer = TreeWriter(repo)
+        writer.set_data('events/test_event/data.yaml', '{}'.encode())
+        writer.commit('add test_event')
 
-class TestEventsStartStopTracker(asynctest.TestCase, fixtures.TestWithFixtures):
+        app, settings = get_test_app_and_settings(repo, writer)
+        event = Event(app, 'test_event')
+        event.save('save test_event', tree_writer=writer)
+
+        self.assertFalse(writer.exists('events/test_event/routes'))
+
+
+class TestEventWithMockTracker(fixtures.TestWithFixtures):
 
     def do_setup(self, data):
         repo = self.useFixture(TempRepoFixture()).repo
         writer = TreeWriter(repo)
-        writer.set_data('events/test_event/data.yaml', data.encode())
+        writer.set_data('events/test_event/data.yaml', dedent(data).encode())
         writer.commit('add test_event')
 
         async def start_mock_event_tracker(app, event, rider_name, tracker_data):
@@ -97,10 +110,13 @@ class TestEventsStartStopTracker(asynctest.TestCase, fixtures.TestWithFixtures):
         app['start_event_trackers'] = {
             'mock': start_mock_event_tracker
         }
-        return app, settings
+        return app, settings, writer
+
+
+class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
 
     async def test_mock(self):
-        app, settings = self.do_setup('''
+        app, settings, writer = self.do_setup('''
             riders:
               - name: foo
                 tracker: {type: mock}
@@ -115,7 +131,7 @@ class TestEventsStartStopTracker(asynctest.TestCase, fixtures.TestWithFixtures):
         await event.stop_and_complete_trackers()
 
     async def test_with_analyse(self):
-        app, settings = self.do_setup('''
+        app, settings, writer = self.do_setup('''
             analyse: True
             riders:
               - name: foo
@@ -130,7 +146,7 @@ class TestEventsStartStopTracker(asynctest.TestCase, fixtures.TestWithFixtures):
         await event.stop_and_complete_trackers()
 
     async def test_with_replay(self):
-        app, settings = self.do_setup('''
+        app, settings, writer = self.do_setup('''
             event_start: 2017-07-01 05:00:00
             replay: True
             riders:
@@ -146,7 +162,7 @@ class TestEventsStartStopTracker(asynctest.TestCase, fixtures.TestWithFixtures):
         await event.stop_and_complete_trackers()
 
     async def test_no_tracker(self):
-        app, settings = self.do_setup('''
+        app, settings, writer = self.do_setup('''
             riders:
               - name: foo
                 tracker: null

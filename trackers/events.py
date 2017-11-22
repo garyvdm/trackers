@@ -60,7 +60,8 @@ class Event(object):
             routes_bytes = msgpack.dumps(self.routes)
             tree_writer.set_data(routes_path, routes_bytes)
         else:
-            tree_writer.remove(routes_path)
+            if tree_writer.exists(routes_path):
+                tree_writer.remove(routes_path)
         tree_writer.commit(message, author=author)
 
     async def start_trackers(self, app):
