@@ -67,8 +67,7 @@ async def replay(replay_tracker, org_tracker, event_start_time, replay_start, sp
 
 
 async def cropped_tracker_start_event(app, event, rider_name, tracker_data):
-    import trackers.modules
-    start_tracker = trackers.modules.start_event_trackers[tracker_data['tracker']['type']]
+    start_tracker = app['start_event_trackers'][tracker_data['tracker']['type']]
     org_tracker = await start_tracker(app, event, rider_name, tracker_data['tracker'])
     return await cropped_tracker_start(org_tracker, tracker_data)
 

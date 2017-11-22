@@ -12,7 +12,6 @@ from trackers.analyse import get_analyse_routes, start_analyse_tracker
 from trackers.base import BlockedList
 from trackers.dulwich_helpers import TreeWriter
 from trackers.general import index_and_hash_tracker, start_replay_tracker
-from trackers.modules import start_event_trackers
 
 logger = logging.getLogger(__name__)
 
@@ -76,11 +75,11 @@ class Event(object):
 
         if replay:
             replay_start = datetime.datetime.now() + datetime.timedelta(seconds=2)
-            event_start = self.config['start']
+            event_start = self.config['event_start']
 
         for rider in self.config['riders']:
             if rider['tracker']:
-                start_tracker = start_event_trackers[rider['tracker']['type']]
+                start_tracker = app['start_event_trackers'][rider['tracker']['type']]
                 tracker = await start_tracker(app, self, rider['name'], rider['tracker'])
                 if replay:
                     tracker = await start_replay_tracker(tracker, event_start, replay_start)
@@ -90,7 +89,7 @@ class Event(object):
                 self.rider_trackers[rider['name']] = tracker
                 self.rider_trackers_blocked_list[rider['name']] = BlockedList.from_tracker(tracker, entire_block=not is_live)
 
-    async def stop_trackers(self):
+    async def stop_and_complete_trackers(self):
         for tracker in self.rider_trackers.values():
             tracker.stop()
         for tracker in self.rider_trackers.values():
