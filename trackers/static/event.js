@@ -325,24 +325,10 @@ function ws_onmessage(event){
 
 }
 
-function format_race_time(seconds){
-    return sprintf('%02i:%02i:%02i',
-        Math.floor(seconds / 60 / 60), /* hours */
-        Math.floor(seconds / 60 % 60),      /* min */
-        Math.floor(seconds % 60)            /* seconds */
-        );
-//        return sprintf('%id %02i:%02i:%02i',
-//            Math.floor(seconds / 60 / 60 / 24), /* days */
-//            Math.floor(seconds / 60 / 60 % 24), /* hours */
-//            Math.floor(seconds / 60 % 60),      /* min */
-//            Math.floor(seconds % 60)            /* seconds */
-//            );
-}
-
 var race_time = document.getElementById('race_time');
 setInterval(function(){
     if (config && config.hasOwnProperty('event_start')){
-        race_time.innerText = 'Race time: ' + format_race_time((new Date().getTime() / 1000) - config.event_start - time_offset);
+        race_time.innerText = 'Race time: ' + format_time_delta((new Date().getTime() / 1000) - config.event_start - time_offset);
     } else {
         race_time.innerHTML = '&nbsp;';
     }
@@ -662,7 +648,7 @@ function update_rider_table(){
             var rider_status = (rider.hasOwnProperty('status') ? rider.status : current_values.status || '' );
             if (current_values.finished_time) {
                 if (config && config.hasOwnProperty('event_start')){
-                    finished_time = format_race_time(current_values.finished_time - config.event_start);
+                    finished_time = format_time_delta(current_values.finished_time - config.event_start);
                 } else {
                     var time = new Date(current_values.finished_time * 1000);
                     finished_time = sprintf('%s %02i:%02i:%02i', days[time.getDay()], time.getHours(), time.getMinutes(), time.getSeconds() )

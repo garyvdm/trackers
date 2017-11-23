@@ -56,6 +56,7 @@ async def make_aio_app(loop, settings):
         add_static = partial(add_static_resource, app, 'trackers', static_urls, m)
         add_static('/static/event.css', '/static/event.css', charset='utf8', content_type='text/css')
         add_static('/static/event.js', '/static/event.js', charset='utf8', content_type='text/javascript')
+        add_static('/static/lib.js', '/static/lib.js', charset='utf8', content_type='text/javascript')
         add_static('/static/individual.js', '/static/individual.js', charset='utf8', content_type='text/javascript')
         add_static('/static/richmarker.js', '/static/richmarker.js', charset='utf8', content_type='text/javascript')
         add_static('/static/es7-shim.min.js', '/static/es7-shim.min.js', charset='utf8', content_type='text/javascript')
@@ -65,7 +66,7 @@ async def make_aio_app(loop, settings):
         add_static('/static/event.html', '/{event}', charset='utf8', content_type='text/html',
                    body_processor=partial(
                        page_body_processor,
-                       related_resources=('/static/event.js', '/static/event.css', '/static/richmarker.js',),
+                       related_resources=('/static/event.js', '/static/event.css', '/static/richmarker.js', '/static/lib.js'),
                        hash_key='trackers.event_client_hash'
                    ))
         app['add_individual_handler'] = partial(
