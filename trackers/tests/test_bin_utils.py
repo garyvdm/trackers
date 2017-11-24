@@ -36,7 +36,7 @@ class TestConvertToStatic(asynctest.TestCase, TestEventWithMockTracker):
 
 
 class TestAssignRiderColors(asynctest.TestCase, TestEventWithMockTracker):
-    async def test_mock(self):
+    async def test(self):
         app, settings, writer = self.do_setup('''
             riders:
               - {}
@@ -55,7 +55,7 @@ class TestAssignRiderColors(asynctest.TestCase, TestEventWithMockTracker):
 
 
 class TestAddGpxToEventRoutes(asynctest.TestCase, TestEventWithMockTracker):
-    async def test_mock(self):
+    async def test(self):
         app, settings, writer = self.do_setup('')
 
         with NamedTemporaryFile(delete=False) as f:

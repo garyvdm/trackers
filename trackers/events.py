@@ -1,5 +1,4 @@
 import base64
-import copy
 import datetime
 import hashlib
 import logging
@@ -10,7 +9,7 @@ import yaml
 
 from trackers.analyse import get_analyse_routes, start_analyse_tracker
 from trackers.base import BlockedList
-from trackers.dulwich_helpers import TreeWriter
+from trackers.dulwich_helpers import TreeReader, TreeWriter
 from trackers.general import index_and_hash_tracker, start_replay_tracker
 
 logger = logging.getLogger(__name__)
@@ -19,43 +18,56 @@ logger = logging.getLogger(__name__)
 def load_events(app, settings):
     app['trackers.events'] = events = {}
 
-    tree_reader = app['trackers.tree_reader']
+    tree_reader = TreeReader(app['trackers.data_repo'])
     for name in tree_reader.tree_items('events'):
-        events[name] = Event(app, name)
+        events[name] = Event.load(app, name, tree_reader)
+
+
+def hash_bytes(b):
+    return base64.urlsafe_b64encode(hashlib.sha1(b).digest()).decode('ascii')
 
 
 class Event(object):
-    def __init__(self, app, name):
+    def __init__(self, app, name, config, routes, config_hash=None, routes_hash=None):
         self.name = name
         self.app = app
-        self.tree_reader = tree_reader = app['trackers.tree_reader']
-        self.base_path = os.path.join('events', name)
         self.ws_sessions = []
         self.rider_trackers = {}
         self.rider_trackers_blocked_list = {}
 
-        config_bytes = tree_reader.get(os.path.join(self.base_path, 'data.yaml')).data
+        self.config = config
+        if not config_hash:
+            config_hash = hash_bytes(yaml.dump(self.config).encode())
+        self.config_hash = config_hash
 
-        self.config = yaml.load(config_bytes.decode())
-        self.config_hash = base64.urlsafe_b64encode(hashlib.sha1(config_bytes).digest()).decode('ascii')
+        self.routes = routes
+        if not routes_hash:
+            routes_hash = hash_bytes(msgpack.dumps(self.routes))
+        self.routes_hash = routes_hash
 
-        routes_path = os.path.join(self.base_path, 'routes')
+    @classmethod
+    def load(cls, app, name, tree_reader):
+        config_bytes = tree_reader.get(os.path.join('events', name, 'data.yaml')).data
+        config = yaml.load(config_bytes.decode())
+        config_hash = hash_bytes(config_bytes)
+
+        routes_path = os.path.join('events', name, 'routes')
         if tree_reader.exists(routes_path):
             routes_bytes = tree_reader.get(routes_path).data
-            self.routes = msgpack.loads(routes_bytes, encoding='utf8')
-            self.routes_hash = base64.urlsafe_b64encode(hashlib.sha1(routes_bytes).digest()).decode('ascii')
+            routes = msgpack.loads(routes_bytes, encoding='utf8')
+            routes_hash = hash_bytes(routes_bytes)
         else:
-            self.routes = []
-            self.routes_hash = 'None'
+            routes = []
+            routes_hash = None
+        return cls(app, name, config, routes, config_hash=config_hash, routes_hash=routes_hash)
 
     def save(self, message, author=None, tree_writer=None):
         if tree_writer is None:
             tree_writer = TreeWriter(self.app['trackers.data_repo'])
-        config = copy.copy(self.config)
-        config_text = yaml.dump(config)
-        tree_writer.set_data(os.path.join(self.base_path, 'data.yaml'), config_text.encode())
+        config_text = yaml.dump(self.config)
+        tree_writer.set_data(os.path.join('events', self.name, 'data.yaml'), config_text.encode())
 
-        routes_path = os.path.join(self.base_path, 'routes')
+        routes_path = os.path.join('events', self.name, 'routes')
         if self.routes:
             routes_bytes = msgpack.dumps(self.routes)
             tree_writer.set_data(routes_path, routes_bytes)

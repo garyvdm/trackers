@@ -26,7 +26,7 @@ from trackers.analyse import (
     route_with_distance_and_index,
 )
 from trackers.async_exit_stack import AsyncExitStack
-from trackers.dulwich_helpers import TreeReader, TreeWriter
+from trackers.dulwich_helpers import TreeWriter
 from trackers.general import json_dumps, json_encode
 
 defaults_yaml = """
@@ -121,7 +121,6 @@ async def app_setup(app, settings):
 def app_setup_basic(app, settings):
     app['trackers.settings'] = settings
     app['trackers.data_repo'] = repo = dulwich.repo.Repo(settings['data_path'])
-    app['trackers.tree_reader'] = TreeReader(app['trackers.data_repo'])
     return repo
 
 
@@ -160,16 +159,17 @@ def convert_to_static_parser():
 
 @async_command(convert_to_static_parser)
 async def convert_to_static(app, settings, args):
-    event = trackers.events.Event(app, args.event_name)
-    await event.start_trackers(app)
     tree_writer = TreeWriter(app['trackers.data_repo'])
+
+    event = trackers.events.Event.load(app, args.event_name, tree_writer)
+    await event.start_trackers(app)
 
     for rider in event.config['riders']:
         rider_name = rider['name']
         tracker = event.rider_trackers.get(rider_name)
         if tracker:
             await tracker.complete()
-            path = os.path.join(event.base_path, rider_name)
+            path = os.path.join('events', event.name, rider_name)
             if args.format == 'msgpack':
                 tree_writer.set_data(path, msgpack.dumps(tracker.points, default=json_encode))
 
@@ -185,13 +185,14 @@ async def convert_to_static(app, settings, args):
 
 @async_command(partial(event_command_parser, description="Assigns unique colors to riders"))
 async def assign_rider_colors(app, settings, args):
-    event = trackers.events.Event(app, args.event_name)
+    tree_writer = TreeWriter(app['trackers.data_repo'])
+    event = trackers.events.Event.load(app, args.event_name, tree_writer)
     num_riders = len(event.config['riders'])
     for i, rider in enumerate(event.config['riders']):
         hue = round(((i * 360 / num_riders) + (180 * (i % 2))) % 360)
         rider['color'] = 'hsl({}, 100%, 50%)'.format(hue)
         rider['color_marker'] = 'hsl({}, 100%, 60%)'.format(hue)
-    event.save('assign_rider_colors: {}'.format(args.event_name))
+    event.save('assign_rider_colors: {}'.format(args.event_name), tree_writer=tree_writer)
 
 
 def add_gpx_to_event_routes_parser():
@@ -219,13 +220,14 @@ async def add_gpx_to_event_routes(app, settings, args):
     trkpts = xml_doc.findall('./gpx:trk/gpx:trkseg/gpx:trkpt', gpx_ns)
     points = [[float(trkpt.attrib['lat']), float(trkpt.attrib['lon'])] for trkpt in trkpts]
 
-    event = trackers.events.Event(app, args.event_name)
+    writer = TreeWriter(app['trackers.data_repo'])
+    event = trackers.events.Event.load(app, args.event_name, writer)
     route = {'original_points': points}
     await process_route(settings, route, get_elevation=not args.no_elevation)
     event.routes.append(route)
     process_secondary_route_details(event.routes)
     # TODO - add gpx file to repo
-    event.save('add_gpx_to_event_routes: {} - {}'.format(args.event_name, args.gpx_file))
+    event.save('add_gpx_to_event_routes: {} - {}'.format(args.event_name, args.gpx_file), tree_writer=writer)
 
 
 @async_command(partial(event_command_parser, description="Open and save event. Side effect is convert to new formats."))

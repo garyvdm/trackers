@@ -18,7 +18,7 @@ class TestEvents(fixtures.TestWithFixtures):
         writer.set_data('events/test_event/data.yaml', '{}'.encode())
         writer.commit('add test_event')
 
-        app, settings = get_test_app_and_settings(repo, writer)
+        app, settings = get_test_app_and_settings(repo)
         load_events(app, settings)
 
         events = app['trackers.events']
@@ -26,7 +26,7 @@ class TestEvents(fixtures.TestWithFixtures):
         event = events['test_event']
         self.assertEqual(event.name, 'test_event')
 
-    def test_init(self):
+    def test_load(self):
         repo = self.useFixture(TempRepoFixture()).repo
         writer = TreeWriter(repo)
         writer.set_data('events/test_event/data.yaml', '''
@@ -34,32 +34,28 @@ class TestEvents(fixtures.TestWithFixtures):
         '''.encode())
         writer.commit('add test_event')
 
-        app, settings = get_test_app_and_settings(repo, writer)
-        event = Event(app, 'test_event')
+        app, settings = get_test_app_and_settings(repo)
+        event = Event.load(app, 'test_event', writer)
         self.assertEqual(event.config, {'title': 'Test event'})
         self.assertEqual(event.routes, [])
 
-    def test_init_with_routes(self):
+    def test_load_with_routes(self):
         repo = self.useFixture(TempRepoFixture()).repo
         writer = TreeWriter(repo)
         writer.set_data('events/test_event/data.yaml', '{}'.encode())
         writer.set_data('events/test_event/routes', b'\x91\x81\xa6points\x90')
         writer.commit('add test_event')
 
-        app, settings = get_test_app_and_settings(repo, writer)
-        event = Event(app, 'test_event')
+        app, settings = get_test_app_and_settings(repo)
+        event = Event.load(app, 'test_event', writer)
         self.assertEqual(event.routes, [{'points': []}])
 
     def test_save(self):
         repo = self.useFixture(TempRepoFixture()).repo
         writer = TreeWriter(repo)
-        writer.set_data('events/test_event/data.yaml', '{}'.encode())
-        writer.commit('add test_event')
 
-        app, settings = get_test_app_and_settings(repo, writer)
-        event = Event(app, 'test_event')
-        event.config['title'] = 'Test event'
-        event.routes.append({'points': []})
+        app, settings = get_test_app_and_settings(repo)
+        event = Event(app, 'test_event', {'title': 'Test event'}, [{'points': []}])
         event.save('save test_event', tree_writer=writer)
 
         self.assertEqual(writer.get('events/test_event/data.yaml').data.decode(), '{title: Test event}\n')
@@ -72,8 +68,8 @@ class TestEvents(fixtures.TestWithFixtures):
         writer.set_data('events/test_event/routes', b'\x91\x81\xa6points\x90')
         writer.commit('add test_event')
 
-        app, settings = get_test_app_and_settings(repo, writer)
-        event = Event(app, 'test_event')
+        app, settings = get_test_app_and_settings(repo)
+        event = Event.load(app, 'test_event', writer)
         event.routes.pop()
         event.save('save test_event', tree_writer=writer)
 
@@ -82,11 +78,9 @@ class TestEvents(fixtures.TestWithFixtures):
     def test_save_no_routes_before_and_after(self):
         repo = self.useFixture(TempRepoFixture()).repo
         writer = TreeWriter(repo)
-        writer.set_data('events/test_event/data.yaml', '{}'.encode())
-        writer.commit('add test_event')
 
-        app, settings = get_test_app_and_settings(repo, writer)
-        event = Event(app, 'test_event')
+        app, settings = get_test_app_and_settings(repo)
+        event = Event(app, 'test_event', {'title': 'Test event'}, [])
         event.save('save test_event', tree_writer=writer)
 
         self.assertFalse(writer.exists('events/test_event/routes'))
@@ -106,7 +100,7 @@ class TestEventWithMockTracker(fixtures.TestWithFixtures):
             tracker.completed.set_result(None)
             return tracker
 
-        app, settings = get_test_app_and_settings(repo, writer)
+        app, settings = get_test_app_and_settings(repo)
         app['start_event_trackers'] = {
             'mock': start_mock_event_tracker
         }
@@ -122,7 +116,7 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
                 tracker: {type: mock}
         ''')
 
-        event = Event(app, 'test_event')
+        event = Event.load(app, 'test_event', writer)
         await event.start_trackers(app)
 
         self.assertEqual(event.rider_trackers['foo'].name, 'indexed_and_hashed.mock_tracker')
@@ -138,7 +132,7 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
                 tracker: {type: mock}
         ''')
 
-        event = Event(app, 'test_event')
+        event = Event.load(app, 'test_event', writer)
         await event.start_trackers(app)
 
         self.assertEqual(event.rider_trackers['foo'].name, 'indexed_and_hashed.analysed.mock_tracker')
@@ -154,7 +148,7 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
                 tracker: {type: mock}
         ''')
 
-        event = Event(app, 'test_event')
+        event = Event.load(app, 'test_event', writer)
         await event.start_trackers(app)
 
         self.assertEqual(event.rider_trackers['foo'].name, 'indexed_and_hashed.replay.mock_tracker')
@@ -168,7 +162,7 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
                 tracker: null
         ''')
 
-        event = Event(app, 'test_event')
+        event = Event.load(app, 'test_event', writer)
         await event.start_trackers(app)
 
         self.assertEqual(len(event.rider_trackers), 0)

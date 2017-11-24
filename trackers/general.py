@@ -10,6 +10,7 @@ from datetime import datetime
 import msgpack
 
 from trackers.base import Tracker
+from trackers.dulwich_helpers import TreeReader
 
 
 def json_encode(obj):
@@ -23,8 +24,8 @@ json_dumps = functools.partial(json.dumps, default=json_encode, sort_keys=True)
 async def static_start_event_tracker(app, event, rider_name, tracker_data):
     tracker = Tracker('static.{}'.format(tracker_data['name']))
     tracker.completed = asyncio.Future()
-    path = os.path.join(event.base_path, tracker_data['name'])
-    data = event.tree_reader.get(path).data
+    path = os.path.join('events', event.name, tracker_data['name'])
+    data = TreeReader(app['trackers.data_repo']).get(path).data
     points = {
         'json': lambda data: json.loads(data.decode()),
         'msgpack': lambda data: msgpack.loads(data, encoding='utf-8')
