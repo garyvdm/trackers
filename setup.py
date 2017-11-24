@@ -21,6 +21,9 @@ setuptools.setup(
         'polyline',
         'python-slugify',
         'pyyaml',
+        'selenium',
+        'testresources',
+        'testscenarios',
         'uvloop',
     ],
     entry_points={
