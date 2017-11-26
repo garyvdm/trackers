@@ -18,9 +18,13 @@ logger = logging.getLogger(__name__)
 def load_events(app, settings):
     app['trackers.events'] = events = {}
 
-    tree_reader = TreeReader(app['trackers.data_repo'])
-    for name in tree_reader.tree_items('events'):
-        events[name] = Event.load(app, name, tree_reader)
+    try:
+        tree_reader = TreeReader(app['trackers.data_repo'])
+    except KeyError:
+        pass
+    else:
+        for name in tree_reader.tree_items('events'):
+            events[name] = Event.load(app, name, tree_reader)
 
 
 def hash_bytes(b):

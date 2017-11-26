@@ -1,4 +1,6 @@
+import tempfile
 import unittest
+from contextlib import contextmanager
 
 import fixtures
 from dulwich.repo import Repo
@@ -18,9 +20,18 @@ class TempRepoFixture(fixtures.TempDir):
         self.addCleanup(self.repo.close)
 
 
+@contextmanager
+def temp_repo():
+    with tempfile.TemporaryDirectory() as path:
+        yield Repo.init_bare(path)
+
+
 def get_test_app_and_settings(repo):
     settings = {}
     app = {}
     app['trackers.settings'] = settings
     app['trackers.data_repo'] = repo
     return app, settings
+
+
+TEST_GOOGLE_API_KEY = 'AIzaSyCDXMpphQfDX44Zqmfzx9qpKJ0bs5NnQ_w'

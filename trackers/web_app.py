@@ -15,7 +15,6 @@ from slugify import slugify
 
 import trackers.bin_utils
 import trackers.events
-import trackers.modules
 from trackers.analyse import start_analyse_tracker
 from trackers.base import cancel_and_wait_task, list_register
 from trackers.general import json_dumps
@@ -27,8 +26,22 @@ immutable_cache_control = 'public,max-age=31536000,immutable'
 mutable_cache_control = 'public'
 
 
-async def make_aio_app(loop, settings):
-    app = web.Application(loop=loop)
+async def client_error_logger(request):
+    body = await request.text()
+    body = body[:1024 * 1024]  # limit to 1kb
+    agent = request.headers.get('User-Agent', '')
+    peername = request.transport.get_extra_info('peername')
+    forwared_for = request.headers.get('X-Forwarded-For')
+    client = forwared_for or (peername[0] if peername else '')
+    logger.error('\n'.join((body, agent, client)))
+    return web.Response()
+
+
+async def make_aio_app(settings,
+                       app_setup=trackers.bin_utils.app_setup,
+                       client_error_handler=client_error_logger,
+                       exception_recorder=lambda: None):
+    app = web.Application()
     app.on_shutdown.append(shutdown)
 
     app['trackers.settings'] = settings
@@ -36,6 +49,7 @@ async def make_aio_app(loop, settings):
     app['trackers.ws_sessions'] = []
     static_urls = {}
     app['trackers.individual_trackers'] = {}
+    app['exception_recorder'] = exception_recorder
 
     def page_body_processor(app, body, related_resources, hash_key):
         hash = hashlib.sha1(body)
@@ -91,9 +105,9 @@ async def make_aio_app(loop, settings):
 
     app.router.add_route('GET', '/{event}/set_start', handler=event_set_start, name='event_set_start')
 
-    app.router.add_route('POST', '/client_error', handler=client_error_logger, name='client_error_logger')
+    app.router.add_route('POST', '/client_error', handler=client_error_handler, name='client_error')
 
-    app['trackers.app_setup_cm'] = app_setup_cm = await trackers.bin_utils.app_setup(app, settings)
+    app['trackers.app_setup_cm'] = app_setup_cm = await app_setup(app, settings)
     await app_setup_cm.__aenter__()
 
     trackers.events.load_events(app, settings)
@@ -109,7 +123,7 @@ async def shutdown(app):
                        message='Server shutdown')
 
     for event in app['trackers.events'].values():
-        await event.stop_trackers()
+        await event.stop_and_complete_trackers()
 
     await app['trackers.app_setup_cm'].__aexit__(None, None, None)
 
@@ -175,6 +189,7 @@ def say_error_handler(func):
         except web.HTTPError:
             raise
         except Exception as e:
+            request.app['exception_recorder']()
             logger.exception('')
             message = getattr(e, 'message', None)
             if not message:
@@ -296,7 +311,7 @@ async def event_ws(request):
                 send(get_event_state(event))
                 for rider_name, tracker_block_list in event.rider_trackers_blocked_list.items():
                     exit_stack.enter_context(list_register(tracker_block_list.new_update_callbacks,
-                                                           partial(tracker_updates_to_ws, send, rider_name)))
+                                                           partial(tracker_updates_to_ws, request.app, send, rider_name)))
 
             async for msg in ws:
                 if msg.tp == WSMsgType.text:
@@ -311,27 +326,18 @@ async def event_ws(request):
             return ws
 
         except Exception as e:
+            request.app['exception_recorder']()
             await ws.close(message='Server Error: {}'.format(e))
             raise
 
 
-async def tracker_updates_to_ws(ws_send, rider_name, update):
+async def tracker_updates_to_ws(app, ws_send, rider_name, update):
     try:
         if update:
             ws_send({'riders_points': {rider_name: update}})
     except Exception:
+        app['exception_recorder']()
         logger.exception('Error in tracker_new_points_to_ws:')
-
-
-async def client_error_logger(request):
-    body = await request.text()
-    body = body[:1024 * 1024]  # limit to 1kb
-    agent = request.headers.get('User-Agent', '')
-    peername = request.transport.get_extra_info('peername')
-    forwared_for = request.headers.get('X-Forwarded-For')
-    client = forwared_for or (peername[0] if peername else '')
-    logger.error('\n'.join((body, agent, client)))
-    return web.Response()
 
 
 async def event_set_start(request):
@@ -396,9 +402,9 @@ async def individual_ws(get_key, get_tracker, request):
                         last_index = client_point_indexes
                         new_points = tracker.points[last_index:]
                         if new_points:
-                            await individual_tracker_new_points_to_ws(send, tracker, new_points)
+                            await individual_tracker_new_points_to_ws(request.app, send, tracker, new_points)
                         exit_stack.enter_context(list_register(tracker.new_points_callbacks,
-                                                               partial(individual_tracker_new_points_to_ws, send)))
+                                                               partial(individual_tracker_new_points_to_ws, request.app, send)))
 
                 if msg.tp == WSMsgType.close:
                     await ws.close()
@@ -406,6 +412,7 @@ async def individual_ws(get_key, get_tracker, request):
                     raise ws.exception()
             return ws
     except Exception as e:
+        request.app['exception_recorder']()
         ws.send_str(json_dumps({'error': 'Error getting tracker: {}'.format(e)}))
         logger.exception('')
         await ws.close(message='Server Error')
@@ -430,7 +437,7 @@ async def individual_discard_tracker(app, tracker_info):
         del app['trackers.individual_trackers'][tracker_info['key']]
 
 
-async def individual_tracker_new_points_to_ws(ws_send, tracker, new_points):
+async def individual_tracker_new_points_to_ws(app, ws_send, tracker, new_points):
     try:
         for points in chunked(new_points, 100):
             if len(points) > 50:
@@ -442,4 +449,5 @@ async def individual_tracker_new_points_to_ws(ws_send, tracker, new_points):
             ws_send({'points': compressed_points})
 
     except Exception:
+        app['exception_recorder']()
         logger.exception('Error in individual_tracker_new_points_to_ws:')
