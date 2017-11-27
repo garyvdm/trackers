@@ -1,3 +1,16 @@
+if (location.hash == '#post_results') {
+    QUnit.done( function(details) {
+        var request = new XMLHttpRequest();
+        request.open("POST", '/results', true);
+        request.send(JSON.stringify(details));
+    } );
+    QUnit.testDone( function(details) {
+        var request = new XMLHttpRequest();
+        request.open("POST", '/log', true);
+        request.send(JSON.stringify(details));
+    } );
+}
+
 QUnit.test( 'format_time_delta', function( assert ) {
     assert.equal(
         format_time_delta(1000000),

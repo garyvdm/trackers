@@ -22,6 +22,7 @@ setuptools.setup(
         'polyline',
         'python-slugify',
         'pyyaml',
+        'tap.py',
         'testresources',
         'testscenarios',
         'uvloop',

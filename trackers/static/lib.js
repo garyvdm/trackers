@@ -1,4 +1,4 @@
-function format_time_delta(seconds, show_days=false){
+function format_time_delta(seconds, show_days) {
     if (show_days) {
         return sprintf('%id %02i:%02i:%02i',
             Math.floor(seconds / 60 / 60 / 24), /* days */

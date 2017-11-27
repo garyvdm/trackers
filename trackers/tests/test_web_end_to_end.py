@@ -1,11 +1,9 @@
 import asyncio
-import socket
 import sys
 import unittest
 
 import arsenic
 import asynctest
-import structlog
 import testresources
 import testscenarios
 import yaml
@@ -14,21 +12,13 @@ from aiohttp import web
 
 from trackers.async_exit_stack import AsyncExitStack
 from trackers.events import Event
-from trackers.tests import temp_repo, TEST_GOOGLE_API_KEY
+from trackers.tests import temp_repo, TEST_GOOGLE_API_KEY, web_server_fixture
 from trackers.web_app import make_aio_app
 
 
 def load_tests(loader, tests, pattern):
     scenarios = testscenarios.generate_scenarios(tests)
     return testresources.OptimisingTestSuite(scenarios)
-
-
-# To make arsenic quite
-def dropper(logger, method_name, event_dict):
-    raise structlog.DropEvent
-
-
-structlog.configure(processors=[dropper])
 
 
 class WebDriverService(testresources.TestResourceManager):
@@ -46,23 +36,10 @@ class WebDriverService(testresources.TestResourceManager):
         loop.run_until_complete(driver.close())
 
 
-def free_port():
-    """
-    Determines a free port using sockets.
-    """
-    free_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    free_socket.bind(('0.0.0.0', 0))
-    free_socket.listen(5)
-    port = free_socket.getsockname()[1]
-    free_socket.close()
-    return port
-
-
 @async_contextmanager
-async def web_server_fixture(loop):
+async def tracker_web_server_fixture(loop, app):
 
     with temp_repo() as repo:
-        # This kind of should be a fixtures.Fixture, but it needs to be async, so it's an async_contextmanager instead.
         settings = {
             'data_path': repo.path,
             'google_api_key': TEST_GOOGLE_API_KEY,
@@ -92,17 +69,8 @@ async def web_server_fixture(loop):
 
         app = await make_aio_app(settings, app_setup=mock_app_setup, client_error_handler=client_error,
                                  exception_recorder=exception_recorder)
-        handler = app.make_handler(debug=True)
-        port = free_port()
-        srv = await loop.create_server(handler, '127.0.0.1', port)
-        try:
-            yield app, f'http://127.0.0.1:{port}', client_errors, server_errors
-        finally:
-            srv.close()
-            await srv.wait_closed()
-            await app.shutdown()
-            await handler.shutdown(10)
-            await app.cleanup()
+        with web_server_fixture(loop, app) as url:
+            yield app, url, client_errors, server_errors
 
 
 class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
@@ -138,7 +106,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
     @unittest.expectedFailure
     async def test(self):
 
-        async with web_server_fixture(self.loop) as (app, url, client_errors, server_errors):
+        async with tracker_web_server_fixture(self.loop) as (app, url, client_errors, server_errors):
             app['trackers.events']['test_event'] = Event(
                 app, 'test_event',
                 yaml.load("""
