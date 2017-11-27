@@ -1,14 +1,16 @@
+import asyncio
+import socket
 import sys
 import unittest
 
+import arsenic
 import asynctest
+import structlog
 import testresources
 import testscenarios
 import yaml
 from aiocontext import async_contextmanager
 from aiohttp import web
-from selenium import webdriver
-from selenium.webdriver.common.utils import free_port
 
 from trackers.async_exit_stack import AsyncExitStack
 from trackers.events import Event
@@ -21,27 +23,39 @@ def load_tests(loader, tests, pattern):
     return testresources.OptimisingTestSuite(scenarios)
 
 
-class WebDriverResource(testresources.TestResourceManager):
+# To make arsenic quite
+def dropper(logger, method_name, event_dict):
+    raise structlog.DropEvent
 
-    def __init__(self, driver_cls, *args, **kwargs):
+
+structlog.configure(processors=[dropper])
+
+
+class WebDriverService(testresources.TestResourceManager):
+
+    def __init__(self, service):
         super().__init__()
-        self.driver_cls = driver_cls
-        self.args = args
-        self.kwargs = kwargs
+        self.service = service
 
     def make(self, dependency_resources):
-        return self.driver_cls(*self.args, **self.kwargs)
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(self.service.start())
 
     def clean(self, driver):
-        driver.quit()
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(driver.close())
 
-    def _reset(self, driver, dependency_resources):
-        driver.get('about:blank')
-        driver.delete_all_cookies()
-        return driver
 
-    def isDirty(self):
-        return True
+def free_port():
+    """
+    Determines a free port using sockets.
+    """
+    free_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    free_socket.bind(('0.0.0.0', 0))
+    free_socket.listen(5)
+    port = free_socket.getsockname()[1]
+    free_socket.close()
+    return port
 
 
 @async_contextmanager
@@ -66,7 +80,7 @@ async def web_server_fixture(loop):
 
         async def client_error(request):
             body = await request.text()
-            sys.stderr.write(body)
+            sys.stderr.write(body + '\n')
             client_errors.append(body)
             return web.Response()
 
@@ -92,11 +106,21 @@ async def web_server_fixture(loop):
 
 
 class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
+    use_default_loop = True
 
     scenarios = [
-        ('phantomjs', dict(driver_resource_manager=WebDriverResource(webdriver.PhantomJS, service_log_path='/dev/null'))),
-        # ('firefox', dict(driver_resource_manager=WebDriverResource(webdriver.Firefox, log_path='/dev/null'))),
-        # ('chrome', dict(driver_resource_manager=WebDriverResource(webdriver.Chrome))),
+        ('phantomjs', dict(
+            driver_resource_manager=WebDriverService(arsenic.services.PhantomJS(log_file=arsenic.services.DEVNULL)),
+            browser=arsenic.browsers.PhantomJS(),
+        )),
+        # ('firefox', dict(
+        #     driver_resource_manager=WebDriverService(arsenic.services.Geckodriver(log_file=arsenic.services.DEVNULL)),
+        #     browser=arsenic.browsers.Firefox(),
+        # )),
+        # ('chrome', dict(
+        #     driver_resource_manager=WebDriverService(arsenic.services.Chromedriver(log_file=arsenic.services.DEVNULL)),
+        #     browser=arsenic.browsers.Chrome(),
+        # )),
     ]
 
     @property
@@ -127,7 +151,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
                 []
             )
 
-            driver = self.driver
-            await self.loop.run_in_executor(None, driver.get, f'{url}/test_event')
+            async with self.driver.session(self.browser) as session:
+                await session.get(f'{url}/test_event')
 
         self.check_no_errors(client_errors, server_errors)

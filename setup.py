@@ -8,6 +8,7 @@ setuptools.setup(
     install_requires=[
         'aiohttp>=2.0',
         'aniso8601',
+        'arsenic',
         'asyncio-contextmanager',
         'asynctest',
         'attrs',
@@ -21,7 +22,6 @@ setuptools.setup(
         'polyline',
         'python-slugify',
         'pyyaml',
-        'selenium',
         'testresources',
         'testscenarios',
         'uvloop',
