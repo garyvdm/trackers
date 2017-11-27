@@ -7,6 +7,7 @@ setuptools.setup(
     include_package_data=True,
     install_requires=[
         'aiohttp>=2.0',
+        'aionotify',
         'aniso8601',
         'arsenic',
         'asyncio-contextmanager',
@@ -35,6 +36,7 @@ setuptools.setup(
             'add_gpx_to_event_routes=trackers.bin_utils:add_gpx_to_event_routes',
             'reformat_event=trackers.bin_utils:reformat_event',
             'process_event_routes=trackers.bin_utils:process_event_routes',
+            'run_qunit_tests=trackers.qunit_runner:main',
         ],
     },
     test_suite='trackers.tests.suite',
