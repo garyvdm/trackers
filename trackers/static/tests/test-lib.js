@@ -3,6 +3,11 @@ if (location.hash == '#post_results') {
         var request = new XMLHttpRequest();
         request.open("POST", '/results', true);
         request.send(JSON.stringify(details));
+        if (window.__coverage__) {
+            var request = new XMLHttpRequest();
+            request.open("POST", '/coverage', true);
+            request.send(JSON.stringify(window.__coverage__));
+        }
     } );
     QUnit.testDone( function(details) {
         var request = new XMLHttpRequest();

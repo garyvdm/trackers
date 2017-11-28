@@ -36,7 +36,7 @@ setuptools.setup(
             'add_gpx_to_event_routes=trackers.bin_utils:add_gpx_to_event_routes',
             'reformat_event=trackers.bin_utils:reformat_event',
             'process_event_routes=trackers.bin_utils:process_event_routes',
-            'run_qunit_tests=trackers.qunit_runner:main',
+            'run_qunit_tests=trackers.client_test_tools:qunit_runner',
         ],
     },
     test_suite='trackers.tests.suite',
