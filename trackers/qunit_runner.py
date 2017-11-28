@@ -16,6 +16,7 @@ from aiocontext import async_contextmanager
 from aiohttp import web
 
 from trackers.tests import web_server_fixture
+from trackers.web_app import convert_client_urls_to_paths
 
 
 log = logging.getLogger(__name__)
@@ -67,8 +68,10 @@ async def main_async(args, loop):
 
     async def receive_log(request):
         result = json.loads(await request.text())
+        if 'source' in result:
+            result['source'] = literal_str(convert_client_urls_to_paths(static_path, result['source']).strip().strip('@').strip('\n'))
         outfile = sys.stderr if result['failed'] else sys.stdout
-        yaml.dump(result, outfile)
+        yaml.dump(result, outfile, default_flow_style=False, Dumper=DumperWithLiteral)
         outfile.write('---\n')
         return web.Response(text='Thanks browser.')
 
@@ -106,3 +109,18 @@ async def main_async(args, loop):
                             get_watcher_event.cancel()
                             with suppress(asyncio.CancelledError):
                                 await get_watcher_event
+
+
+class literal_str(str):
+    pass
+
+
+def literal_str_representer(dumper, data):
+    return dumper.represent_scalar(u'tag:yaml.org,2002:str', data, style='|')
+
+
+class DumperWithLiteral(yaml.Dumper):
+    pass
+
+
+DumperWithLiteral.add_representer(literal_str, literal_str_representer)

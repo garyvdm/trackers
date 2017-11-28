@@ -62,7 +62,7 @@ def main():
 
 async def serve(loop, settings):
 
-    app = await trackers.web_app.make_aio_app(loop, settings)
+    app = await trackers.web_app.make_aio_app(settings)
 
     if settings['debugtoolbar']:
         try:

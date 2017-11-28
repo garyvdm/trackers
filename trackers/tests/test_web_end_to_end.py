@@ -4,6 +4,7 @@ import unittest
 
 import arsenic
 import asynctest
+import pkg_resources
 import testresources
 import testscenarios
 import yaml
@@ -13,7 +14,7 @@ from aiohttp import web
 from trackers.async_exit_stack import AsyncExitStack
 from trackers.events import Event
 from trackers.tests import temp_repo, TEST_GOOGLE_API_KEY, web_server_fixture
-from trackers.web_app import make_aio_app
+from trackers.web_app import convert_client_urls_to_paths, make_aio_app
 
 
 def load_tests(loader, tests, pattern):
@@ -37,7 +38,7 @@ class WebDriverService(testresources.TestResourceManager):
 
 
 @async_contextmanager
-async def tracker_web_server_fixture(loop, app):
+async def tracker_web_server_fixture(loop):
 
     with temp_repo() as repo:
         settings = {
@@ -55,8 +56,11 @@ async def tracker_web_server_fixture(loop, app):
 
         client_errors = []
 
+        static_path = pkg_resources.resource_filename('trackers', '/static')
+
         async def client_error(request):
             body = await request.text()
+            body = convert_client_urls_to_paths(static_path, body)
             sys.stderr.write(body + '\n')
             client_errors.append(body)
             return web.Response()
@@ -69,7 +73,7 @@ async def tracker_web_server_fixture(loop, app):
 
         app = await make_aio_app(settings, app_setup=mock_app_setup, client_error_handler=client_error,
                                  exception_recorder=exception_recorder)
-        with web_server_fixture(loop, app) as url:
+        async with web_server_fixture(loop, app) as url:
             yield app, url, client_errors, server_errors
 
 

@@ -5,6 +5,7 @@ import datetime
 import hashlib
 import json
 import logging
+import re
 from functools import partial, wraps
 
 import magic
@@ -28,6 +29,8 @@ mutable_cache_control = 'public'
 
 async def client_error_logger(request):
     body = await request.text()
+    static_path = pkg_resources.resource_filename('trackers', '/static')
+    body = convert_client_urls_to_paths(static_path, body)
     body = body[:1024 * 1024]  # limit to 1kb
     agent = request.headers.get('User-Agent', '')
     peername = request.transport.get_extra_info('peername')
@@ -451,3 +454,10 @@ async def individual_tracker_new_points_to_ws(app, ws_send, tracker, new_points)
     except Exception:
         app['exception_recorder']()
         logger.exception('Error in individual_tracker_new_points_to_ws:')
+
+
+client_url_re = re.compile('https?://.*?/static/(?P<path>.*?)(\?hash=.*?)?(?P<term>[:\s])')
+
+
+def convert_client_urls_to_paths(static_path, s):
+    return client_url_re.sub(f'\n{static_path}/\g<path>\g<term>', s)
