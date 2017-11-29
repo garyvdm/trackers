@@ -81,11 +81,17 @@ async def qunit_runner_async(args, loop):
         app.router.add_static('/static', static_path)
 
         async def receive_log(request):
-            result = json.loads(await request.text())
-            if 'source' in result:
-                result['source'] = literal_str(convert_client_urls_to_paths(static_path, result['source']).strip().strip('@').strip('\n'))
-            outfile = sys.stderr if result['failed'] else sys.stdout
-            yaml.dump(result, outfile, default_flow_style=False, Dumper=DumperWithLiteral)
+            text = await request.text()
+            try:
+                result = json.loads(text)
+            except json.JSONDecodeError:
+                outfile = sys.stderr
+                outfile.write(text)
+            else:
+                if isinstance(result, dict) and 'source' in result:
+                    result['source'] = literal_str(convert_client_urls_to_paths(static_path, result['source']).strip().strip('@').strip('\n'))
+                outfile = sys.stderr if isinstance(result, dict) and result.get('failed') else sys.stdout
+                yaml.dump(result, outfile, default_flow_style=False, Dumper=DumperWithLiteral)
             outfile.write('---\n')
             return web.Response(text='Thanks browser.')
 

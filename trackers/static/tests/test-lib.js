@@ -14,7 +14,18 @@ if (location.hash == '#post_results') {
         request.open("POST", '/log', true);
         request.send(JSON.stringify(details));
     } );
+    function log(msg){
+        console.log(msg);
+        var request = new XMLHttpRequest();
+        request.open("POST", '/log', true);
+        request.send(JSON.stringify(msg));
+    }
+} else {
+    log = console.log
 }
+
+
+QUnit.module( "lib" );
 
 QUnit.test( 'format_time_delta', function( assert ) {
     assert.equal(
@@ -29,3 +40,5 @@ QUnit.test( 'format_time_delta show_days', function( assert ) {
         '11d 13:46:40'
     );
 });
+
+
