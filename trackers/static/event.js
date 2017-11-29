@@ -4,38 +4,6 @@ Array.prototype.extend = function (other_array) {
     other_array.forEach(function(v) {this.push(v)}, this);
 }
 
-
-var status_element = document.getElementById('status');
-var status_msg = '';
-var errors = [];
-var time_offset = 0;
-
-function update_status(){
-    var text = errors.slice(-4).concat([status_msg]).join('<br>');
-    status_element.innerHTML = text;
-}
-
-function set_status(status){
-    status_msg = status;
-    update_status();
-}
-
-window.onerror = function (messageOrEvent, source, lineno, colno, error){{
-    errors.push(messageOrEvent);
-    update_status();
-    var full_error_message = messageOrEvent + '\n' + (error? error.stack: source + ':' + lineno + ':' + colno)
-    log_to_server(full_error_message);
-    return false;
-}}
-
-function log_to_server(message) {
-    setTimeout(function () {{
-        var request = new XMLHttpRequest();
-        request.open("POST", '/client_error', true);
-        request.send(message);
-    }}, 100);
-}
-
 var main_el = document.getElementById('main');
 var mobile_selectors = document.getElementById('mobile_select').querySelectorAll('div');
 var mobile_selected;
@@ -59,6 +27,8 @@ var elevation_chart;
 var ws;
 var close_reason;
 var reconnect_time = 1000;
+
+var time_offset = 0;
 
 var loader_html = '<span class="l1"></span><span class="l2"></span><span class="l3"></span> '
 

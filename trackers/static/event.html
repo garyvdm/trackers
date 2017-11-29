@@ -4,36 +4,6 @@
     <title>Event Tracker</title>
     <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
     <link rel="stylesheet" type="text/css" href="{static_urls[static-event-css]}">
-    <script>
-        window.onerror = function (messageOrEvent, source, lineno, colno, error){{
-            var status = document.getElementById('status');
-            if (status) {{
-              status.innerText = messageOrEvent;
-            }} else {{
-              document.addEventListener('DOMContentLoaded', function() {{
-                document.getElementById('status').innerText = messageOrEvent;
-              }});
-            }}
-            var full_error_message = messageOrEvent + '\n' + (error? error.stack: source + ':' + lineno + ':' + colno)
-            setTimeout(function () {{
-                var request = new XMLHttpRequest();
-                request.open("POST", '/client_error', true);
-                request.send(full_error_message);
-            }}, 100);
-
-            return false;
-        }}
-        var client_hash = '{client_hash}';
-    </script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/es5-shim/4.5.9/es5-shim.min.js"></script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/es6-shim/0.35.3/es6-shim.min.js"></script>
-    <script defer src="{static_urls[static-es7-shim-min-js]}"></script>
-    <script defer src="https://maps.googleapis.com/maps/api/js?v=3&key={api_key}"></script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/sprintf/1.0.3/sprintf.min.js"></script>
-    <script defer src="{static_urls[static-richmarker-js]}"></script>
-    <script defer src="{static_urls[static-highcharts-js]}"></script>
-    <script defer src="{static_urls[static-lib-js]}"></script>
-    <script defer src="{static_urls[static-event-js]}"></script>
   </head>
   <body>
     <div id="foo">
@@ -57,6 +27,48 @@
         <div id="elevation"></div>
       </div>
     </div>
+    <script>
+        var client_hash = '{client_hash}';
+
+        var status_element = document.getElementById('status');
+        var status_msg = '';
+        var errors = [];
+
+        function update_status(){{
+            var text = errors.slice(-1).concat([status_msg]).join('<br>');
+            status_element.innerHTML = text;
+        }}
+
+        function set_status(status){{
+            status_msg = status;
+            update_status();
+        }}
+
+        window.onerror = function (messageOrEvent, source, lineno, colno, error){{
+            errors.push(messageOrEvent);
+            update_status();
+            var full_error_message = messageOrEvent + '\n' + (error? error.stack: source + ':' + lineno + ':' + colno)
+            log_to_server(full_error_message);
+            return false;
+        }}
+
+        function log_to_server(message) {{
+            setTimeout(function () {{
+                var request = new XMLHttpRequest();
+                request.open("POST", '/client_error', true);
+                request.send(message);
+            }}, 100);
+        }}
+    </script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/es5-shim/4.5.9/es5-shim.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/es6-shim/0.35.3/es6-shim.min.js"></script>
+    <script defer src="{static_urls[static-es7-shim-min-js]}"></script>
+    <script defer src="https://maps.googleapis.com/maps/api/js?v=3&key={api_key}"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/sprintf/1.0.3/sprintf.min.js"></script>
+    <script defer src="{static_urls[static-richmarker-js]}"></script>
+    <script defer src="{static_urls[static-highcharts-js]}"></script>
+    <script defer src="{static_urls[static-lib-js]}"></script>
+    <script defer src="{static_urls[static-event-js]}"></script>
   </body>
 </html>
 
