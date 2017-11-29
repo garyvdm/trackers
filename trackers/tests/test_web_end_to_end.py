@@ -1,6 +1,6 @@
 import asyncio
 import sys
-import unittest
+import traceback
 
 import arsenic
 import asynctest
@@ -70,6 +70,7 @@ async def tracker_web_server_fixture(loop):
         def exception_recorder():
             exc_info = sys.exc_info()
             server_errors.append(exc_info)
+            traceback.print_exception(*exc_info)
 
         app = await make_aio_app(settings, app_setup=mock_app_setup, client_error_handler=client_error,
                                  exception_recorder=exception_recorder)
@@ -107,7 +108,6 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
         if server_errors:
             self.fail('There were server errors.')
 
-    @unittest.expectedFailure
     async def test(self):
 
         async with tracker_web_server_fixture(self.loop) as (app, url, client_errors, server_errors):
@@ -119,6 +119,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
                     riders:
                         - name: Foo Bar
                           tracker: null
+                    markers: []
                 """),
                 []
             )

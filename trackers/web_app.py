@@ -326,12 +326,14 @@ async def event_ws(request):
                     await ws.close()
                 if msg.tp == WSMsgType.error:
                     raise ws.exception()
-            return ws
-
+        except asyncio.CancelledError:
+            pass
         except Exception as e:
             request.app['exception_recorder']()
             await ws.close(message='Server Error: {}'.format(e))
             raise
+        finally:
+            return ws
 
 
 async def tracker_updates_to_ws(app, ws_send, rider_name, update):
