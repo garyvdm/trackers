@@ -13,7 +13,7 @@ from aiohttp import web
 
 from trackers.async_exit_stack import AsyncExitStack
 from trackers.events import Event
-from trackers.tests import temp_repo, TEST_GOOGLE_API_KEY, web_server_fixture
+from trackers.tests import free_port, temp_repo, TEST_GOOGLE_API_KEY, web_server_fixture
 from trackers.web_app import convert_client_urls_to_paths, make_aio_app
 
 
@@ -38,7 +38,7 @@ class WebDriverService(testresources.TestResourceManager):
 
 
 @async_contextmanager
-async def tracker_web_server_fixture(loop):
+async def tracker_web_server_fixture(loop, port=None):
 
     with temp_repo() as repo:
         settings = {
@@ -74,8 +74,24 @@ async def tracker_web_server_fixture(loop):
 
         app = await make_aio_app(settings, app_setup=mock_app_setup, client_error_handler=client_error,
                                  exception_recorder=exception_recorder)
-        async with web_server_fixture(loop, app) as url:
+        async with web_server_fixture(loop, app, port) as url:
             yield app, url, client_errors, server_errors
+
+
+def wait_condition(condition, *args, delay=0.1, timeout=1, **kwargs):
+    async def wait_condition_inner():
+        while True:
+            result = await condition(*args, **kwargs)
+            if result:
+                return
+            await asyncio.sleep(delay)
+
+    return asyncio.wait_for(wait_condition_inner(), timeout)
+
+
+async def ws_ready_is(session, expected_state):
+    ready = await session.execute_script('return ws && ws.readyState == 1;')
+    return bool(ready) == expected_state
 
 
 class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
@@ -108,23 +124,43 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
         if server_errors:
             self.fail('There were server errors.')
 
-    async def test(self):
+    async def test_live_reconnect(self):
 
-        async with tracker_web_server_fixture(self.loop) as (app, url, client_errors, server_errors):
-            app['trackers.events']['test_event'] = Event(
-                app, 'test_event',
-                yaml.load("""
-                    title: Test Event
-                    live: True
-                    riders:
-                        - name: Foo Bar
-                          tracker: null
-                    markers: []
-                """),
-                []
-            )
+        port = free_port()
 
-            async with self.driver.session(self.browser) as session:
+        async with self.driver.session(self.browser) as session:
+            async with tracker_web_server_fixture(self.loop, port=port) as (app, url, client_errors, server_errors):
+                app['trackers.events']['test_event'] = Event(
+                    app, 'test_event',
+                    yaml.load("""
+                        title: Test Event
+                        live: True
+                        riders:
+                            - name: Foo Bar
+                              tracker: null
+                        markers: []
+                    """),
+                    []
+                )
                 await session.get(f'{url}/test_event')
+                await wait_condition(ws_ready_is, session, True)
+
+            await wait_condition(ws_ready_is, session, False)
+
+            # Bring the server back up, reconnect
+            async with tracker_web_server_fixture(self.loop, port=port) as (app, url, client_errors, server_errors):
+                app['trackers.events']['test_event'] = Event(
+                    app, 'test_event',
+                    yaml.load("""
+                        title: Test Event
+                        live: True
+                        riders:
+                            - name: Foo Bar
+                              tracker: null
+                        markers: []
+                    """),
+                    []
+                )
+                await wait_condition(ws_ready_is, session, True, timeout=10)
 
         self.check_no_errors(client_errors, server_errors)

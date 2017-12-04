@@ -54,9 +54,10 @@ def free_port():
 
 
 @async_contextmanager
-async def web_server_fixture(loop, app):
+async def web_server_fixture(loop, app, port=None):
     handler = app.make_handler(debug=True)
-    port = free_port()
+    if not port:
+        port = free_port()
     srv = await loop.create_server(handler, '127.0.0.1', port)
     try:
         yield f'http://127.0.0.1:{port}'
