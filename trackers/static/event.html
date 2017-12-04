@@ -52,6 +52,12 @@
             return false;
         }}
 
+        function promise_catch(error){{
+            var full_error_message = error + '\n' + (error? error.stack: '')
+            log_to_server(full_error_message);
+            throw error;
+        }}
+
         function log_to_server(message) {{
             setTimeout(function () {{
                 var request = new XMLHttpRequest();
@@ -63,6 +69,7 @@
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/es5-shim/4.5.9/es5-shim.min.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/es6-shim/0.35.3/es6-shim.min.js"></script>
     <script defer src="{static_urls[static-es7-shim-min-js]}"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/fetch/2.0.3/fetch.min.js"></script>
     <script defer src="https://maps.googleapis.com/maps/api/js?v=3&key={api_key}"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/sprintf/1.0.3/sprintf.min.js"></script>
     <script defer src="{static_urls[static-richmarker-js]}"></script>

@@ -1,47 +1,31 @@
 "use strict";
 
-Array.prototype.extend = function (other_array) {
-    other_array.forEach(function(v) {this.push(v)}, this);
-}
-
-var main_el = document.getElementById('main');
-var mobile_selectors = document.getElementById('mobile_select').querySelectorAll('div');
-var mobile_selected;
-
-function apply_mobile_selected(selected){
-    mobile_selected = selected;
-    main_el.className = 'show_' + selected;
-    Array.prototype.forEach.call(mobile_selectors, function (el){
-        el.className = (el.getAttribute('show') == selected?'selected':'')
-    });
-    if (selected=='map') google.maps.event.trigger(map, 'resize');
-}
-Array.prototype.forEach.call(mobile_selectors, function (el){
-    var el_selects = el.getAttribute('show')
-    el.onclick = function(){apply_mobile_selected(el_selects);};
-});
-
-var map;
-var elevation_chart;
-
-var ws;
-var close_reason;
-var reconnect_time = 1000;
-
-var time_offset = 0;
-
 var loader_html = '<span class="l1"></span><span class="l2"></span><span class="l3"></span> '
 
-function get_state(){
-    http_get('state', on_new_state_received_non_ws);
+function get(url) {
+    return fetch(location.pathname + url).then( function(response) { return response.json() }, function(error) { throw error });
 }
 
-function save_state(){
+function load_state(){
+    set_status(loader_html + 'Loading');
+    var new_state = JSON.parse(window.localStorage.getItem(location.pathname))
+    if (!new_state){
+        get_state();
+    } else {
+        on_new_state_received_non_ws(new_state);
+    }
+}
+
+function save_state(state){
     if (state.live) {
         window.localStorage.setItem(location.pathname, JSON.stringify(state));
     } else {
         window.localStorage.removeItem(location.pathname);
     }
+}
+
+function get_state(){
+    get('/state').then(on_new_state_received_non_ws);
 }
 
 function on_new_state_received_non_ws(new_state){
@@ -57,6 +41,17 @@ function on_new_state_received_non_ws(new_state){
     }
 }
 
+var state = {}
+var config;
+var routes = []
+var all_route_points = [];
+
+var event_markers = [];
+var route_paths = [];
+var riders_by_name = {};
+var riders_client_items = {};
+var riders_points = {};
+
 function on_new_state_received(new_state) {
     var need_save = false;
 
@@ -66,143 +61,50 @@ function on_new_state_received(new_state) {
     }
     if (new_state.hasOwnProperty('config_hash') && state.config_hash != new_state.config_hash) {
         state.config_hash = new_state.config_hash;
-        http_get('config?hash=' + state.config_hash, function (new_config){
+        get('/config?hash=' + new_state.config_hash).then(function (new_config){
             config = new_config;
             on_new_config();
-            on_new_routes();
-        });
+            config_loaded.resolve()
+        }).catch(promise_catch);
         need_save = true;
     }
     if (new_state.hasOwnProperty('routes_hash') && state.routes_hash != new_state.routes_hash) {
         state.routes_hash = new_state.routes_hash;
-        http_get('routes?hash=' + state.routes_hash, function (new_routes){
+        get('/routes?hash=' + state.routes_hash).then(function (new_routes){
             routes = new_routes;
             on_new_routes();
-        });
+        }).catch(promise_catch);
         need_save = true;
     }
     if (new_state.hasOwnProperty('riders_points')) {
-        state.riders_points = (state.riders_points || {});
         Object.entries(new_state.riders_points).forEach(function (entry){
             var name = entry[0];
             var update = entry[1];
-            var rider_state = state.riders_points[name] || {};
 
-            if (update.hasOwnProperty('blocks') || update.hasOwnProperty('partial_block')){
-                state.riders_points[name] = rider_state = update;
+            var rider_points = riders_points[name] || [];
+
+            function fetch_block(block) {
+                return get('/rider_points?name=' + name + '&start_index=' + block.start_index +
+                           '&end_index=' + block.end_index + '&end_hash=' + block.end_hash);
             }
-            if (!rider_state.hasOwnProperty('partial_block')) {
-                rider_state.partial_block = [];
-            }
-            if (update.hasOwnProperty('add_block')){
-                rider_state.partial_block.push(update.add_block)
-            }
-            var rider_points = riders_points[name] || (riders_points[name] = []);
-            load_update_list('rider_points?name=' + name, update, rider_points,
-                             on_new_rider_points.bind(null, name));
-        });
-        need_save = true;
-    }
 
-    if (need_save) save_state();
-}
-
-
-function http_get(url, load){
-    var req = new XMLHttpRequest();
-    req.addEventListener("load", function(){
-        if (req.status == 200) {
-            load(JSON.parse(req.responseText));
-        } else {
-            errors.push(req.responseText);
-            update_status();
-        }
-    });
-    req.open("GET", location.pathname + '/' + url);
-    req.send();
-}
-
-var load_update_list_loading = {};
-
-function load_update_list(url, update, list, on_loaded){
-
-    if (load_update_list_loading.hasOwnProperty(url)) {
-        load_update_list_loading[url].push(load_update_list.bind(null, url, update, list, on_loaded));
-        return;
-    } else {
-        load_update_list_loading[url] = [];
-    }
-
-    var start_index = null;
-    var old_items = [];
-    var new_items = [];
-
-    var blocks_to_load = 0;
-    function on_block_loaded() {
-        // TODO show partially loaded data.
-        if (blocks_to_load == 0) {
-            new_items.forEach(function (item) {
-                list[item.index] = item;
-            });
-            if (new_items) {
-                on_loaded(start_index, old_items);
-                load_update_list_loading[url].forEach(function (callback) { callback(); });
-                delete load_update_list_loading[url];
-            }
-        }
-    }
-
-    if (update.hasOwnProperty('blocks') || update.hasOwnProperty('partial_block')) {
-        var blocks = (update.blocks || [] );
-        var partial_block = update.partial_block;
-
-        blocks.some(function (block, block_i) {
-            if (block.end_index >= list.length || block.end_hash != list[block.end_index].hash) {
-                start_index = block.start_index;
-                blocks = blocks.slice(block_i);
-                return true;
-            }
-            return false;
-        });
-
-        if (start_index === null) {
-            blocks = [];
-            partial_block.some( function (item, item_i) {
-                if (item.index >= list.length || item.hash != (list[item.index]?list[item.index].hash:null)) {
-                    start_index = item.index;
-                    partial_block = partial_block.slice(item_i);
-                    return true;
-                }
-            });
-        }
-
-        if (start_index === null) {
-            partial_block = [];
-            start_index = list.length - 1;
-        }
-
-        old_items = list.splice(start_index, list.length);
-        new_items.extend(partial_block);
-
-        blocks_to_load = ( blocks ? blocks.length : 0 );
-        blocks.forEach(function (block) {
-            var block_url = url + '&start_index=' + block.start_index + '&end_index=' + block.end_index + '&end_hash=' + block.end_hash;
-            http_get(block_url, function (block_items){
-                blocks_to_load --;
-                new_items.extend(block_items);
-                on_block_loaded();
+            process_update_list(fetch_block, rider_points, update).then(function (rider_points) {
+                riders_points[name] = rider_points.new_list;
+                on_new_rider_points(name, rider_points.new_list, rider_points.new_items, rider_points.old_items);
             });
         });
 
-    } else {
-        start_index = list.length - 1;
     }
-    if (update.hasOwnProperty('add_block')) {
-        new_items.extend(update.add_block);
-    }
-    on_block_loaded();
+
+    if (need_save) save_state(state);
 }
 
+
+var ws;
+var close_reason;
+var reconnect_time = 1000;
+
+var time_offset = 0;
 
 var ws_connection_wanted = false;
 
@@ -246,7 +148,6 @@ function ws_onclose(event) {
         set_status(event.reason);
     } else {
         close_reason = '<span style="color: red; font-weight: bold;">X</span> Disconnected: ' + event.reason;
-//            console.log(close_reason);
         set_status(close_reason);
 
         if (event.reason.startsWith('Error:')){
@@ -261,13 +162,12 @@ function ws_onclose(event) {
         }
 
         setTimeout(ws_ensure_connect, reconnect_time);
-      }
-
+    }
 }
 
 function ws_onmessage(event){
     set_status('&#x2713; Connected');
-//        console.log(event.data);
+    // console.log(event.data);
 
     var data = JSON.parse(event.data);
     if (data.hasOwnProperty('server_time')) {
@@ -292,6 +192,47 @@ function ws_onmessage(event){
     }
 
 }
+
+load_state();
+
+var main_el = document.getElementById('main');
+var mobile_selectors = document.getElementById('mobile_select').querySelectorAll('div');
+var mobile_selected;
+
+function apply_mobile_selected(selected){
+    mobile_selected = selected;
+    main_el.className = 'show_' + selected;
+    Array.prototype.forEach.call(mobile_selectors, function (el){
+        el.className = (el.getAttribute('show') == selected?'selected':'')
+    });
+    if (selected=='map') google.maps.event.trigger(map, 'resize');
+}
+Array.prototype.forEach.call(mobile_selectors, function (el){
+    var el_selects = el.getAttribute('show')
+    el.onclick = function(){apply_mobile_selected(el_selects);};
+});
+
+var config_loaded = new Deferred();
+var map;
+var route_marker;
+
+var elevation_chart = Highcharts.chart('elevation', {
+    chart: { type: 'line', height: null },
+    title: { text: 'Elevation', style: {display: 'none'} },
+    legend:{ enabled: false },
+    xAxis: { id: 'xAris', type: 'linear',
+        labels: { formatter: function () { return (Math.round(this.value / 100) / 10).toString() + " km"; }}
+    },
+    yAxis: { title: {text: null}, endOnTick: false, startOnTick: false, labels: {format: '{value} m'} },
+    credits: { enabled: false },
+    tooltip: {
+        formatter: function() {
+            return (Math.round(this.x / 100) / 10).toString() + " km : " +  Math.round(this.y).toString() + ' m';
+        }
+    },
+    series: [],
+});
+
 
 var race_time = document.getElementById('race_time');
 setInterval(function(){
@@ -343,45 +284,11 @@ function on_new_config(){
             route_marker.setVisible(false)
         }
 
-        if (!elevation_chart) {
-            elevation_chart = Highcharts.chart('elevation', {
-                chart: { type: 'line', height: null },
-                title: { text: 'Elevation', style: {display: 'none'} },
-                legend:{ enabled: false },
-                xAxis: { id: 'xAris', type: 'linear',
-                    labels: { formatter: function () { return (Math.round(this.value / 100) / 10).toString() + " km"; }}
-                },
-                yAxis: { title: {text: null}, endOnTick: false, startOnTick: false, labels: {format: '{value} m'} },
-                credits: { enabled: false },
-                tooltip: {
-                    formatter: function() {
-                        return (Math.round(this.x / 100) / 10).toString() + " km : " +  Math.round(this.y).toString() + ' m';
-                    }
-                },
-                series: [],
-            });
-        }
-
-        document.getElementById('title').innerText = config.title;
-        document.title = config.title;
-        riders_by_name = {};
-        config.riders.forEach(function (rider) {
-            riders_by_name[rider.name] = rider
-            on_new_rider_points(rider.name, 0, [])
-        });
-
-        Object.keys(state.riders_points).forEach(function (rider_name) {
-            if (!riders_by_name.hasOwnProperty(rider_name)) {
-                delete state.riders_points[rider_name];
-            }
-        });
-
         (config.markers || {}).forEach(function (marker_data) {
             var marker = new google.maps.Marker(marker_data);
             marker.setMap(map);
             event_markers.push(marker);
         });
-
 
         if (config.hasOwnProperty('bounds')) {
             map.fitBounds(config.bounds);
@@ -393,11 +300,15 @@ function on_new_config(){
             map.fitBounds(bounds);
         }
 
-
+        document.getElementById('title').innerText = config.title;
+        document.title = config.title;
+        riders_by_name = {};
+        config.riders.forEach(function (rider) {
+            riders_by_name[rider.name] = rider
+            on_new_rider_points(rider.name, [], [], [])
+        });
 
         update_rider_table();
-
-
     }
 }
 
@@ -405,7 +316,7 @@ var route_marker;
 
 
 function on_new_routes(){
-    if (map) {
+    config_loaded.promise.then( function () {
         route_paths.forEach(function (path) { path.setMap(null) });
         elevation_chart.series.forEach(function (series) { series.remove(false) });
 
@@ -467,7 +378,7 @@ function on_new_routes(){
         });
         elevation_chart.redraw(false);
         adjust_elevation_chart_bounds();
-    }
+    });
 }
 
 var bounds_changed_timeout_id;
@@ -502,99 +413,99 @@ function on_clear_rider_points(rider_name){
     }
 }
 
-function on_new_rider_points(rider_name, index, old_items){
-    if (!config) { return };  // this will get called again when config is loaded.
-    var rider_points = riders_points[rider_name] || [];
+function on_new_rider_points(rider_name, items, new_items, old_items){
+    config_loaded.promise.then( function () {
 
-    if (old_items.length) {
-        on_clear_rider_points(rider_name);
-        index = 0;
-    }
+        if (old_items.length) {
+            on_clear_rider_points(rider_name);
+            new_items = items;
+        }
 
-    var rider = riders_by_name[rider_name]
-    if (!rider) return;
-    var rider_items = riders_client_items[rider_name] || (riders_client_items[rider_name] = {
-        paths: {},
-        marker: null,
-        elevation_chart_series: null,
-        current_values: {},
-        last_position_point: null,
-        position_point: null,
+        var rider = riders_by_name[rider_name]
+        if (!rider) return;
+        var rider_items = riders_client_items[rider_name] || (riders_client_items[rider_name] = {
+            paths: {},
+            marker: null,
+            elevation_chart_series: null,
+            current_values: {},
+            last_position_point: null,
+            position_point: null,
+        });
+        var path_color = rider.color || 'black';
+        var rider_current_values = rider_items.current_values;
+
+        new_items.forEach(function (point) {
+            if (point.hasOwnProperty('position')) {
+                var path = (rider_items.paths[point.track_id] || (rider_items.paths[point.track_id] = new google.maps.Polyline({
+                    map: map,
+                    path: [],
+                    geodesic: false,
+                    strokeColor: path_color,
+                    strokeOpacity: 1.0,
+                    strokeWeight: 2
+                }))).getPath()
+                path.push(new google.maps.LatLng(point.position[0], point.position[1]));
+                rider_items.last_position_point = rider_items.position_point;
+                rider_items.position_point = point;
+            }
+            Object.assign(rider_current_values, point);
+        });
+        var marker_color = rider.color_marker || 'white';
+        var marker_html = '<div class="rider-marker" style="background: ' + marker_color + ';">' + (rider.name_short || rider.name)+ '</div>' +
+                          '<div class="rider-marker-pointer" style="border-color: transparent ' + marker_color + ' ' + marker_color + ' transparent;"></div>'
+
+        if (rider_items.position_point) {
+            var position = new google.maps.LatLng(rider_items.position_point.position[0], rider_items.position_point.position[1])
+            if (!rider_items.marker) {
+                rider_items.marker = new RichMarker({
+                    map: map,
+                    position: position,
+                    flat: true,
+                    content: marker_html
+                })
+            } else {
+                rider_items.marker.setPosition(position);
+            }
+        }
+        if (rider_items.position_point && rider_items.position_point.hasOwnProperty('dist_route')) {
+            if (!rider_items.elevation_chart_series) {
+                rider_items.elevation_chart_series = elevation_chart.addSeries({
+                    marker: { symbol: 'circle'},
+                    color: marker_color,
+                    data: [],
+                }, false);
+            }
+            var elevation = null;
+            if (rider_items.position_point && rider_items.position_point.position.length > 2) {
+                elevation = rider_items.position_point.position[2]
+            } else if (routes) {
+                // TODO the server analyse tracker should do this.
+                elevation = binarySearchClosest(
+                    routes[0].elevation,
+                    rider_items.position_point.dist_route,
+                    function (point) { return point[3] }  // [3] = distance
+                )[2];  // [2] = elevation
+            } else {
+                elevation = 0;
+            }
+            rider_items.elevation_chart_series.setData([{
+                x: rider_current_values['dist_route'],
+                y: elevation,
+                dataLabels: {
+                    enabled: true,
+                    format: rider.name_short || rider.name,
+                    allowOverlap: true,
+                    shape: 'callout',
+                    backgroundColor: marker_color,
+                    style: {
+                        textOutline: 'none'
+                    }
+                },
+            }], false, false, false)
+        }
+        update_rider_table();
+        elevation_chart.redraw(false);
     });
-    var path_color = rider.color || 'black';
-    var rider_current_values = rider_items.current_values;
-
-    rider_points.slice(index).forEach(function (point) {
-        if (point.hasOwnProperty('position')) {
-            var path = (rider_items.paths[point.track_id] || (rider_items.paths[point.track_id] = new google.maps.Polyline({
-                map: map,
-                path: [],
-                geodesic: false,
-                strokeColor: path_color,
-                strokeOpacity: 1.0,
-                strokeWeight: 2
-            }))).getPath()
-            path.push(new google.maps.LatLng(point.position[0], point.position[1]));
-            rider_items.last_position_point = rider_items.position_point;
-            rider_items.position_point = point;
-        }
-        Object.assign(rider_current_values, point);
-    });
-    var marker_color = rider.color_marker || 'white';
-    var marker_html = '<div class="rider-marker" style="background: ' + marker_color + ';">' + (rider.name_short || rider.name)+ '</div>' +
-                      '<div class="rider-marker-pointer" style="border-color: transparent ' + marker_color + ' ' + marker_color + ' transparent;"></div>'
-
-    if (rider_items.position_point) {
-        var position = new google.maps.LatLng(rider_items.position_point.position[0], rider_items.position_point.position[1])
-        if (!rider_items.marker) {
-            rider_items.marker = new RichMarker({
-                map: map,
-                position: position,
-                flat: true,
-                content: marker_html
-            })
-        } else {
-            rider_items.marker.setPosition(position);
-        }
-    }
-    if (rider_items.position_point && rider_items.position_point.hasOwnProperty('dist_route')) {
-        if (!rider_items.elevation_chart_series) {
-            rider_items.elevation_chart_series = elevation_chart.addSeries({
-                marker: { symbol: 'circle'},
-                color: marker_color,
-                data: [],
-            }, false);
-        }
-        var elevation = null;
-        if (rider_items.position_point && rider_items.position_point.position.length > 2) {
-            elevation = rider_items.position_point.position[2]
-        } else if (routes) {
-            // TODO the server analyse tracker should do this.
-            elevation = binarySearchClosest(
-                routes[0].elevation,
-                rider_items.position_point.dist_route,
-                function (point) { return point[3] }  // [3] = distance
-            )[2];  // [2] = elevation
-        } else {
-            elevation = 0;
-        }
-        rider_items.elevation_chart_series.setData([{
-            x: rider_current_values['dist_route'],
-            y: elevation,
-            dataLabels: {
-                enabled: true,
-                format: rider.name_short || rider.name,
-                allowOverlap: true,
-                shape: 'callout',
-                backgroundColor: marker_color,
-                style: {
-                    textOutline: 'none'
-                }
-            },
-        }], false, false, false)
-    }
-    elevation_chart.redraw(false)
-    update_rider_table();
 }
 
 var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -749,25 +660,6 @@ function rider_onclick(row, rider_name, event) {
             window.open('https://www.google.com/maps/place/' + position_point.position[0] + ',' + position_point.position[1], '_blank');
         }
     }
-}
-
-
-var state = {}
-var config = {};
-var routes = []
-var all_route_points = [];
-
-var event_markers = [];
-var route_paths = [];
-var riders_by_name = {}
-var riders_client_items = {}
-var riders_points = {}
-
-var new_state = JSON.parse(window.localStorage.getItem(location.pathname))
-if (!new_state){
-    get_state();
-} else {
-    on_new_state_received_non_ws(new_state);
 }
 
 
