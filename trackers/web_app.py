@@ -148,8 +148,7 @@ def etag_query_hash_response(request, response, etag):
     query_hash = request.query.get('hash')
     if query_hash and query_hash != etag:
         # Redirect to same url with correct hash query
-        return web.HTTPFound(request.app.router[request.match_info.route.name]
-                             .url_for(**request.match_info).with_query({'hash': etag}))
+        return web.HTTPFound(request.rel_url.with_query({'hash': etag}))
     else:
         cache_control = immutable_cache_control if query_hash else mutable_cache_control
         return etag_response(request, response, etag, cache_control=cache_control)
@@ -189,7 +188,7 @@ def say_error_handler(func):
     async def say_error_handler_inner(request):
         try:
             return await func(request)
-        except web.HTTPError:
+        except web.HTTPException:
             raise
         except Exception as e:
             request.app['exception_recorder']()
