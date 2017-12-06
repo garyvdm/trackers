@@ -6,6 +6,7 @@ import datetime
 import functools
 import logging
 import operator
+from itertools import chain
 
 import attr
 from numpy import (
@@ -258,7 +259,13 @@ def get_analyse_route(org_route):
     route = copy.copy(org_route)
     route['points'] = route_points = route_with_distance_and_index(org_route['points'])
     route['point_pairs'] = [get_point_pair_precalc(*point_pair) for point_pair in pairs(route_points)]
-    route['simplfied_point_pairs'] = [get_point_pair_precalc(*point_pair) for point_pair in pairs(ramer_douglas_peucker(route_points, 500))]
+
+    if not route.get('split_at_dist'):
+        simplified_points = ramer_douglas_peucker(route_points, 500)
+    else:
+        simplified_points = ramer_douglas_peucker_sections(route_points, 500, route['split_at_dist'], route['split_point_range'])
+
+    route['simplfied_point_pairs'] = [get_point_pair_precalc(*point_pair) for point_pair in pairs(simplified_points)]
     logger.debug('Route points: {}, simplified points: {}, distance: {}'.format(len(route_points), len(route['simplfied_point_pairs']), route_points[-1].distance))
     return route
 
@@ -308,6 +315,24 @@ def ramer_douglas_peucker(points, epsilon):
         return r1[:-1] + r2
     else:
         return (points[0], points[-1])
+
+
+def ramer_douglas_peucker_sections(points, epsilon, split_at_dist, split_point_range):
+    simplified_points_sections = []
+    last_index = 0
+    for dist in split_at_dist:
+        min_dist = dist - split_point_range
+        max_dist = dist + split_point_range
+        close_points = [point for point in points if min_dist <= point.distance < max_dist]
+        simplified_close_points = ramer_douglas_peucker(close_points, epsilon)
+        closest_point = min(simplified_close_points, key=lambda point: abs(dist - point.distance))
+        closest_index = closest_point.index
+        simplified_points_section = ramer_douglas_peucker(points[last_index:closest_index + 1], epsilon)
+        simplified_points_sections.append(simplified_points_section[:-1])
+        last_index = closest_index
+
+    simplified_points_sections.append(ramer_douglas_peucker(points[last_index:], epsilon))
+    return list(chain.from_iterable(simplified_points_sections))
 
 
 find_closest_point_pair_routes_result = collections.namedtuple('closest_point_pair_route', ('route_i', 'route', 'point_pair', 'dist', 'point'))
@@ -371,7 +396,11 @@ def arccos_limit(n):
 def find_c_point_from_precalc(to_point, point1, point2, c12, p1h, p2h, dp1p2):
     tpn = to_point.nv
     ctp = cross(tpn, c12, axis=0)
-    c = unit(cross(ctp, c12, axis=0))
+    try:
+        c = unit(cross(ctp, c12, axis=0))
+    except Exception:
+        print((to_point, point1, point2))
+        raise
     sutable_c = None
     for co in (c, 0 - c):
         co_rs = co.reshape((3, ))

@@ -76,7 +76,8 @@ class TestAddGpxToEventRoutes(asynctest.TestCase, TestEventWithMockTracker):
         self.addCleanup(os.remove, f.name)
 
         await add_gpx_to_event_routes.__wrapped__(
-            app, settings, Namespace(event_name='test_event', gpx_file=f.name, no_elevation=True))
+            app, settings, Namespace(event_name='test_event', gpx_file=f.name, no_elevation=True,
+                                     split_at_dist=[], split_point_range=1000, rdp_epsilon=2))
 
         writer.reset()
         routes = msgpack.loads(writer.get('/events/test_event/routes').data, encoding='utf8')
@@ -84,6 +85,10 @@ class TestAddGpxToEventRoutes(asynctest.TestCase, TestEventWithMockTracker):
             {
                 'original_points': [[-26.09321, 27.9813], [-26.0933, 27.98154], [-26.09341, 27.98186]],
                 'points': [[-26.09321, 27.9813], [-26.09341, 27.98186]],
-                'main': True
+                'main': True,
+                'split_at_dist': [],
+                'split_point_range': 1000,
+                'rdp_epsilon': 2,
+                'no_elevation': True,
             }
         ])

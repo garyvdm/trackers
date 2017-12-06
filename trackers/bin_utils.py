@@ -13,7 +13,6 @@ import msgpack
 import polyline
 import yaml
 
-
 import trackers.events
 import trackers.modules
 from trackers.analyse import (
@@ -23,6 +22,7 @@ from trackers.analyse import (
     get_equal_spaced_points,
     Point,
     ramer_douglas_peucker,
+    ramer_douglas_peucker_sections,
     route_with_distance_and_index,
 )
 from trackers.async_exit_stack import AsyncExitStack
@@ -198,8 +198,12 @@ async def assign_rider_colors(app, settings, args):
 def add_gpx_to_event_routes_parser():
     parser = get_base_argparser(description="Add a gpx file to the routes for of an event.")
     parser.add_argument('event_name', action='store')
-    parser.add_argument('gpx-file', action='store')
+    parser.add_argument('gpx_file', action='store')
     parser.add_argument('--no-elevation', action='store_true')
+    parser.add_argument('--split-at-dist', action='store', type=int, nargs='*')
+    parser.add_argument('--split-point-range', action='store', type=int, default=500)
+    parser.add_argument('--rdp-epsilon', action='store', type=int, default=2)
+
     return parser
 
 
@@ -223,7 +227,10 @@ async def add_gpx_to_event_routes(app, settings, args):
     writer = TreeWriter(app['trackers.data_repo'])
     event = trackers.events.Event.load(app, args.event_name, writer)
     route = {'original_points': points}
-    await process_route(settings, route, get_elevation=not args.no_elevation)
+    for key in ('no_elevation', 'split_at_dist', 'split_point_range', 'rdp_epsilon'):
+        route[key] = getattr(args, key)
+
+    await process_route(settings, route)
     event.routes.append(route)
     process_secondary_route_details(event.routes)
     # TODO - add gpx file to repo
@@ -264,16 +271,22 @@ def process_secondary_route_details(routes):
             route['main'] = True
 
 
-async def process_route(settings, route, get_elevation=True):
+async def process_route(settings, route):
     original_points = route['original_points']
     filtered_points = (point for last_point, point in zip([None] + original_points[:-1], original_points) if point != last_point)
-    point_points = [Point(*point) for point in filtered_points]
-    simplified_points = ramer_douglas_peucker(point_points, 2)
+    if not route['split_at_dist']:
+        point_points = [Point(*point) for point in filtered_points]
+        simplified_points = ramer_douglas_peucker(point_points, route['rdp_epsilon'])
+    else:
+        point_points = route_with_distance_and_index(filtered_points)
+        simplified_points = ramer_douglas_peucker_sections(point_points, route['rdp_epsilon'],
+                                                           route['split_at_dist'], route['split_point_range'])
+
     route['points'] = [(point.lat, point.lng) for point in simplified_points]
     logging.info('Original point count: {}, simplified point count: {}'.format(
         len(route['original_points']), len(route['points'])))
 
-    if get_elevation:
+    if not route['no_elevation']:
         elevation_points = list(get_equal_spaced_points(simplified_points, 500))
         elevations = await get_elevation_for_points(settings, [point for point, distance in elevation_points])
         route['elevation'] = [(round(point.lat, 6), round(point.lng, 6), elevation, dist) for elevation, (point, dist) in zip(elevations, elevation_points)]
