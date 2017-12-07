@@ -118,17 +118,21 @@ async def app_setup(app, settings):
     return stack
 
 
-def app_setup_basic(app, settings):
+async def app_setup_basic(app, settings):
+    stack = AsyncExitStack()
+
     app['trackers.settings'] = settings
-    app['trackers.data_repo'] = repo = dulwich.repo.Repo(settings['data_path'])
-    return repo
+    app['trackers.data_repo'] = await stack.enter_context(dulwich.repo.Repo(settings['data_path']))
+
+    return stack
 
 
-def async_command(get_parser_func):
+def async_command(get_parser_func, basic=False):
     def async_command_decorator(func):
         async def run_with_app(settings, args):
             app = {}
-            async with await app_setup(app, settings):
+            setup = app_setup_basic if basic else app_setup
+            async with await setup(app, settings):
                 await func(app, settings, args)
 
         @wraps(func)
@@ -183,7 +187,7 @@ async def convert_to_static(app, settings, args):
         event.save('convert_to_static: {}'.format(args.event_name), tree_writer=tree_writer)
 
 
-@async_command(partial(event_command_parser, description="Assigns unique colors to riders"))
+@async_command(partial(event_command_parser, description="Assigns unique colors to riders"), basic=True)
 async def assign_rider_colors(app, settings, args):
     tree_writer = TreeWriter(app['trackers.data_repo'])
     event = trackers.events.Event.load(app, args.event_name, tree_writer)
@@ -207,7 +211,7 @@ def add_gpx_to_event_routes_parser():
     return parser
 
 
-@async_command(add_gpx_to_event_routes_parser)
+@async_command(add_gpx_to_event_routes_parser, basic=True)
 async def add_gpx_to_event_routes(app, settings, args):
     import xml.etree.ElementTree as xml
 
@@ -237,13 +241,13 @@ async def add_gpx_to_event_routes(app, settings, args):
     event.save('add_gpx_to_event_routes: {} - {}'.format(args.event_name, args.gpx_file), tree_writer=writer)
 
 
-@async_command(partial(event_command_parser, description="Open and save event. Side effect is convert to new formats."))
+@async_command(partial(event_command_parser, description="Open and save event. Side effect is convert to new formats."), basic=True)
 async def reformat_event(app, settings, args):
     event = trackers.events.Event(app, args.event_name)
     event.save('reformat_event: {}'.format(args.event_name))
 
 
-@async_command(partial(event_command_parser, description="Reprocess event routes."))
+@async_command(partial(event_command_parser, description="Reprocess event routes."), basic=True)
 async def process_event_routes(app, settings, args):
     event = trackers.events.Event(app, args.event_name)
     for route in event.routes:
