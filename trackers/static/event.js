@@ -332,6 +332,16 @@ function on_new_config(){
                 console.log(e.latLng.toUrlValue())
 
             });
+            route_marker = new google.maps.Marker({
+              icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 2,
+                strokeColor: 'black',
+              },
+              draggable: false,
+              map: map
+            });;
+            route_marker.setVisible(false)
         }
         if (!elevation_chart) {
             elevation_chart = Highcharts.chart('elevation', {
@@ -378,16 +388,7 @@ function on_new_config(){
     }
 }
 
-var route_marker = new google.maps.Marker({
-  icon: {
-    path: google.maps.SymbolPath.CIRCLE,
-    scale: 2,
-    strokeColor: 'black',
-  },
-  draggable: false,
-  map: map
-});;
-route_marker.setVisible(false)
+var route_marker;
 
 
 function on_new_routes(){
