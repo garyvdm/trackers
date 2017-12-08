@@ -137,19 +137,27 @@ async def start_individual_tracker(app, settings, request):
 
 
 async def start_tracker(app, tracker_name, server_name, device_unique_id, start, end):
+    device_unique_id = str(device_unique_id)
     await ensure_login(app, server_name)
     server = app['trackers.traccar_servers'][server_name]
+    server_url = server['url']
     session = server['session']
-    url = '{}/api/positions'.format(server['url'])
-    devices = await (await session.get('{}/api/devices'.format(server['url']), params={'all': 'true'})).json()
-    try:
-        device_id = more_itertools.first((device['id'] for device in devices if device['uniqueId'] == str(device_unique_id)))
-    except ValueError:
-        log_devices = [{'id': device['id'], 'name': device['name'], 'uniqueId': device['uniqueId']} for device in devices]
-        logger.error(f'Could not find {device_unique_id} in {log_devices}')
-        raise Exception(f'Could not find device identifier {device_unique_id}')
+    url = f'{server_url}/api/positions'
+    # await (await session.delete(f'{server_url}/api/devices/0', json={})).json()
 
-    await session.post('{}/api/permissions/devices'.format(server['url']), json={'userId': server['user_id'], 'deviceId': device_id})
+    devices = await (await session.get(f'{server_url}/api/devices', params={'all': 'true'})).json()
+    try:
+        device = more_itertools.first((device for device in devices if device['uniqueId'] == device_unique_id))
+        device_id = device['id']
+        if device['name'] == device['uniqueId']:
+            # Update name on traccar
+            await (await session.put(f'{server_url}/api/devices/{device_id}',
+                                     json={'name': tracker_name, 'uniqueId': device['uniqueId'], 'id': device['id']})).json()
+    except ValueError:
+        device_id = (await (await session.post(f'{server_url}/api/devices',
+                                               json={'uniqueId': device_unique_id, 'name': tracker_name})).json())['id']
+    await (await session.post(f'{server_url}/api/permissions/devices',
+                              json={'userId': server['user_id'], 'deviceId': device_id})).json()
 
     tracker = Tracker('traccar.{}.{}-{}'.format(server_name, device_unique_id, tracker_name))
     tracker.server = server
