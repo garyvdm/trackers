@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import contextlib
 import copy
+import itertools
 import logging.config
 import os
 import sys
@@ -112,7 +113,7 @@ def get_combined_settings(specific_defaults_yaml=None, args=None):
 async def app_setup(app, settings):
     stack = AsyncExitStack()
 
-    await stack.enter_context(app_setup_basic(app, settings))
+    await stack.enter_context(await app_setup_basic(app, settings))
     await stack.enter_context(await trackers.modules.config_modules(app, settings))
 
     return stack
@@ -151,6 +152,7 @@ def async_command(get_parser_func, basic=False):
 def event_command_parser(*args, **kwargs):
     parser = get_base_argparser(*args, **kwargs)
     parser.add_argument('event_name', action='store')
+    return parser
 
 
 def convert_to_static_parser():
@@ -243,17 +245,41 @@ async def add_gpx_to_event_routes(app, settings, args):
 
 @async_command(partial(event_command_parser, description="Open and save event. Side effect is convert to new formats."), basic=True)
 async def reformat_event(app, settings, args):
-    event = trackers.events.Event(app, args.event_name)
-    event.save('reformat_event: {}'.format(args.event_name))
+    writer = TreeWriter(app['trackers.data_repo'])
+    event = trackers.events.Event.load(app, args.event_name, writer)
+    event.save('reformat_event: {}'.format(args.event_name), tree_writer=writer)
+
+
+@async_command(partial(event_command_parser, description="Update bounds for event"), basic=True)
+async def update_bounds(app, settings, args):
+    writer = TreeWriter(app['trackers.data_repo'])
+
+    event = trackers.events.Event.load(app, args.event_name, writer)
+    points = list(itertools.chain.from_iterable(
+        [((marker['position']['lat'], marker['position']['lng']), ) for marker in event.config.get('markers', ())] +
+        [route['points'] for route in event.routes]
+    ))
+    lats = [point[0] for point in points]
+    lngs = [point[1] for point in points]
+
+    event.config['bounds'] = {
+        'north': max(lats),
+        'south': min(lats),
+        'east': max(lngs),
+        'west': min(lngs),
+    }
+
+    event.save('update_bounds: {}'.format(args.event_name), tree_writer=writer)
 
 
 @async_command(partial(event_command_parser, description="Reprocess event routes."), basic=True)
 async def process_event_routes(app, settings, args):
-    event = trackers.events.Event(app, args.event_name)
+    writer = TreeWriter(app['trackers.data_repo'])
+    event = trackers.events.Event.load(app, args.event_name, writer)
     for route in event.routes:
         await process_route(settings, route)
     process_secondary_route_details(event.routes)
-    event.save('process_event_routes: {}'.format(args.event_name))
+    event.save('process_event_routes: {}'.format(args.event_name), tree_writer=writer)
 
 
 def process_secondary_route_details(routes):

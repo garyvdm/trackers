@@ -31,11 +31,15 @@ setuptools.setup(
     entry_points={
         'console_scripts': [
             'serve=trackers.serve:main',
+
+            # Tools to edit events
             'convert_to_static=trackers.bin_utils:convert_to_static',
             'assign_rider_colors=trackers.bin_utils:assign_rider_colors',
             'add_gpx_to_event_routes=trackers.bin_utils:add_gpx_to_event_routes',
             'reformat_event=trackers.bin_utils:reformat_event',
             'process_event_routes=trackers.bin_utils:process_event_routes',
+            'update_bounds=trackers.bin_utils:update_bounds',
+
             'run_qunit_tests=trackers.client_test_tools:qunit_runner',
         ],
     },

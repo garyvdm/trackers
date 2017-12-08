@@ -309,16 +309,15 @@ function on_new_config(){
 
     if (config) {
         if (!map) {
-
             map = new google.maps.Map(document.getElementById('map_el'), {
-                center: {lat: 0, lng: 0},
-                zoom: 2,
+                bounds: bounds,
                 mapTypeId: 'terrain',
                 mapTypeControl: true,
                 mapTypeControlOptions: {
                     position: google.maps.ControlPosition.TOP_RIGHT
                 }
             });
+
             apply_mobile_selected('map');
             map.addListener('bounds_changed', function() {
                 if (bounds_changed_timeout_id) clearTimeout(bounds_changed_timeout_id);
@@ -343,6 +342,7 @@ function on_new_config(){
             });;
             route_marker.setVisible(false)
         }
+
         if (!elevation_chart) {
             elevation_chart = Highcharts.chart('elevation', {
                 chart: { type: 'line', height: null },
@@ -375,16 +375,29 @@ function on_new_config(){
                 delete state.riders_points[rider_name];
             }
         });
-        update_rider_table();
 
-        var bounds = new google.maps.LatLngBounds();
         (config.markers || {}).forEach(function (marker_data) {
-            bounds.extend(marker_data.position);
             var marker = new google.maps.Marker(marker_data);
             marker.setMap(map);
             event_markers.push(marker);
         });
-        map.fitBounds(bounds);
+
+
+        if (config.hasOwnProperty('bounds')) {
+            map.fitBounds(config.bounds);
+        } else {
+            var bounds = new google.maps.LatLngBounds();
+            (config.markers || {}).forEach(function (marker_data) {
+                bounds.extend(marker_data.position);
+            });
+            map.fitBounds(bounds);
+        }
+
+
+
+        update_rider_table();
+
+
     }
 }
 
