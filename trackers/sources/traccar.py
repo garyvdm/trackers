@@ -162,6 +162,8 @@ async def start_tracker(app, tracker_name, server_name, device_unique_id, start,
     tracker = Tracker('traccar.{}.{}-{}'.format(server_name, device_unique_id, tracker_name))
     tracker.server = server
     tracker.device_id = device_id
+    tracker.start = start
+    tracker.end = end
     tracker.seen_ids = seen_ids = set()
     positions = await (await session.get(url, params={
         'deviceId': device_id,
@@ -187,7 +189,9 @@ async def start_tracker(app, tracker_name, server_name, device_unique_id, start,
 async def tracker_position_received(tracker, position):
     if position['id'] not in tracker.seen_ids:
         tracker.seen_ids.add(position['id'])
-        await tracker.new_points([traccar_position_translate(position)])
+        point = traccar_position_translate(position)
+        if (not tracker.start or tracker.start < point['time']) and (not tracker.end or point['time'] < tracker.end):
+            await tracker.new_points([point])
 
 
 def tracker_stop(tracker):
