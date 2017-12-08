@@ -115,7 +115,8 @@ async def make_aio_app(settings,
 
     trackers.events.load_events(app, settings)
     for event in app['trackers.events'].values():
-        await event.start_trackers(app)
+        if event.config.get('live', False):
+            await event.start_trackers(app)
 
     return app
 
@@ -207,6 +208,7 @@ def event_handler(func):
         event = request.app['trackers.events'].get(event_name)
         if event is None:
             raise web.HTTPNotFound()
+        await event.start_trackers(request.app)
         return await func(request, event)
     return event_handler_inner
 
@@ -308,8 +310,8 @@ async def event_ws(request):
             if not live:
                 send({'live': False})
                 ws.close(message='Event not live. Use rest api')
-
             else:
+                await event.start_trackers(request.app)
                 send(get_event_state(event))
                 for rider_name, tracker_block_list in event.rider_trackers_blocked_list.items():
                     exit_stack.enter_context(list_register(tracker_block_list.new_update_callbacks,

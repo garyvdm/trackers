@@ -49,6 +49,8 @@ class Event(object):
             routes_hash = hash_bytes(msgpack.dumps(self.routes))
         self.routes_hash = routes_hash
 
+        self.trackers_started = False
+
     @classmethod
     def load(cls, app, name, tree_reader):
         config_bytes = tree_reader.get(os.path.join('events', name, 'data.yaml')).data
@@ -81,30 +83,33 @@ class Event(object):
         tree_writer.commit(message, author=author)
 
     async def start_trackers(self, app):
-        logger.info('Starting {}'.format(self.name))
+        if not self.trackers_started:
+            logger.info('Starting {}'.format(self.name))
 
-        analyse = self.config.get('analyse', False)
-        replay = self.config.get('replay', False)
-        is_live = self.config.get('live', False)
+            analyse = self.config.get('analyse', False)
+            replay = self.config.get('replay', False)
+            is_live = self.config.get('live', False)
 
-        if analyse:
-            analyse_routes = get_analyse_routes(self.routes)
+            if analyse:
+                analyse_routes = get_analyse_routes(self.routes)
 
-        if replay:
-            replay_start = datetime.datetime.now() + datetime.timedelta(seconds=2)
-            event_start = self.config['event_start']
+            if replay:
+                replay_start = datetime.datetime.now() + datetime.timedelta(seconds=2)
+                event_start = self.config['event_start']
 
-        for rider in self.config['riders']:
-            if rider['tracker']:
-                start_tracker = app['start_event_trackers'][rider['tracker']['type']]
-                tracker = await start_tracker(app, self, rider['name'], rider['tracker'])
-                if replay:
-                    tracker = await start_replay_tracker(tracker, event_start, replay_start)
-                if analyse:
-                    tracker = await start_analyse_tracker(tracker, self, analyse_routes)
-                tracker = await index_and_hash_tracker(tracker)
-                self.rider_trackers[rider['name']] = tracker
-                self.rider_trackers_blocked_list[rider['name']] = BlockedList.from_tracker(tracker, entire_block=not is_live)
+            for rider in self.config['riders']:
+                if rider['tracker']:
+                    start_tracker = app['start_event_trackers'][rider['tracker']['type']]
+                    tracker = await start_tracker(app, self, rider['name'], rider['tracker'])
+                    if replay:
+                        tracker = await start_replay_tracker(tracker, event_start, replay_start)
+                    if analyse:
+                        tracker = await start_analyse_tracker(tracker, self, analyse_routes)
+                    tracker = await index_and_hash_tracker(tracker)
+                    self.rider_trackers[rider['name']] = tracker
+                    self.rider_trackers_blocked_list[rider['name']] = BlockedList.from_tracker(tracker, entire_block=not is_live)
+
+            self.trackers_started = True
 
     async def stop_and_complete_trackers(self):
         for tracker in self.rider_trackers.values():
@@ -114,3 +119,4 @@ class Event(object):
                 await tracker.complete()
             except Exception:
                 tracker.logger.exception('Unhandled error: ')
+        self.trackers_started = False
