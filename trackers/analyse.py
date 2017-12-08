@@ -161,43 +161,46 @@ async def analyze_point_async(*args, **kwargs):
 def analyze_point(analyse_tracker, event, event_routes, track_break_time, last_route_point, track_break_dist, tracker, new_new_points, point):
     # TODO only search points after the last route point
     point_point = Point(*point['position'][:2])
-    closest = find_closest_point_pair_routes(event_routes, point_point, 1000, analyse_tracker.last_closest, 250)
-    if closest and closest.dist > 5000:
-        closest = None
 
-    if closest:
-        prev_route_point = closest.point_pair[0]
-        route = closest.route
-        if route['main']:
-            point['dist_route'] = round(prev_route_point.distance + distance(prev_route_point, closest.point))
-        else:
-            alt_route_dist = prev_route_point.distance + distance(prev_route_point, closest.point)
-            point['dist_route'] = round(alt_route_dist * route['dist_factor'] + route['start_distance'])
+    if event.config.get('event_start') and event.config.get('event_start') <= point['time']:
+        closest = find_closest_point_pair_routes(event_routes, point_point, 1000, analyse_tracker.last_closest, 250)
+        if closest and closest.dist > 5000:
+            closest = None
 
-        if not analyse_tracker.finished:
-            if closest.route_i == 0 and closest.point_pair[1].distance - last_route_point.distance < 100 and distance(point_point, last_route_point) < 100:
-                analyse_tracker.logger.debug('Finished')
-                analyse_tracker.finished = True
-                point['finished_time'] = point['time']
-                point['rider_status'] = 'Finished'
+        if closest:
+            prev_route_point = closest.point_pair[0]
+            route = closest.route
+            if route['main']:
+                point['dist_route'] = round(prev_route_point.distance + distance(prev_route_point, closest.point))
+            else:
+                alt_route_dist = prev_route_point.distance + distance(prev_route_point, closest.point)
+                point['dist_route'] = round(alt_route_dist * route['dist_factor'] + route['start_distance'])
 
-    analyse_tracker.last_closest = closest
+            if not analyse_tracker.finished:
+                if closest.route_i == 0 and closest.point_pair[1].distance - last_route_point.distance < 100 and distance(point_point, last_route_point) < 100:
+                    analyse_tracker.logger.debug('Finished')
+                    analyse_tracker.finished = True
+                    point['finished_time'] = point['time']
+                    point['rider_status'] = 'Finished'
 
-    if analyse_tracker.last_point_with_position:
-        last_point = analyse_tracker.last_point_with_position
-        dist = distance(point_point, analyse_tracker.last_point_with_position_point)
-        time = point['time'] - last_point['time']
-        if time > track_break_time and dist > track_break_dist:
-            analyse_tracker.current_track_id += 1
-            analyse_apply_status_to_point(analyse_tracker, {'time': last_point['time'] + track_break_time},
-                                          'Inactive', new_new_points.append)
-        point['dist_from_last'] = round(dist)
-        analyse_tracker.dist_ridden += dist
-        point['dist_ridden'] = round(analyse_tracker.dist_ridden)
+        analyse_tracker.last_closest = closest
+
+        if analyse_tracker.last_point_with_position:
+            last_point = analyse_tracker.last_point_with_position
+            dist = distance(point_point, analyse_tracker.last_point_with_position_point)
+            time = point['time'] - last_point['time']
+            if time > track_break_time and dist > track_break_dist:
+                analyse_tracker.current_track_id += 1
+                analyse_apply_status_to_point(analyse_tracker, {'time': last_point['time'] + track_break_time},
+                                              'Inactive', new_new_points.append)
+            point['dist_from_last'] = round(dist)
+            analyse_tracker.dist_ridden += dist
+            point['dist_ridden'] = round(analyse_tracker.dist_ridden)
+
+        analyse_tracker.last_point_with_position_point = point_point
 
     # TODO what about status from source tracker?
     analyse_apply_status_to_point(analyse_tracker, point, 'Active')
-    analyse_tracker.last_point_with_position_point = point_point
 
 
 async def make_inactive(analyse_tracker, last_point_with_position, track_break_time):
