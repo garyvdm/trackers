@@ -1,4 +1,6 @@
+import logging
 import stat
+import subprocess
 from contextlib import suppress
 from time import time, timezone
 
@@ -58,6 +60,7 @@ class TreeWriter(TreeReader):
             self.tree = Tree()
         else:
             self.tree = parse_tree(self.repo, self.org_commit_id)
+            self.org_tree_id = self.tree.id
         self.changed_objects = {}
 
     def lookup_obj(self, sha):
@@ -128,4 +131,12 @@ class TreeWriter(TreeReader):
         self.changed_objects[commit_id] = commit
         self.repo.object_store.add_objects([(obj, None) for obj in self.changed_objects.values()])
         self.repo.refs.set_if_equals(self.branch, self.org_commit_id, commit_id)
+
+        if self.repo.has_index():
+            # Apply patch to working tree.
+            try:
+                subprocess.call(['git', 'cherry-pick', commit_id, '--no-commit'], cwd=self.repo.path)
+            except Exception:
+                logging.getLogger(__name__).exception('Error updating working tree:')
+
         self.reset()
