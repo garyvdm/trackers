@@ -162,7 +162,7 @@ def analyze_point(analyse_tracker, event, event_routes, track_break_time, last_r
     # TODO only search points after the last route point
     point_point = Point(*point['position'][:2])
 
-    if event.config.get('event_start') and event.config.get('event_start') <= point['time']:
+    if not event or (event.config.get('event_start') and event.config.get('event_start') <= point['time']):
         closest = find_closest_point_pair_routes(event_routes, point_point, 1000, analyse_tracker.last_closest, 250)
         if closest and closest.dist > 5000:
             closest = None
