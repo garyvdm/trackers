@@ -13,6 +13,7 @@ import dulwich.repo
 import msgpack
 import polyline
 import yaml
+from more_itertools import roundrobin
 
 import trackers.events
 import trackers.modules
@@ -194,8 +195,9 @@ async def assign_rider_colors(app, settings, args):
     tree_writer = TreeWriter(app['trackers.data_repo'])
     event = trackers.events.Event.load(app, args.event_name, tree_writer)
     num_riders = len(event.config['riders'])
-    for i, rider in enumerate(event.config['riders']):
-        hue = round(((i * 360 / num_riders) + (180 * (i % 2))) % 360)
+    hues = [round(i * 360 / num_riders) for i in range(num_riders)]
+    alternating_hues = roundrobin(hues[:num_riders // 2], hues[num_riders // 2:])
+    for rider, hue in zip(event.config['riders'], alternating_hues):
         rider['color'] = 'hsl({}, 100%, 50%)'.format(hue)
         rider['color_marker'] = 'hsl({}, 100%, 60%)'.format(hue)
     event.save('assign_rider_colors: {}'.format(args.event_name), tree_writer=tree_writer)
