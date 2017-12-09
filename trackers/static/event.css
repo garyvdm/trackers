@@ -184,3 +184,12 @@ html, body {
     left: 40%;
     top: -5px;
 }
+
+
+#map_ind {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+}

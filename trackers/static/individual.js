@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return false;
     }}
 
-    var map = new google.maps.Map(document.getElementById('map'), {
+    var map = new google.maps.Map(document.getElementById('map_ind'), {
         center: {lat: 0, lng: 0},
         zoom: 12,
         mapTypeId: 'terrain',
