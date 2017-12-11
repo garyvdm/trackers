@@ -66,7 +66,7 @@ analyse_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_n
 async def start_analyse_tracker(tracker, event, event_routes, track_break_time=datetime.timedelta(minutes=20), track_break_dist=10000):
     analyse_tracker = Tracker('analysed.{}'.format(tracker.name))
     analyse_tracker.prev_point_with_position = None
-    analyse_tracker.last_point_with_position_point = None
+    analyse_tracker.prev_point_with_position_point = None
     analyse_tracker.current_track_id = 0
     analyse_tracker.status = None
     analyse_tracker.make_inactive_fut = None
@@ -141,9 +141,9 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
 
                 analyse_tracker.prev_closest_route_point = closest
 
-                if analyse_tracker.prev_point_with_position:
+                if analyse_tracker.prev_point_with_position_point:
                     prev_point = analyse_tracker.prev_point_with_position
-                    dist = distance(point_point, analyse_tracker.last_point_with_position_point)
+                    dist = distance(point_point, analyse_tracker.prev_point_with_position_point)
                     time = point['time'] - prev_point['time']
                     if time > track_break_time and dist > track_break_dist:
                         analyse_tracker.current_track_id += 1
@@ -153,7 +153,7 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
                     analyse_tracker.dist_ridden += dist
                     point['dist_ridden'] = round(analyse_tracker.dist_ridden)
 
-                analyse_tracker.last_point_with_position_point = point_point
+                analyse_tracker.prev_point_with_position_point = point_point
 
             # TODO what about status from source tracker?
             analyse_apply_status_to_point(analyse_tracker, point, 'Active')
