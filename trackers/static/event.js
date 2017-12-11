@@ -497,7 +497,7 @@ function on_clear_rider_points(rider_name){
         Object.values(rider_items.paths || {}).forEach(function (path){ path.setMap(null) });
         if (rider_items.marker) rider_items.marker.setMap(null);
         // TODO the following errors on chrome. Need to fix
-        // if (rider_items.elevation_chart_series) rider_items.elevation_chart_series.remove(false);
+        if (rider_items.elevation_chart_series) rider_items.elevation_chart_series.remove(false);
         delete riders_client_items[rider_name];
     }
 }
@@ -591,7 +591,7 @@ function on_new_rider_points(rider_name, index, old_items){
                     textOutline: 'none'
                 }
             },
-        }], false)
+        }], false, false, false)
     }
     elevation_chart.redraw(false)
     update_rider_table();
