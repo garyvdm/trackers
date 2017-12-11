@@ -95,6 +95,10 @@ function on_new_state_received(new_state) {
         });
 
     }
+    if (state.hasOwnProperty('riders_points')) {
+        delete state.riders_points;
+        need_save = true;
+    }
 
     if (need_save) save_state(state);
 }
