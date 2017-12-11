@@ -72,7 +72,8 @@ async def serve(loop, settings):
         else:
             aiohttp_debugtoolbar.setup(app, **settings.get('debugtoolbar_settings', {}))
 
-    handler = app.make_handler(debug=settings.get('aioserver_debug', False))
+    handler = app.make_handler(debug=settings.get('aioserver_debug', False),
+                               access_log_format='%l %u %t "%r" %s %b "%{Referrer}i" "%{User-Agent}i"')
 
     if settings['server_type'] == 'inet':
         srv = await loop.create_server(handler, settings['inet_host'], settings['inet_port'])
