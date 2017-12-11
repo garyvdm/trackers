@@ -58,7 +58,7 @@ class TestEvents(fixtures.TestWithFixtures):
         event = Event(app, 'test_event', {'title': 'Test event'}, [{'points': []}])
         event.save('save test_event', tree_writer=writer)
 
-        self.assertEqual(writer.get('events/test_event/data.yaml').data.decode(), '{title: Test event}\n')
+        self.assertEqual(writer.get('events/test_event/data.yaml').data.decode(), 'title: Test event\n')
         self.assertEqual(writer.get('events/test_event/routes').data, b'\x91\x81\xa6points\x90')
 
     def test_save_no_routes(self):

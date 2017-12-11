@@ -70,7 +70,7 @@ class Event(object):
     def save(self, message, author=None, tree_writer=None):
         if tree_writer is None:
             tree_writer = TreeWriter(self.app['trackers.data_repo'])
-        config_text = yaml.dump(self.config)
+        config_text = yaml.dump(self.config, default_flow_style=False)
         tree_writer.set_data(os.path.join('events', self.name, 'data.yaml'), config_text.encode())
 
         routes_path = os.path.join('events', self.name, 'routes')

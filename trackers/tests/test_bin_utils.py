@@ -30,12 +30,17 @@ class TestConvertToStatic(asynctest.TestCase, TestEventWithMockTracker):
             live: false
             riders:
             - name: foo
-              tracker: {format: json, name: foo, type: static}
+              tracker:
+                format: json
+                name: foo
+                type: static
             ''').lstrip('\n'))
         self.assertEqual(writer.get('events/test_event/foo').data.decode(), '[]')
 
 
 class TestAssignRiderColors(asynctest.TestCase, TestEventWithMockTracker):
+    maxDiff = None
+
     async def test(self):
         app, settings, writer = self.do_setup('''
             riders:
@@ -48,9 +53,12 @@ class TestAssignRiderColors(asynctest.TestCase, TestEventWithMockTracker):
         writer.reset()
         self.assertEqual(writer.get('events/test_event/data.yaml').data.decode(), dedent('''
             riders:
-            - {color: 'hsl(0, 100%, 50%)', color_marker: 'hsl(0, 100%, 60%)'}
-            - {color: 'hsl(120, 100%, 50%)', color_marker: 'hsl(120, 100%, 60%)'}
-            - {color: 'hsl(240, 100%, 50%)', color_marker: 'hsl(240, 100%, 60%)'}
+            - color: hsl(0, 100%, 50%)
+              color_marker: hsl(0, 100%, 60%)
+            - color: hsl(120, 100%, 50%)
+              color_marker: hsl(120, 100%, 60%)
+            - color: hsl(240, 100%, 50%)
+              color_marker: hsl(240, 100%, 60%)
             ''').lstrip('\n'))
 
 
