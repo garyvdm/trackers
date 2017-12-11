@@ -174,3 +174,55 @@ class TestAnalyseTracker(asynctest.TestCase):
         await asyncio.sleep(0.05)
         analyse_tracker.stop()
         await analyse_tracker.complete()
+
+    async def test_with_circular_route(self):
+        tracker = Tracker('test')
+        tracker.completed = asyncio.Future()
+        routes = [
+            {
+                'main': True,
+                'points': [
+                    [-27.881250000, 27.919840000],
+                    [-27.862210000, 27.917000000],
+                    [-27.743550000, 27.942480000],
+                    [-27.843790000, 28.164510000],
+                    [-27.945580000, 28.044930000],
+                    [-27.880490000, 27.917450000],
+                    [-27.860440000, 27.918080000],
+                    [-27.779830000, 27.746380000],
+                    [-27.900190000, 27.668620000],
+                    [-28.043810000, 27.969710000],
+                    [-27.933350000, 28.028700000],
+                    [-27.881250000, 27.919840000],
+                ],
+                'split_at_dist': [35000, 115000],
+                'split_point_range': 10000,
+            },
+        ]
+        event_routes = get_analyse_routes(routes)
+
+        await tracker.new_points((
+            {'time': d('2017/01/01 05:00:00'), 'position': (-27.880490000, 27.917450000, 1800)},
+            {'time': d('2017/01/01 05:01:00'), 'position': (-27.843790000, 28.164510000, 1800)},
+            {'time': d('2017/01/01 05:02:00'), 'position': (-27.945580000, 28.044930000, 1800)},
+            {'time': d('2017/01/01 05:03:00'), 'position': (-27.881250000, 27.919840000, 1800)},
+            {'time': d('2017/01/01 05:04:00'), 'position': (-27.779830000, 27.746380000, 1800)},
+            {'time': d('2017/01/01 05:05:00'), 'position': (-28.043810000, 27.969710000, 1800)},
+            {'time': d('2017/01/01 05:06:00'), 'position': (-27.880490000, 27.917450000, 1800)},
+        ))
+        tracker.completed.set_result(None)
+        event = Namespace(config={'event_start': d('2017/01/01 05:00:00')})
+        analyse_tracker = await start_analyse_tracker(tracker, event, event_routes)
+        await analyse_tracker.complete()
+
+        pprint.pprint(analyse_tracker.points)
+        self.assertSequenceEqual(analyse_tracker.points, [
+            {'time': d('2017/01/01 05:00:00'), 'position': (-27.880490000, 27.917450000, 1800), 'track_id': 0, 'dist_route': 114.0, 'status': 'Active', },
+            {'time': d('2017/01/01 05:01:00'), 'position': (-27.843790000, 28.164510000, 1800), 'track_id': 0, 'dist_from_last': 24670.0, 'dist_ridden': 24670.0, 'dist_route': 40054.0, },
+            {'time': d('2017/01/01 05:02:00'), 'position': (-27.945580000, 28.044930000, 1800), 'track_id': 0, 'dist_from_last': 16305.0, 'dist_ridden': 40975.0, 'dist_route': 56359.0, },
+            {'time': d('2017/01/01 05:03:00'), 'position': (-27.881250000, 27.919840000, 1800), 'track_id': 0, 'dist_from_last': 14229.0, 'dist_ridden': 55203.0, 'dist_route': 70588.0, },
+            {'time': d('2017/01/01 05:04:00'), 'position': (-27.779830000, 27.746380000, 1800), 'track_id': 0, 'dist_from_last': 20453.0, 'dist_ridden': 75657.0, 'dist_route': 92187.0, },
+            {'time': d('2017/01/01 05:05:00'), 'position': (-28.043810000, 27.969710000, 1800), 'track_id': 0, 'dist_from_last': 36594.0, 'dist_ridden': 112251.0, 'dist_route': 141196.0, },
+            {'time': d('2017/01/01 05:06:00'), 'position': (-27.880490000, 27.917450000, 1800), 'track_id': 0, 'dist_from_last': 18815.0, 'dist_ridden': 131066.0, 'dist_route': 166916.0, 'finished_time': d('2017/01/01 05:06:00'), 'rider_status': 'Finished', },
+            {'time': d('2017/01/01 05:26:00'), 'status': 'Inactive'},
+        ])

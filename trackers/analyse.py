@@ -73,8 +73,9 @@ async def start_analyse_tracker(tracker, event, event_routes, track_break_time=d
     analyse_tracker.stop = functools.partial(analyse_tracker_stop, analyse_tracker)
     analyse_tracker.completed = asyncio.ensure_future(analyse_tracker_completed(analyse_tracker))
     analyse_tracker.org_tracker = tracker
-    analyse_tracker.last_closest = None
+    analyse_tracker.prev_closest_route_point = None
     analyse_tracker.dist_ridden = 0
+    analyse_tracker.prev_route_dist = 0
     analyse_tracker.finished = False
     await analyse_tracker_new_points(analyse_tracker, event, event_routes, track_break_time, track_break_dist, tracker, tracker.points)
     tracker.new_points_callbacks.append(
@@ -124,27 +125,21 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
             point_point = Point(*point['position'][:2])
 
             if not event or (event.config.get('event_start') and event.config.get('event_start') <= point['time']):
-                closest = find_closest_point_pair_routes(event_routes, point_point, 1000, analyse_tracker.last_closest, 250)
+                closest = find_closest_point_pair_routes(event_routes, point_point, 1000, analyse_tracker.prev_closest_route_point, 250, analyse_tracker.prev_route_dist)
                 if closest and closest.dist > 5000:
                     closest = None
 
                 if closest:
-                    prev_route_point = closest.point_pair[0]
-                    route = closest.route
-                    if route['main']:
-                        point['dist_route'] = round(prev_route_point.distance + distance(prev_route_point, closest.point))
-                    else:
-                        alt_route_dist = prev_route_point.distance + distance(prev_route_point, closest.point)
-                        point['dist_route'] = round(alt_route_dist * route['dist_factor'] + route['start_distance'])
+                    point['dist_route'] = analyse_tracker.prev_route_dist = route_distance(closest.route, closest)
 
                     if not analyse_tracker.finished:
-                        if closest.route_i == 0 and closest.point_pair[1].distance - last_route_point.distance < 100 and distance(point_point, last_route_point) < 100:
+                        if closest.route_i == 0 and abs(point['dist_route'] - last_route_point.distance) < 100:
                             analyse_tracker.logger.debug('Finished')
                             analyse_tracker.finished = True
                             point['finished_time'] = point['time']
                             point['rider_status'] = 'Finished'
 
-                analyse_tracker.last_closest = closest
+                analyse_tracker.prev_closest_route_point = closest
 
                 if analyse_tracker.prev_point_with_position:
                     prev_point = analyse_tracker.prev_point_with_position
@@ -331,17 +326,16 @@ def ramer_douglas_peucker_sections(points, epsilon, split_at_dist, split_point_r
 find_closest_point_pair_routes_result = collections.namedtuple('closest_point_pair_route', ('route_i', 'route', 'point_pair', 'dist', 'point'))
 
 
-def find_closest_point_pair_routes(routes, to_point, min_search_complex_dist, last_closest, break_out_dist):
+def find_closest_point_pair_routes(routes, to_point, min_search_complex_dist, prev_closest_route_point, break_out_dist, prev_dist):
     results = []
     if routes:
-
         special_routes = (0, )
-        if last_closest and last_closest.route_i != 0:
-            special_routes += (last_closest.route_i, )
+        if prev_closest_route_point and prev_closest_route_point.route_i != 0:
+            special_routes += (prev_closest_route_point.route_i, )
 
         for route_i in reversed(special_routes):
             result = find_closest_point_pair_routes_result(
-                route_i, routes[route_i], *find_closest_point_pair_route(routes[route_i], to_point, min_search_complex_dist))
+                route_i, routes[route_i], *find_closest_point_pair_route(routes[route_i], to_point, min_search_complex_dist, prev_dist))
             if result.dist < break_out_dist:
                 return result
             results.append(result)
@@ -349,7 +343,7 @@ def find_closest_point_pair_routes(routes, to_point, min_search_complex_dist, la
         for route_i, route in enumerate(routes):
             if route_i not in special_routes:
                 results.append(find_closest_point_pair_routes_result(
-                    route_i, route, *find_closest_point_pair_route(route, to_point, min_search_complex_dist)))
+                    route_i, route, *find_closest_point_pair_route(route, to_point, min_search_complex_dist, prev_dist)))
 
         return min(results, key=dist_attr_getter)
 
@@ -357,18 +351,40 @@ def find_closest_point_pair_routes(routes, to_point, min_search_complex_dist, la
 find_closest_point_pair_result = collections.namedtuple('closest_point_pair', ('point_pair', 'dist', 'point'))
 
 
-def find_closest_point_pair_route(route, to_point, min_search_complex_dist):
-    simplified_closest = find_closest_point_pair(route['simplfied_point_pairs'], to_point)
+def find_closest_point_pair_route(route, to_point, min_search_complex_dist, prev_dist=None):
+    simplified_closest = find_closest_point_pair(route, route['simplfied_point_pairs'], to_point, prev_dist)
     if simplified_closest.dist > min_search_complex_dist or simplified_closest.point_pair[0].index == simplified_closest.point_pair[1].index - 1:
         return simplified_closest
     else:
-        return find_closest_point_pair(route['point_pairs'][simplified_closest.point_pair[0].index: simplified_closest.point_pair[1].index + 1], to_point)
+        return find_closest_point_pair(route, route['point_pairs'][simplified_closest.point_pair[0].index: simplified_closest.point_pair[1].index + 1], to_point, prev_dist)
 
 
-def find_closest_point_pair(point_pairs, to_point):
+def find_closest_point_pair(route, point_pairs, to_point, prev_dist):
     with_c_points = [find_closest_point_pair_result(point_pair[:2], *find_c_point_from_precalc(to_point, *point_pair))
                      for point_pair in point_pairs]
-    return min(with_c_points, key=dist_attr_getter)
+
+    if prev_dist is not None:
+        def min_key(closest):
+            move_distance = abs(route_distance(route, closest) - prev_dist)
+            move_distnace_adj = pow(2, (move_distance - 50000) / 1000)
+            rank = closest.dist + move_distnace_adj
+            # print(move_distance, n, move_distnace_adj, closest.dist, rank)
+            return rank
+    else:
+        min_key = dist_attr_getter
+
+    r = min(with_c_points, key=min_key)
+    # print(f'return {r}')
+    return r
+
+
+def route_distance(route, closest):
+    prev_route_point = closest.point_pair[0]
+    if route['main']:
+        return round(prev_route_point.distance + distance(prev_route_point, closest.point))
+    else:
+        alt_route_dist = prev_route_point.distance + distance(prev_route_point, closest.point)
+        return round(alt_route_dist * route['dist_factor'] + route['start_distance'])
 
 
 find_c_point_result = collections.namedtuple('c_point', ('dist', 'point'))
