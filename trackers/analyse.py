@@ -65,7 +65,7 @@ analyse_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_n
 
 async def start_analyse_tracker(tracker, event, event_routes, track_break_time=datetime.timedelta(minutes=20), track_break_dist=10000):
     analyse_tracker = Tracker('analysed.{}'.format(tracker.name))
-    analyse_tracker.last_point_with_position = None
+    analyse_tracker.prev_point_with_position = None
     analyse_tracker.last_point_with_position_point = None
     analyse_tracker.current_track_id = 0
     analyse_tracker.status = None
@@ -102,13 +102,10 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
     analyse_tracker.logger.debug('analyse_tracker_new_points ({} points)'.format(len(new_points)))
 
     new_new_points = []
-    last_point_with_position = None
+    prev_point_with_position = None
     log_time = datetime.datetime.now()
     log_i = 0
     last_route_point = event_routes[0]['points'][-1] if event_routes else None
-
-    # analyze_point_wraped = functools.partial(asyncio.get_event_loop().run_in_executor, analyse_executor, analyze_point)
-    analyze_point_wraped = analyze_point_async
 
     last_point_i = len(new_points) - 1
     did_slow_log = False
@@ -123,8 +120,50 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
                 except asyncio.CancelledError:
                     pass
                 analyse_tracker.make_inactive_fut = None
-            await analyze_point_wraped(analyse_tracker, event, event_routes, track_break_time, last_route_point, track_break_dist, tracker, new_new_points, point)
-            analyse_tracker.last_point_with_position = last_point_with_position = point
+
+            point_point = Point(*point['position'][:2])
+
+            if not event or (event.config.get('event_start') and event.config.get('event_start') <= point['time']):
+                closest = find_closest_point_pair_routes(event_routes, point_point, 1000, analyse_tracker.last_closest, 250)
+                if closest and closest.dist > 5000:
+                    closest = None
+
+                if closest:
+                    prev_route_point = closest.point_pair[0]
+                    route = closest.route
+                    if route['main']:
+                        point['dist_route'] = round(prev_route_point.distance + distance(prev_route_point, closest.point))
+                    else:
+                        alt_route_dist = prev_route_point.distance + distance(prev_route_point, closest.point)
+                        point['dist_route'] = round(alt_route_dist * route['dist_factor'] + route['start_distance'])
+
+                    if not analyse_tracker.finished:
+                        if closest.route_i == 0 and closest.point_pair[1].distance - last_route_point.distance < 100 and distance(point_point, last_route_point) < 100:
+                            analyse_tracker.logger.debug('Finished')
+                            analyse_tracker.finished = True
+                            point['finished_time'] = point['time']
+                            point['rider_status'] = 'Finished'
+
+                analyse_tracker.last_closest = closest
+
+                if analyse_tracker.prev_point_with_position:
+                    prev_point = analyse_tracker.prev_point_with_position
+                    dist = distance(point_point, analyse_tracker.last_point_with_position_point)
+                    time = point['time'] - prev_point['time']
+                    if time > track_break_time and dist > track_break_dist:
+                        analyse_tracker.current_track_id += 1
+                        analyse_apply_status_to_point(analyse_tracker, {'time': prev_point['time'] + track_break_time},
+                                                      'Inactive', new_new_points.append)
+                    point['dist_from_last'] = round(dist)
+                    analyse_tracker.dist_ridden += dist
+                    point['dist_ridden'] = round(analyse_tracker.dist_ridden)
+
+                analyse_tracker.last_point_with_position_point = point_point
+
+            # TODO what about status from source tracker?
+            analyse_apply_status_to_point(analyse_tracker, point, 'Active')
+
+            analyse_tracker.prev_point_with_position = prev_point_with_position = point
             point['track_id'] = analyse_tracker.current_track_id
 
         new_new_points.append(point)
@@ -149,67 +188,18 @@ async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track
     if new_new_points:
         await analyse_tracker.new_points(new_new_points)
 
-    if last_point_with_position:
+    if prev_point_with_position:
         analyse_tracker.make_inactive_fut = asyncio.ensure_future(
-            make_inactive(analyse_tracker, last_point_with_position, track_break_time))
+            make_inactive(analyse_tracker, prev_point_with_position, track_break_time))
 
 
-async def analyze_point_async(*args, **kwargs):
-    return analyze_point(*args, **kwargs)
-
-
-def analyze_point(analyse_tracker, event, event_routes, track_break_time, last_route_point, track_break_dist, tracker, new_new_points, point):
-    # TODO only search points after the last route point
-    point_point = Point(*point['position'][:2])
-
-    if not event or (event.config.get('event_start') and event.config.get('event_start') <= point['time']):
-        closest = find_closest_point_pair_routes(event_routes, point_point, 1000, analyse_tracker.last_closest, 250)
-        if closest and closest.dist > 5000:
-            closest = None
-
-        if closest:
-            prev_route_point = closest.point_pair[0]
-            route = closest.route
-            if route['main']:
-                point['dist_route'] = round(prev_route_point.distance + distance(prev_route_point, closest.point))
-            else:
-                alt_route_dist = prev_route_point.distance + distance(prev_route_point, closest.point)
-                point['dist_route'] = round(alt_route_dist * route['dist_factor'] + route['start_distance'])
-
-            if not analyse_tracker.finished:
-                if closest.route_i == 0 and closest.point_pair[1].distance - last_route_point.distance < 100 and distance(point_point, last_route_point) < 100:
-                    analyse_tracker.logger.debug('Finished')
-                    analyse_tracker.finished = True
-                    point['finished_time'] = point['time']
-                    point['rider_status'] = 'Finished'
-
-        analyse_tracker.last_closest = closest
-
-        if analyse_tracker.last_point_with_position:
-            last_point = analyse_tracker.last_point_with_position
-            dist = distance(point_point, analyse_tracker.last_point_with_position_point)
-            time = point['time'] - last_point['time']
-            if time > track_break_time and dist > track_break_dist:
-                analyse_tracker.current_track_id += 1
-                analyse_apply_status_to_point(analyse_tracker, {'time': last_point['time'] + track_break_time},
-                                              'Inactive', new_new_points.append)
-            point['dist_from_last'] = round(dist)
-            analyse_tracker.dist_ridden += dist
-            point['dist_ridden'] = round(analyse_tracker.dist_ridden)
-
-        analyse_tracker.last_point_with_position_point = point_point
-
-    # TODO what about status from source tracker?
-    analyse_apply_status_to_point(analyse_tracker, point, 'Active')
-
-
-async def make_inactive(analyse_tracker, last_point_with_position, track_break_time):
-    delay = (last_point_with_position['time'] - datetime.datetime.now() + track_break_time).total_seconds()
+async def make_inactive(analyse_tracker, prev_point_with_position, track_break_time):
+    delay = (prev_point_with_position['time'] - datetime.datetime.now() + track_break_time).total_seconds()
     if delay > 0:
         await asyncio.sleep(delay)
-    if last_point_with_position == analyse_tracker.last_point_with_position:
+    if prev_point_with_position == analyse_tracker.prev_point_with_position:
         new_new_points = []
-        analyse_apply_status_to_point(analyse_tracker, {'time': last_point_with_position['time'] + track_break_time},
+        analyse_apply_status_to_point(analyse_tracker, {'time': prev_point_with_position['time'] + track_break_time},
                                       'Inactive', new_new_points.append)
         await asyncio.shield(analyse_tracker.new_points(new_new_points))
 
