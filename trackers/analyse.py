@@ -1,6 +1,5 @@
 import asyncio
 import collections
-import concurrent.futures
 import copy
 import datetime
 import functools
@@ -59,8 +58,6 @@ from trackers.base import Tracker
 logger = logging.getLogger(__name__)
 
 seterr(all='raise')
-
-analyse_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix='analyse')
 
 
 async def start_analyse_tracker(tracker, event, event_routes, track_break_time=datetime.timedelta(minutes=20), track_break_dist=10000):
