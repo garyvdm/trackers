@@ -55,6 +55,18 @@ var riders_points = {};
 function on_new_state_received(new_state) {
     var need_save = false;
 
+    if (new_state.hasOwnProperty('server_time')) {
+        var current_time = new Date();
+        var server_time = new Date(new_state.server_time * 1000);
+        time_offset = (current_time.getTime() - server_time.getTime()) / 1000;
+    }
+    if (new_state.hasOwnProperty('client_hash')) {
+        if (new_state.client_hash != client_hash) {
+            location.reload();
+            return;
+        }
+    }
+
     if (new_state.hasOwnProperty('live')) {
         state.live = new_state.live;
         need_save = true;
@@ -174,16 +186,6 @@ function ws_onmessage(event){
     // console.log(event.data);
 
     var data = JSON.parse(event.data);
-    if (data.hasOwnProperty('server_time')) {
-        var current_time = new Date();
-        var server_time = new Date(data.server_time * 1000);
-        time_offset = (current_time.getTime() - server_time.getTime()) / 1000;
-    }
-    if (data.hasOwnProperty('client_hash')) {
-        if (data.client_hash != client_hash) {
-            location.reload();
-        }
-    }
     if (data.hasOwnProperty('sending')) {
         set_status('&#x2713; Conneceted, ' + loader_html + 'Loading '+ data.sending);
     }
@@ -304,8 +306,6 @@ function on_new_config(){
             map.fitBounds(bounds);
         }
 
-        document.getElementById('title').innerText = config.title;
-        document.title = config.title;
         riders_by_name = {};
         config.riders.forEach(function (rider) {
             riders_by_name[rider.name] = rider

@@ -32,7 +32,9 @@ async def config(app, settings):
 
         if isinstance(app, WebApplication):
             import trackers.web_app
-            app['add_individual_handler']('/traccar/{unique_id}')
+            app.router.add_route('GET', '/traccar/{unique_id}',
+                                 handler=trackers.web_app.individual_page,
+                                 name='tarccar_individual_page')
             app.router.add_route('GET', '/traccar/{unique_id}/websocket',
                                  handler=functools.partial(trackers.web_app.individual_ws, get_individual_key,
                                                            functools.partial(start_individual_tracker, app, settings)),

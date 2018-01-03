@@ -171,7 +171,7 @@ document.addEventListener('DOMContentLoaded', function() {
             else { last_position_time = sprintf('%i:%02i ago', Math.floor(seconds / 60 / 60), Math.floor(seconds / 60 % 60))}
             last_active.innerText = 'Last active: ' + last_position_time
         } else {
-            last_active.innerText = '&nbsp;';
+            last_active.innerText = '.';
         }
     }
 

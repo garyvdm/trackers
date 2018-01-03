@@ -50,24 +50,9 @@ async def make_aio_app(settings,
     app['trackers.settings'] = settings
 
     app['trackers.ws_sessions'] = []
-    static_urls = {}
+    app['static_urls'] = static_urls = {}
     app['trackers.individual_trackers'] = {}
     app['exception_recorder'] = exception_recorder
-
-    def page_body_processor(app, body, related_resources, hash_key):
-        hash = hashlib.sha1(body)
-        for resource_name in related_resources:
-            hash.update(pkg_resources.resource_string('trackers', resource_name))
-        hash.update(settings['google_api_key'].encode('utf8'))
-        for key, value in static_urls.items():
-            hash.update(key.encode('utf8'))
-            hash.update(value.encode('utf8'))
-
-        client_hash = base64.urlsafe_b64encode(hash.digest()).decode('ascii')
-        app[hash_key] = client_hash
-        return body.decode('utf8').format(api_key=settings['google_api_key'],
-                                          client_hash=client_hash,
-                                          static_urls=static_urls).encode('utf8')
 
     with magic.Magic(flags=magic.MAGIC_MIME_TYPE) as m:
         add_static = partial(add_static_resource, app, 'trackers', static_urls, m)
@@ -80,26 +65,20 @@ async def make_aio_app(settings,
         add_static('/static/highcharts.js', '/static/highcharts.js', charset='utf8', content_type='text/javascript')
         add_static('/static/traccar_testing.html', '/testing', charset='utf8', content_type='text/html')
         # print(list(static_urls.keys()))
-        add_static('/static/event.html', '/{event}', charset='utf8', content_type='text/html',
-                   body_processor=partial(
-                       page_body_processor,
-                       related_resources=('/static/event.js', '/static/event.css', '/static/richmarker.js', '/static/lib.js'),
-                       hash_key='trackers.event_client_hash'
-                   ))
-        app['add_individual_handler'] = partial(
-            add_static, '/static/individual.html',
-            charset='utf8', content_type='text/html',
-            body_processor=partial(
-                page_body_processor,
-                related_resources=('/static/individual.js', '/static/event.css'),
-                hash_key='trackers.individual_client_hash'
-            )
-        )
 
         for name in pkg_resources.resource_listdir('trackers', '/static/markers'):
             full_name = '/static/markers/{}'.format(name)
             add_static(full_name, full_name)
 
+    app['individual_page'] = get_static_processed_resouce(
+        app, 'trackers', '/static/individual.html',
+        body_processor=partial(
+            page_body_processor,
+            api_key=settings['google_api_key'],
+        )
+    )
+
+    app.router.add_route('GET', '/{event}', handler=event_page, name='event_page')
     app.router.add_route('GET', '/{event}/websocket', handler=event_ws, name='event_ws')
     app.router.add_route('GET', '/{event}/state', handler=event_state, name='event_state')
     app.router.add_route('GET', '/{event}/config', handler=event_config, name='event_config')
@@ -159,15 +138,21 @@ def json_response(data, **kwargs):
     return web.Response(text=json_dumps(data), content_type='application/json', **kwargs)
 
 
-def add_static_resource(app, package, static_urls, magic, resource_name, route, *args, **kwargs):
+def get_static_processed_resouce(app, package, resource_name, body_processor):
     body = pkg_resources.resource_string(package, resource_name)
-    body_processor = kwargs.pop('body_processor', None)
     if body_processor:
-        body = body_processor(app, body)
+        body, etag = body_processor(app, body)
+    else:
+        etag = base64.urlsafe_b64encode(hashlib.sha1(body).digest()).decode('ascii')
+    return body, etag
+
+
+def add_static_resource(app, package, static_urls, magic, resource_name, route, *args, **kwargs):
+    body, etag = get_static_processed_resouce(app, package, resource_name, kwargs.pop('body_processor', None))
+
     if 'content_type' not in kwargs:
         kwargs['content_type'] = magic.id_buffer(body)
     kwargs['body'] = body
-    etag = base64.urlsafe_b64encode(hashlib.sha1(body).digest()).decode('ascii')
 
     async def static_resource_handler(request):
         return etag_query_hash_response(request, lambda: web.Response(*args, **kwargs), etag)
@@ -182,6 +167,32 @@ def add_static_resource(app, package, static_urls, magic, resource_name, route, 
         pass  # for routes with match items
 
     return static_resource_handler
+
+
+def page_body_processor(app, body, **kwargs):
+    # since we need the hash in the body, we manually hash every thing that goes into the body.
+
+    static_urls = app['static_urls']
+    hash = hashlib.sha1(body)
+
+    for key, value in kwargs.items():
+        hash.update(key.encode())
+        hash.update(value.encode())
+
+    # Probably should not use all static resources.
+    for key, value in static_urls.items():
+        hash.update(key.encode())
+        hash.update(value.encode())
+
+    client_hash = base64.urlsafe_b64encode(hash.digest()).decode('ascii')
+
+    formated_body = body.decode('utf8').format(
+        client_hash=client_hash,
+        static_urls=static_urls,
+        **kwargs,
+    ).encode('utf8')
+
+    return formated_body, client_hash
 
 
 def say_error_handler(func):
@@ -213,15 +224,40 @@ def event_handler(func):
     return event_handler_inner
 
 
-def get_event_state(event):
+def get_event_state(app, event):
     riders_points = {rider_name: blocked_list.full for rider_name, blocked_list in event.rider_trackers_blocked_list.items()}
-
+    ensure_event_page(app, event)
     return {
         'live': event.config.get('live', False),
         'config_hash': event.config_hash,
         'routes_hash': event.routes_hash,
         'riders_points': riders_points,
+        'client_hash': event.page[1],
+        'server_time': datetime.datetime.now(),
     }
+
+
+def ensure_event_page(app, event):
+    if not hasattr(event, 'page'):
+        event.page = get_static_processed_resouce(
+            app, 'trackers', '/static/event.html',
+            body_processor=partial(
+                page_body_processor,
+                api_key=app['trackers.settings']['google_api_key'],
+                title=event.config['title'],
+            )
+        )
+
+
+async def event_page(request):
+    event_name = request.match_info['event']
+    event = request.app['trackers.events'].get(event_name)
+    if event is None:
+        raise web.HTTPNotFound()
+    ensure_event_page(request.app, event)
+    body, etag = event.page
+    response = web.Response(body=body, charset='utf8', content_type='text/html',)
+    return etag_response(request, response, etag)
 
 
 @say_error_handler
@@ -230,11 +266,11 @@ async def event_state(request, event):
     if event.config.get('live', False):
         state = {'live': True}
     else:
-        state = get_event_state(event)
+        state = get_event_state(request.app, event)
 
     response = json_response(state)
     etag = base64.urlsafe_b64encode(hashlib.sha1(response.body).digest()).decode('ascii')
-    return etag_response(request, response, etag, cache_control='public')
+    return etag_response(request, response, etag)
 
 
 @say_error_handler
@@ -304,15 +340,12 @@ async def event_ws(request):
                 await ws.close(message='Error: Event not found.')
                 return ws
 
-            live = event.config.get('live', False)
-            send({'client_hash': request.app['trackers.event_client_hash'], 'server_time': datetime.datetime.now()})
-
-            if not live:
+            if not event.config.get('live', False):
                 send({'live': False})
                 ws.close(message='Event not live. Use rest api')
             else:
                 await event.start_trackers(request.app)
-                send(get_event_state(event))
+                send(get_event_state(request.app, event))
                 for rider_name, tracker_block_list in event.rider_trackers_blocked_list.items():
                     exit_stack.enter_context(list_register(tracker_block_list.new_update_callbacks,
                                                            partial(tracker_updates_to_ws, request.app, send, rider_name)))
@@ -359,6 +392,12 @@ async def event_set_start(request):
     return web.Response(text='Start time set to {}'.format(event_data['event_start']))
 
 
+async def individual_page(request):
+    body, etag = request.app['individual_page']
+    response = web.Response(body=body, charset='utf8', content_type='text/html',)
+    return etag_response(request, response, etag)
+
+
 async def individual_ws(get_key, get_tracker, request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
@@ -367,8 +406,7 @@ async def individual_ws(get_key, get_tracker, request):
             def send(msg):
                 logger.debug('send: {}'.format(str(msg)[:1000]))
                 ws.send_str(json_dumps(msg))
-
-            send({'client_hash': request.app['trackers.individual_client_hash'], 'server_time': datetime.datetime.now()})
+            send({'client_hash': request.app['individual_page'][1], 'server_time': datetime.datetime.now()})
 
             tracker_key = get_key(request)
             tracker_info = request.app['trackers.individual_trackers'].get(tracker_key)
