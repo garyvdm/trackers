@@ -517,6 +517,7 @@ var riders_detail_el = document.getElementById('riders_detail');
 var riders_el = [];
 function update_rider_table(){
     if (config) {
+        document.getElementById('riders_contain').className = (config.riders.length >= 10? 'big':'small')
         var sorted_riders = config.riders.slice();
         sorted_riders.sort(function (a, b){
             var a_rider_items = riders_client_items[a.name] || {};
@@ -542,7 +543,7 @@ function update_rider_table(){
             var last_position_time;
             var finished_time;
             var speed;
-            var rider_status = (rider.hasOwnProperty('status') ? rider.status : current_values.status || '' );
+            var rider_status = (rider.hasOwnProperty('status') ? rider.status : current_values.rider_status || '' );
             if (current_values.finished_time) {
                 if (config && config.hasOwnProperty('event_start')){
                     finished_time = format_time_delta(current_values.finished_time - config.event_start);
@@ -578,7 +579,9 @@ function update_rider_table(){
                 return '<tr rider_name="' + rider.name + '" class="rider">' +
                        '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
                        '<td>' + rider.name + '</td>' +
-                       '<td style="text-align: right">' + (finished_time || (current_values.hasOwnProperty('dist_route') ? sprintf('%.1f km', current_values.dist_route / 1000) : '')) + ' ' + rider_status +'</td>' +
+                       '<td style="text-align: right">' +
+                            (finished_time || (current_values.hasOwnProperty('dist_route') ? sprintf('%.1f km', current_values.dist_route / 1000) : ''))
+                            + ' ' + (rider_status || current_values.status || '') +'</td>' +
                        '</tr>';
             }
         });
@@ -599,10 +602,9 @@ function update_rider_table(){
         } else {
             document.getElementById('riders_actual').innerHTML =
                 '<table>' + rider_rows.join('') + '</table>';
-            document.getElementById('riders_sizer').style.width = '';
+            document.getElementById('riders_sizer').style.width = '250px';;
         }
         riders_el = document.getElementById('riders_actual').querySelectorAll('.rider');
-        document.getElementById('riders_contain').className = (config.riders.length >= 10? 'big':'small')
         Array.prototype.forEach.call(riders_el, function (row){
             var rider_name = row.getAttribute('rider_name');
             row.onclick = rider_onclick.bind(null, row, rider_name);
