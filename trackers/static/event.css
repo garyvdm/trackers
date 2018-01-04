@@ -31,11 +31,6 @@ html, body {
     -ms-flex: 1 1 auto;
 }
 
-#main {
-    -ms-flex: 2 1 100%; flex: 2 1 100%;
-    position: relative;
-}
-
 #title{
     font-weight: bold;
     font-size: larger;
@@ -48,32 +43,62 @@ html, body {
     text-align: right;
 }
 
+#map_riders {
+    display: -ms-flexbox; display: flex;
+    -ms-flex: 2 1 100%; flex: 2 1 100%;
+    position: relative;
+}
+
+#map_contain {
+  -ms-flex: 2 1 100%; flex: 2 1 100%;
+  position: relative;
+}
 
 #map_el {
   position: absolute;
   left: 0;
   right: 0;
   top: 0;
-  bottom: 20%;
+  bottom: 0;
+  max-height: 100%;
 }
 
 #elevation {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 20%;
-  bottom: 1px;
+    height: 25%;
+}
+
+#riders_contain {
+    -ms-flex: 1 1 30%; flex: 1 1 30%;
+    position: relative;
+    padding: 8px;
+    background: white;
 }
 
 #riders {
-    padding: 8px;
+    overflow: auto;
+}
+
+#riders_sizer {
+    visible: false;
+}
+
+#riders_contain.big #riders {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    max-height: 100%;
+}
+
+#riders_contain.small {
+    margin: 10px;
     position: absolute;
     top: 0;
-    margin: 10px;
     box-shadow: 2px 2px 4px -1px rgba(0, 0, 0, 0.5);
     background: white;
     border-radius: 2px;
-    overflow: auto;
+    z-index: 3;
 }
 
 #riders table{
@@ -124,25 +149,35 @@ html, body {
         border-bottom: 4px solid white;
     }
 
-    .show_map #map_block{
+    .show_map #map_contain, .show_map #elevation{
         display: block;
     }
-    .show_map #riders{
+    .show_map #riders_contain{
         display: none;
     }
-    .show_riders #map_block{
+    .show_riders #map_contain, .show_riders #elevation{
         display: none;
     }
-    .show_riders #riders{
+    .show_riders #riders_contain{
         display: block;
+    }
+    #riders_contain.small, #riders_contain.big{
+        position: relative;
+        box-shadow: none;
+        max-width: 100%;
+        margin: 0;
     }
     #riders{
         position: absolute;
-        box-shadow: none;
+        max-width: 100%;
         top: 0; bottom: 0; left: 0; right: 0;
+        margin: 10px;
     }
     #riders>table{
         width: 100%
+    }
+    #riders_sizer {
+        display: none;
     }
 
 }

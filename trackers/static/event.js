@@ -201,7 +201,7 @@ function ws_onmessage(event){
 
 load_state();
 
-var main_el = document.getElementById('main');
+var main_el = document.getElementById('foo');
 var mobile_selectors = document.getElementById('mobile_select').querySelectorAll('div');
 var mobile_selected;
 
@@ -595,11 +595,14 @@ function update_rider_table(){
                 '<td style="text-align: right">Dist on<br>Route</td>' +
                 '<td style="text-align: right">Finish<br>Time</td>' +
                 '</tr>' + rider_rows.join('') + '</table>';
+            document.getElementById('riders_sizer').style.width = '600px';
         } else {
             document.getElementById('riders_actual').innerHTML =
                 '<table>' + rider_rows.join('') + '</table>';
+            document.getElementById('riders_sizer').style.width = '';
         }
         riders_el = document.getElementById('riders_actual').querySelectorAll('.rider');
+        document.getElementById('riders_contain').className = (config.riders.length >= 10? 'big':'small')
         Array.prototype.forEach.call(riders_el, function (row){
             var rider_name = row.getAttribute('rider_name');
             row.onclick = rider_onclick.bind(null, row, rider_name);
