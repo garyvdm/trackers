@@ -64,11 +64,14 @@ async def make_aio_app(settings,
         add_static('/static/es7-shim.min.js', '/static/es7-shim.min.js', charset='utf8', content_type='text/javascript')
         add_static('/static/highcharts.js', '/static/highcharts.js', charset='utf8', content_type='text/javascript')
         add_static('/static/traccar_testing.html', '/testing', charset='utf8', content_type='text/html')
-        # print(list(static_urls.keys()))
 
         for name in pkg_resources.resource_listdir('trackers', '/static/markers'):
             full_name = '/static/markers/{}'.format(name)
             add_static(full_name, full_name)
+        add_static('/static/internet-sa-logo.png', '/static/internet-sa-logo.png')
+        add_static('/static/lindley_gravel_grind.png', '/static/lindley_gravel_grind.png')
+
+        # print(list(static_urls.keys()))
 
     app['individual_page'] = get_static_processed_resouce(
         app, 'trackers', '/static/individual.html',
@@ -239,8 +242,9 @@ def get_event_state(app, event):
 
 def ensure_event_page(app, event):
     if not hasattr(event, 'page'):
+        page_path = event.config.get('page', '/static/event.html')
         event.page = get_static_processed_resouce(
-            app, 'trackers', '/static/event.html',
+            app, 'trackers', page_path,
             body_processor=partial(
                 page_body_processor,
                 api_key=app['trackers.settings']['google_api_key'],
