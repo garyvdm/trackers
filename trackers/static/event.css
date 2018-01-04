@@ -124,13 +124,13 @@ html, body {
         border-bottom: 4px solid white;
     }
 
-    .show_map #map{
+    .show_map #map_block{
         display: block;
     }
     .show_map #riders{
         display: none;
     }
-    .show_riders #map{
+    .show_riders #map_block{
         display: none;
     }
     .show_riders #riders{
