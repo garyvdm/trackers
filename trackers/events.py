@@ -7,7 +7,7 @@ import os
 import msgpack
 import yaml
 
-from trackers.analyse import get_analyse_routes, start_analyse_tracker
+from trackers.analyse import AnalyseTracker, get_analyse_routes
 from trackers.base import BlockedList
 from trackers.dulwich_helpers import TreeReader, TreeWriter
 from trackers.general import index_and_hash_tracker, start_replay_tracker
@@ -104,7 +104,7 @@ class Event(object):
                     if replay:
                         tracker = await start_replay_tracker(tracker, event_start, replay_start)
                     if analyse:
-                        tracker = await start_analyse_tracker(tracker, self, analyse_routes)
+                        tracker = await AnalyseTracker.start(tracker, self, analyse_routes)
                     tracker = await index_and_hash_tracker(tracker)
                     self.rider_trackers[rider['name']] = tracker
                     self.rider_trackers_blocked_list[rider['name']] = BlockedList.from_tracker(tracker, entire_block=not is_live)

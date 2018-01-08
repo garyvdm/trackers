@@ -4,7 +4,7 @@ import json
 import logging
 import sys
 
-from trackers.analyse import get_analyse_routes, start_analyse_tracker
+from trackers.analyse import AnalyseTracker, get_analyse_routes
 from trackers.base import Tracker
 
 
@@ -29,7 +29,7 @@ async def setup():
 
 
 async def test():
-    await start_analyse_tracker(tracker, None, event_routes)
+    await AnalyseTracker.start(tracker, None, event_routes)
 
 
 if __name__ == '__main__':

@@ -16,7 +16,7 @@ from slugify import slugify
 
 import trackers.bin_utils
 import trackers.events
-from trackers.analyse import start_analyse_tracker
+from trackers.analyse import AnalyseTracker
 from trackers.base import cancel_and_wait_task, list_register
 from trackers.general import json_dumps
 
@@ -417,7 +417,7 @@ async def individual_ws(get_key, get_tracker, request):
 
             if tracker_info is None:
                 tracker = await get_tracker(request)
-                tracker = await start_analyse_tracker(tracker, None, ())
+                tracker = await AnalyseTracker.start(tracker, None, ())
                 tracker_info = {
                     'key': tracker_key,
                     'tracker': tracker,

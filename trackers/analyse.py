@@ -60,148 +60,150 @@ logger = logging.getLogger(__name__)
 seterr(all='raise')
 
 
-async def start_analyse_tracker(tracker, event, event_routes, track_break_time=datetime.timedelta(minutes=20), track_break_dist=10000):
-    analyse_tracker = Tracker('analysed.{}'.format(tracker.name))
-    analyse_tracker.prev_point_with_position = None
-    analyse_tracker.prev_point_with_position_point = None
-    analyse_tracker.current_track_id = 0
-    analyse_tracker.status = None
-    analyse_tracker.make_inactive_fut = None
-    analyse_tracker.stop = functools.partial(analyse_tracker_stop, analyse_tracker)
-    analyse_tracker.completed = asyncio.ensure_future(analyse_tracker_completed(analyse_tracker))
-    analyse_tracker.org_tracker = tracker
-    analyse_tracker.prev_closest_route_point = None
-    analyse_tracker.dist_ridden = 0
-    analyse_tracker.prev_route_dist = 0
-    analyse_tracker.finished = False
-    await analyse_tracker_new_points(analyse_tracker, event, event_routes, track_break_time, track_break_dist, tracker, tracker.points)
-    tracker.new_points_callbacks.append(
-        functools.partial(analyse_tracker_new_points, analyse_tracker, event, event_routes, track_break_time, track_break_dist))
-    return analyse_tracker
+class AnalyseTracker(Tracker):
 
+    @classmethod
+    async def start(cls, org_tracker, event, event_routes, track_break_time=datetime.timedelta(minutes=20), track_break_dist=10000):
+        analyse_tracker = cls(org_tracker)
+        await analyse_tracker.on_new_points(event, event_routes, track_break_time, track_break_dist, org_tracker, org_tracker.points)
+        org_tracker.new_points_callbacks.append(
+            functools.partial(analyse_tracker.on_new_points, event, event_routes, track_break_time, track_break_dist))
+        return analyse_tracker
 
-def analyse_tracker_stop(analyse_tracker):
-    analyse_tracker.org_tracker.stop()
-    if analyse_tracker.make_inactive_fut:
-        analyse_tracker.make_inactive_fut.cancel()
+    def __init__(self, org_tracker):
+        super().__init__('analysed.{}'.format(org_tracker.name))
+        self.prev_point_with_position = None
+        self.prev_point_with_position_point = None
+        self.current_track_id = 0
+        self.status = None
+        self.make_inactive_fut = None
+        self.completed = asyncio.ensure_future(self._completed())
+        self.org_tracker = org_tracker
+        self.prev_closest_route_point = None
+        self.dist_ridden = 0
+        self.prev_route_dist = 0
+        self.finished = False
 
+    def stop(self):
+        self.org_tracker.stop()
+        if self.make_inactive_fut:
+            self.make_inactive_fut.cancel()
 
-async def analyse_tracker_completed(analyse_tracker):
-    await analyse_tracker.org_tracker.complete()
-    if analyse_tracker.make_inactive_fut:
-        try:
-            await analyse_tracker.make_inactive_fut
-        except asyncio.CancelledError:
-            pass
-        analyse_tracker.make_inactive_fut = None
+    async def _completed(self):
+        await self.org_tracker.complete()
+        if self.make_inactive_fut:
+            try:
+                await self.make_inactive_fut
+            except asyncio.CancelledError:
+                pass
+            self.make_inactive_fut = None
 
+    async def on_new_points(self, event, event_routes, track_break_time, track_break_dist, tracker, new_points):
+        self.logger.debug('analyse_tracker_new_points ({} points)'.format(len(new_points)))
 
-async def analyse_tracker_new_points(analyse_tracker, event, event_routes, track_break_time, track_break_dist, tracker, new_points):
-    analyse_tracker.logger.debug('analyse_tracker_new_points ({} points)'.format(len(new_points)))
-
-    new_new_points = []
-    prev_point_with_position = None
-    log_time = datetime.datetime.now()
-    log_i = 0
-    last_route_point = event_routes[0]['points'][-1] if event_routes else None
-
-    last_point_i = len(new_points) - 1
-    did_slow_log = False
-
-    for i, point in enumerate(new_points):
-        point = copy.deepcopy(point)
-        if 'position' in point:
-            if analyse_tracker.make_inactive_fut:
-                analyse_tracker.make_inactive_fut.cancel()
-                try:
-                    await analyse_tracker.make_inactive_fut
-                except asyncio.CancelledError:
-                    pass
-                analyse_tracker.make_inactive_fut = None
-
-            point_point = Point(*point['position'][:2])
-
-            if not event or (event.config.get('event_start') and event.config.get('event_start') <= point['time']):
-                closest = find_closest_point_pair_routes(event_routes, point_point, 1000, analyse_tracker.prev_closest_route_point, 250, analyse_tracker.prev_route_dist)
-                if closest and closest.dist > 5000:
-                    closest = None
-
-                if closest:
-                    point['dist_route'] = analyse_tracker.prev_route_dist = route_distance(closest.route, closest)
-
-                    if not analyse_tracker.finished:
-                        if closest.route_i == 0 and abs(point['dist_route'] - last_route_point.distance) < 100:
-                            analyse_tracker.logger.debug('Finished')
-                            analyse_tracker.finished = True
-                            point['finished_time'] = point['time']
-                            point['rider_status'] = 'Finished'
-
-                analyse_tracker.prev_closest_route_point = closest
-
-                if analyse_tracker.prev_point_with_position_point:
-                    prev_point = analyse_tracker.prev_point_with_position
-                    dist = distance(point_point, analyse_tracker.prev_point_with_position_point)
-                    time = point['time'] - prev_point['time']
-                    if time > track_break_time and dist > track_break_dist:
-                        analyse_tracker.current_track_id += 1
-                        analyse_apply_status_to_point(analyse_tracker, {'time': prev_point['time'] + track_break_time},
-                                                      'Inactive', new_new_points.append)
-                    point['dist_from_last'] = round(dist)
-                    analyse_tracker.dist_ridden += dist
-                    point['dist_ridden'] = round(analyse_tracker.dist_ridden)
-
-                analyse_tracker.prev_point_with_position_point = point_point
-
-            # TODO what about status from source tracker?
-            analyse_apply_status_to_point(analyse_tracker, point, 'Active')
-
-            analyse_tracker.prev_point_with_position = prev_point_with_position = point
-            point['track_id'] = analyse_tracker.current_track_id
-
-        new_new_points.append(point)
-
-        is_last_point = i == last_point_i
-        if i % 10 == 9 or is_last_point:
-            now = datetime.datetime.now()
-            log_time_delta = (now - log_time).total_seconds()
-            if log_time_delta >= 5 or (is_last_point and did_slow_log):
-                analyse_tracker.logger.info('{}/{} ({:.1f}%) points analysed at {:.2f} points/second.'.format(
-                    i, len(new_points), i / (len(new_points) - 1) * 100, (i - log_i) / log_time_delta))
-                log_time = now
-                log_i = i
-                did_slow_log = True
-                if new_new_points:
-                    await analyse_tracker.new_points(new_new_points)
-                    new_new_points = []
-
-        if analyse_tracker.finished:
-            break
-
-    if new_new_points:
-        await analyse_tracker.new_points(new_new_points)
-
-    if prev_point_with_position:
-        analyse_tracker.make_inactive_fut = asyncio.ensure_future(
-            make_inactive(analyse_tracker, prev_point_with_position, track_break_time))
-
-
-async def make_inactive(analyse_tracker, prev_point_with_position, track_break_time):
-    delay = (prev_point_with_position['time'] - datetime.datetime.now() + track_break_time).total_seconds()
-    if delay > 0:
-        await asyncio.sleep(delay)
-    if prev_point_with_position == analyse_tracker.prev_point_with_position:
         new_new_points = []
-        analyse_apply_status_to_point(analyse_tracker, {'time': prev_point_with_position['time'] + track_break_time},
-                                      'Inactive', new_new_points.append)
-        await asyncio.shield(analyse_tracker.new_points(new_new_points))
+        prev_point_with_position = None
+        log_time = datetime.datetime.now()
+        log_i = 0
+        last_route_point = event_routes[0]['points'][-1] if event_routes else None
 
+        last_point_i = len(new_points) - 1
+        did_slow_log = False
 
-def analyse_apply_status_to_point(analyse_tracker, point, status, append_to=None):
-    if status != analyse_tracker.status:
-        point['status'] = status
-        analyse_tracker.status = status
-        if append_to:
-            append_to(point)
+        for i, point in enumerate(new_points):
+            point = copy.deepcopy(point)
+            if 'position' in point:
+                if self.make_inactive_fut:
+                    self.make_inactive_fut.cancel()
+                    try:
+                        await self.make_inactive_fut
+                    except asyncio.CancelledError:
+                        pass
+                    self.make_inactive_fut = None
+
+                point_point = Point(*point['position'][:2])
+
+                if not event or (event.config.get('event_start') and event.config.get('event_start') <= point['time']):
+                    closest = find_closest_point_pair_routes(event_routes, point_point, 1000, self.prev_closest_route_point, 250, self.prev_route_dist)
+                    if closest and closest.dist > 5000:
+                        closest = None
+
+                    if closest:
+                        point['dist_route'] = self.prev_route_dist = route_distance(closest.route, closest)
+
+                        if not self.finished:
+                            if closest.route_i == 0 and abs(point['dist_route'] - last_route_point.distance) < 100:
+                                self.logger.debug('Finished')
+                                self.finished = True
+                                point['finished_time'] = point['time']
+                                point['rider_status'] = 'Finished'
+
+                    self.prev_closest_route_point = closest
+
+                    if self.prev_point_with_position_point:
+                        prev_point = self.prev_point_with_position
+                        dist = distance(point_point, self.prev_point_with_position_point)
+                        time = point['time'] - prev_point['time']
+                        if time > track_break_time and dist > track_break_dist:
+                            self.current_track_id += 1
+                            self.apply_status_to_point(
+                                {'time': prev_point['time'] + track_break_time},
+                                'Inactive', new_new_points.append)
+                        point['dist_from_last'] = round(dist)
+                        self.dist_ridden += dist
+                        point['dist_ridden'] = round(self.dist_ridden)
+
+                    self.prev_point_with_position_point = point_point
+
+                # TODO what about status from source tracker?
+                self.apply_status_to_point(point, 'Active')
+
+                self.prev_point_with_position = prev_point_with_position = point
+                point['track_id'] = self.current_track_id
+
+            new_new_points.append(point)
+
+            is_last_point = i == last_point_i
+            if i % 10 == 9 or is_last_point:
+                now = datetime.datetime.now()
+                log_time_delta = (now - log_time).total_seconds()
+                if log_time_delta >= 5 or (is_last_point and did_slow_log):
+                    self.logger.info('{}/{} ({:.1f}%) points analysed at {:.2f} points/second.'.format(
+                        i, len(new_points), i / (len(new_points) - 1) * 100, (i - log_i) / log_time_delta))
+                    log_time = now
+                    log_i = i
+                    did_slow_log = True
+                    if new_new_points:
+                        await self.new_points(new_new_points)
+                        new_new_points = []
+
+            if self.finished:
+                break
+
+        if new_new_points:
+            await self.new_points(new_new_points)
+
+        if prev_point_with_position:
+            self.make_inactive_fut = asyncio.ensure_future(
+                self.make_inactive(prev_point_with_position, track_break_time))
+
+    async def make_inactive(self, prev_point_with_position, track_break_time):
+        delay = (prev_point_with_position['time'] - datetime.datetime.now() + track_break_time).total_seconds()
+        if delay > 0:
+            await asyncio.sleep(delay)
+        if prev_point_with_position == self.prev_point_with_position:
+            new_new_points = []
+            self.apply_status_to_point(
+                {'time': prev_point_with_position['time'] + track_break_time},
+                'Inactive', new_new_points.append)
+            await asyncio.shield(self.new_points(new_new_points))
+
+    def apply_status_to_point(self, point, status, append_to=None):
+        if status != self.status:
+            point['status'] = status
+            self.status = status
+            if append_to:
+                append_to(point)
 
 
 @attr.s(slots=True)

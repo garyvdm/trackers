@@ -5,7 +5,7 @@ from argparse import Namespace
 
 import asynctest
 
-from trackers.analyse import get_analyse_routes, start_analyse_tracker
+from trackers.analyse import AnalyseTracker, get_analyse_routes
 from trackers.base import Tracker
 from trackers.bin_utils import process_secondary_route_details
 
@@ -28,7 +28,7 @@ class TestAnalyseTracker(asynctest.TestCase):
         ))
         tracker.completed.set_result(None)
         event = Namespace(config={'event_start': d('2017/01/01 05:00:00')})
-        analyse_tracker = await start_analyse_tracker(tracker, event, [])
+        analyse_tracker = await AnalyseTracker.start(tracker, event, [])
         pprint.pprint(analyse_tracker.points)
         self.assertSequenceEqual(analyse_tracker.points, (
             {'time': d('2017/01/01 05:00:00'), 'position': (-26.300822, 28.049444, 1800), 'track_id': 0, 'status': 'Active'},
@@ -49,7 +49,7 @@ class TestAnalyseTracker(asynctest.TestCase):
         ))
         break_time = datetime.timedelta(seconds=0.1)
         event = Namespace(config={'event_start': d('2017/01/01 05:00:00')})
-        analyse_tracker = await start_analyse_tracker(tracker, event, [], track_break_time=break_time)
+        analyse_tracker = await AnalyseTracker.start(tracker, event, [], track_break_time=break_time)
 
         await asyncio.sleep(0.05)
         # an inactive status should not be added here, as it's too soon.
@@ -76,7 +76,7 @@ class TestAnalyseTracker(asynctest.TestCase):
         ))
         tracker.completed.set_result(None)
         event = Namespace(config={'event_start': d('2017/01/01 05:00:00')})
-        analyse_tracker = await start_analyse_tracker(tracker, event, [])
+        analyse_tracker = await AnalyseTracker.start(tracker, event, [])
         await analyse_tracker.make_inactive_fut
         self.assertSequenceEqual(analyse_tracker.points, (
             {'time': d('2017/01/01 05:00:00'), 'position': (-26.300822, 28.049444, 1800), 'track_id': 0, 'status': 'Active'},
@@ -105,7 +105,7 @@ class TestAnalyseTracker(asynctest.TestCase):
         ))
         tracker.completed.set_result(None)
         event = Namespace(config={'event_start': d('2017/01/01 05:00:00')})
-        analyse_tracker = await start_analyse_tracker(tracker, event, event_routes)
+        analyse_tracker = await AnalyseTracker.start(tracker, event, event_routes)
         await analyse_tracker.complete()
 
         pprint.pprint(analyse_tracker.points)
@@ -147,7 +147,7 @@ class TestAnalyseTracker(asynctest.TestCase):
         ))
         tracker.completed.set_result(None)
         event = Namespace(config={'event_start': d('2017/01/01 05:00:00')})
-        analyse_tracker = await start_analyse_tracker(tracker, event, event_routes)
+        analyse_tracker = await AnalyseTracker.start(tracker, event, event_routes)
         await analyse_tracker.complete()
 
         pprint.pprint(analyse_tracker.points)
@@ -169,7 +169,7 @@ class TestAnalyseTracker(asynctest.TestCase):
         ))
         break_time = datetime.timedelta(seconds=1)
         event = Namespace(config={'event_start': d('2017/01/01 05:00:00')})
-        analyse_tracker = await start_analyse_tracker(tracker, event, [], track_break_time=break_time)
+        analyse_tracker = await AnalyseTracker.start(tracker, event, [], track_break_time=break_time)
 
         await asyncio.sleep(0.05)
         analyse_tracker.stop()
@@ -212,7 +212,7 @@ class TestAnalyseTracker(asynctest.TestCase):
         ))
         tracker.completed.set_result(None)
         event = Namespace(config={'event_start': d('2017/01/01 05:00:00')})
-        analyse_tracker = await start_analyse_tracker(tracker, event, event_routes)
+        analyse_tracker = await AnalyseTracker.start(tracker, event, event_routes)
         await analyse_tracker.complete()
 
         pprint.pprint(analyse_tracker.points)
