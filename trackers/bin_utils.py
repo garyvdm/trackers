@@ -7,13 +7,14 @@ import logging.config
 import os
 import sys
 from functools import partial, wraps
+from math import floor, sqrt
 
 import aiohttp
 import dulwich.repo
 import msgpack
 import polyline
 import yaml
-from more_itertools import roundrobin
+from more_itertools import chunked, interleave_longest
 
 import trackers.events
 import trackers.modules
@@ -196,7 +197,9 @@ async def assign_rider_colors(app, settings, args):
     event = trackers.events.Event.load(app, args.event_name, tree_writer)
     num_riders = len(event.config['riders'])
     hues = [round(i * 360 / num_riders) for i in range(num_riders)]
-    alternating_hues = roundrobin(hues[:num_riders // 2], hues[num_riders // 2:])
+    alternating_chunks = floor(sqrt(num_riders))
+    chunked_hues = [list(s) for s in chunked(hues, alternating_chunks)]
+    alternating_hues = interleave_longest(*chunked_hues)
     for rider, hue in zip(event.config['riders'], alternating_hues):
         rider['color'] = 'hsl({}, 100%, 50%)'.format(hue)
         rider['color_marker'] = 'hsl({}, 100%, 60%)'.format(hue)
