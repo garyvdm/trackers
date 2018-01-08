@@ -157,7 +157,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 marker.setPosition(position);
             }
             update_last_point();
-            if (!map.getBounds().contains(position)) map.panTo(position);
+            var bounds = map.getBounds();
+            if (!bounds || !bounds.contains(position)) map.panTo(position);
         }
     }
 
