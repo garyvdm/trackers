@@ -346,3 +346,22 @@ async def get_elevation_for_points(settings, points):
                 result.extend((elv['elevation'] for elv in elevations['results']))
 
     return result
+
+
+@async_command(partial(event_command_parser, description="Loads csv from stdin, writes to riders in config"), basic=True)
+async def load_riders_from_csv(app, settings, args):
+    tree_writer = TreeWriter(app['trackers.data_repo'])
+    event = trackers.events.Event.load(app, args.event_name, tree_writer)
+
+    import csv
+    reader = csv.DictReader(sys.stdin)
+    event.config['riders'] = [
+        {
+            'name': row['Name'],
+            'name_short': row['Short Name'],
+            'tracker': {'type': 'traccar', 'unique_id': row['Traccar Device Id']} if row['Traccar Device Id'] else None,
+        }
+        for row in reader
+    ]
+
+    event.save('load_riders_from_csv: {}'.format(args.event_name), tree_writer=tree_writer)
