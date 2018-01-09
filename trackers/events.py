@@ -89,13 +89,13 @@ class Event(object):
             analyse = self.config.get('analyse', False)
             replay = self.config.get('replay', False)
             is_live = self.config.get('live', False)
+            event_start = self.config.get('event_start')
 
             if analyse:
                 analyse_routes = get_analyse_routes(self.routes)
 
             if replay:
                 replay_start = datetime.datetime.now() + datetime.timedelta(seconds=2)
-                event_start = self.config['event_start']
 
             for rider in self.config['riders']:
                 if rider['tracker']:
@@ -104,7 +104,7 @@ class Event(object):
                     if replay:
                         tracker = await start_replay_tracker(tracker, event_start, replay_start)
                     if analyse:
-                        tracker = await AnalyseTracker.start(tracker, self, analyse_routes)
+                        tracker = await AnalyseTracker.start(tracker, event_start, analyse_routes)
                     tracker = await index_and_hash_tracker(tracker)
                     self.rider_trackers[rider['name']] = tracker
                     self.rider_trackers_blocked_list[rider['name']] = BlockedList.from_tracker(tracker, entire_block=not is_live)

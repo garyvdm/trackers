@@ -2,7 +2,6 @@ import asyncio
 import collections
 import copy
 import datetime
-import functools
 import logging
 import operator
 from itertools import chain
@@ -63,17 +62,16 @@ seterr(all='raise')
 class AnalyseTracker(Tracker):
 
     @classmethod
-    async def start(cls, org_tracker, event, event_routes, track_break_time=datetime.timedelta(minutes=20), track_break_dist=10000):
-        analyse_tracker = cls(org_tracker)
-        await analyse_tracker.on_new_points(event, event_routes, track_break_time, track_break_dist, org_tracker, org_tracker.points)
-        org_tracker.new_points_callbacks.append(
-            functools.partial(analyse_tracker.on_new_points, event, event_routes, track_break_time, track_break_dist))
-        return analyse_tracker
-
-    def __init__(self, org_tracker):
+    async def start(cls, org_tracker, analyse_start_time, routes, track_break_time=datetime.timedelta(minutes=20),
+                    track_break_dist=10000):
+        self = cls('analysed.{}'.format(org_tracker.name))
         self.org_tracker = org_tracker
+        self.analyse_start_time = analyse_start_time
+        self.routes = routes
+        self.track_break_time = track_break_time
+        self.track_break_dist = track_break_dist
+
         self.make_inactive_fut = None
-        super().__init__('analysed.{}'.format(org_tracker.name), self._completed())
         self.prev_point_with_position = None
         self.prev_point_with_position_point = None
         self.current_track_id = 0
@@ -82,6 +80,12 @@ class AnalyseTracker(Tracker):
         self.dist_ridden = 0
         self.prev_route_dist = 0
         self.finished = False
+
+        self.completed = asyncio.ensure_future(self._completed())
+        await self.on_new_points(org_tracker, org_tracker.points)
+        org_tracker.new_points_callbacks.append(self.on_new_points)
+
+        return self
 
     def stop(self):
         self.org_tracker.stop()
@@ -97,14 +101,14 @@ class AnalyseTracker(Tracker):
                 pass
             self.make_inactive_fut = None
 
-    async def on_new_points(self, event, event_routes, track_break_time, track_break_dist, tracker, new_points):
+    async def on_new_points(self, tracker, new_points):
         self.logger.debug('analyse_tracker_new_points ({} points)'.format(len(new_points)))
 
         new_new_points = []
         prev_point_with_position = None
         log_time = datetime.datetime.now()
         log_i = 0
-        last_route_point = event_routes[0]['points'][-1] if event_routes else None
+        last_route_point = self.routes[0]['points'][-1] if self.routes else None
 
         last_point_i = len(new_points) - 1
         did_slow_log = False
@@ -122,8 +126,8 @@ class AnalyseTracker(Tracker):
 
                 point_point = Point(*point['position'][:2])
 
-                if not event or (event.config.get('event_start') and event.config.get('event_start') <= point['time']):
-                    closest = find_closest_point_pair_routes(event_routes, point_point, 1000, self.prev_closest_route_point, 250, self.prev_route_dist)
+                if self.analyse_start_time and self.analyse_start_time <= point['time']:
+                    closest = find_closest_point_pair_routes(self.routes, point_point, 1000, self.prev_closest_route_point, 250, self.prev_route_dist)
                     if closest and closest.dist > 5000:
                         closest = None
 
@@ -143,10 +147,10 @@ class AnalyseTracker(Tracker):
                         prev_point = self.prev_point_with_position
                         dist = distance(point_point, self.prev_point_with_position_point)
                         time = point['time'] - prev_point['time']
-                        if time > track_break_time and dist > track_break_dist:
+                        if time > self.track_break_time and dist > self.track_break_dist:
                             self.current_track_id += 1
                             self.apply_status_to_point(
-                                {'time': prev_point['time'] + track_break_time},
+                                {'time': prev_point['time'] + self.track_break_time},
                                 'Inactive', new_new_points.append)
                         point['dist_from_last'] = round(dist)
                         self.dist_ridden += dist
@@ -184,7 +188,7 @@ class AnalyseTracker(Tracker):
 
         if prev_point_with_position:
             self.make_inactive_fut = asyncio.ensure_future(
-                self.make_inactive(prev_point_with_position, track_break_time))
+                self.make_inactive(prev_point_with_position, self.track_break_time))
 
     async def make_inactive(self, prev_point_with_position, track_break_time):
         delay = (prev_point_with_position['time'] - datetime.datetime.now() + track_break_time).total_seconds()
