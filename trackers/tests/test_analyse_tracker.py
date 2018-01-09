@@ -19,7 +19,6 @@ class TestAnalyseTracker(asynctest.TestCase):
 
     async def test_break_tracks_and_inactive(self):
         tracker = Tracker('test')
-        tracker.completed = asyncio.Future()
         await tracker.new_points((
             {'time': d('2017/01/01 05:00:00'), 'position': (-26.300822, 28.049444, 1800)},
             {'time': d('2017/01/01 05:01:00'), 'position': (-26.302245, 28.051139, 1800)},
@@ -41,7 +40,6 @@ class TestAnalyseTracker(asynctest.TestCase):
 
     async def test_break_inactive_current(self):
         tracker = Tracker('test')
-        tracker.completed = asyncio.Future()
 
         t1 = datetime.datetime.now()
         await tracker.new_points((
@@ -70,7 +68,6 @@ class TestAnalyseTracker(asynctest.TestCase):
 
     async def test_break_inactive_old(self):
         tracker = Tracker('test')
-        tracker.completed = asyncio.Future()
         await tracker.new_points((
             {'time': d('2017/01/01 05:00:00'), 'position': (-26.300822, 28.049444, 1800)},
         ))
@@ -86,7 +83,6 @@ class TestAnalyseTracker(asynctest.TestCase):
 
     async def test_with_route(self):
         tracker = Tracker('test')
-        tracker.completed = asyncio.Future()
         routes = [
             {
                 'main': True,
@@ -117,7 +113,6 @@ class TestAnalyseTracker(asynctest.TestCase):
 
     async def test_with_route_alt(self):
         tracker = Tracker('test')
-        tracker.completed = asyncio.Future()
         routes = [
             {
                 'points': [
@@ -160,7 +155,6 @@ class TestAnalyseTracker(asynctest.TestCase):
 
     async def test_stop(self):
         tracker = Tracker('test')
-        tracker.completed = asyncio.Future()
         tracker.stop = lambda: tracker.completed.cancel()
 
         t1 = datetime.datetime.now()
@@ -177,7 +171,6 @@ class TestAnalyseTracker(asynctest.TestCase):
 
     async def test_with_circular_route(self):
         tracker = Tracker('test')
-        tracker.completed = asyncio.Future()
         routes = [
             {
                 'main': True,

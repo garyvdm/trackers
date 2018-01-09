@@ -78,7 +78,6 @@ class TestTracker(asynctest.TestCase):
 
     async def test(self):
         tracker = Tracker('test')
-        tracker.completed = asyncio.Future()
         tracker.stop = lambda: tracker.completed.set_result(None)
         new_points_callback = asynctest.CoroutineMock()
         tracker.new_points_callbacks.append(new_points_callback)

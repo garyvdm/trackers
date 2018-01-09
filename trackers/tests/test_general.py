@@ -1,4 +1,3 @@
-import asyncio
 import datetime
 
 import asynctest
@@ -52,7 +51,6 @@ class TestCropped(asynctest.TestCase):
 
     async def test_with_start(self):
         org_tracker = Tracker('test')
-        org_tracker.completed = asyncio.Future()
         await org_tracker.new_points([
             {'i': 0, 'time': datetime.datetime(2017, 1, 1, 5, 55)},
             {'i': 1, 'time': datetime.datetime(2017, 1, 1, 6, 5)},
@@ -66,7 +64,6 @@ class TestCropped(asynctest.TestCase):
 
     async def test_with_end(self):
         org_tracker = Tracker('test')
-        org_tracker.completed = asyncio.Future()
         await org_tracker.new_points([
             {'i': 0, 'time': datetime.datetime(2017, 1, 1, 5, 55)},
             {'i': 1, 'time': datetime.datetime(2017, 1, 1, 6, 5)},
@@ -83,7 +80,6 @@ class TestReplayTracker(asynctest.TestCase):
 
     async def test(self):
         org_tracker = Tracker('test')
-        org_tracker.completed = asyncio.Future()
         await org_tracker.new_points([
             {'i': 0, 'time': datetime.datetime(2017, 1, 1, 6, 0)},
             {'i': 1, 'time': datetime.datetime(2017, 1, 1, 6, 5)},

@@ -1,4 +1,3 @@
-import asyncio
 import pprint
 
 import asynctest
@@ -12,7 +11,6 @@ class Test(asynctest.TestCase):
 
     async def test(self):
         tracker = Tracker('test')
-        tracker.completed = asyncio.Future()
         await tracker.new_points((
             {'position': (-26.300822, 28.049444, 1800)},
             {'position': (-26.302245, 28.051139, 1800)},

@@ -23,7 +23,6 @@ json_dumps = functools.partial(json.dumps, default=json_encode, sort_keys=True)
 
 async def static_start_event_tracker(app, event, rider_name, tracker_data):
     tracker = Tracker('static.{}'.format(tracker_data['name']))
-    tracker.completed = asyncio.Future()
     path = os.path.join('events', event.name, tracker_data['name'])
     data = TreeReader(app['trackers.data_repo']).get(path).data
     points = {
@@ -73,8 +72,7 @@ async def cropped_tracker_start_event(app, event, rider_name, tracker_data):
 
 
 async def cropped_tracker_start(org_tracker, tracker_data):
-    cropped_tracker = Tracker('cropped.{}'.format(org_tracker.name))
-    cropped_tracker.completed = org_tracker.completed
+    cropped_tracker = Tracker('cropped.{}'.format(org_tracker.name), org_tracker.completed)
     cropped_tracker.stop = org_tracker.stop
     cropped_tracker.org_tracker = org_tracker
 
@@ -91,9 +89,8 @@ async def cropped_tracker_newpoints(cropped_tracker, start, end, org_tracker, ne
 
 
 async def index_and_hash_tracker(org_tracker, hasher=None):
-    ih_tracker = Tracker('indexed_and_hashed.{}'.format(org_tracker.name))
+    ih_tracker = Tracker('indexed_and_hashed.{}'.format(org_tracker.name), org_tracker.complete())
     ih_tracker.stop = org_tracker.stop
-    ih_tracker.completed = asyncio.ensure_future(org_tracker.complete())
     ih_tracker.org_tracker = org_tracker
     if hasher is None:
         hasher = hashlib.sha1()

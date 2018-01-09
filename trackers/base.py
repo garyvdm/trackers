@@ -10,14 +10,18 @@ logger = logging.getLogger(__name__)
 
 class Tracker(object):
 
-    def __init__(self, name):
+    def __init__(self, name, completed=None):
         self.name = name
         self.points = []
         self.status = None
         self.new_points_callbacks = []
         self.logger = logging.getLogger('trackers.{}'.format(name))
         self.callback_tasks = []
-        self.completed = None
+        if completed is None:
+            completed = asyncio.Future()
+        else:
+            completed = asyncio.ensure_future(completed)
+        self.completed = completed
 
     async def new_points(self, new_points):
         self.points.extend(new_points)

@@ -71,14 +71,13 @@ class AnalyseTracker(Tracker):
         return analyse_tracker
 
     def __init__(self, org_tracker):
-        super().__init__('analysed.{}'.format(org_tracker.name))
+        self.org_tracker = org_tracker
+        self.make_inactive_fut = None
+        super().__init__('analysed.{}'.format(org_tracker.name), self._completed())
         self.prev_point_with_position = None
         self.prev_point_with_position_point = None
         self.current_track_id = 0
         self.status = None
-        self.make_inactive_fut = None
-        self.completed = asyncio.ensure_future(self._completed())
-        self.org_tracker = org_tracker
         self.prev_closest_route_point = None
         self.dist_ridden = 0
         self.prev_route_dist = 0

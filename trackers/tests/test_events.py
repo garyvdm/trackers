@@ -1,4 +1,3 @@
-import asyncio
 from textwrap import dedent
 
 import asynctest
@@ -96,7 +95,6 @@ class TestEventWithMockTracker(fixtures.TestWithFixtures):
 
         async def start_mock_event_tracker(app, event, rider_name, tracker_data):
             tracker = Tracker('mock_tracker')
-            tracker.completed = asyncio.Future()
             tracker.completed.set_result(None)
             return tracker
 

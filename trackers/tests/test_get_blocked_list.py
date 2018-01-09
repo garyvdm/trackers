@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 import pprint
 import unittest
@@ -177,7 +176,6 @@ class TestBlockedList(asynctest.TestCase):
 
     async def test_from_tracker(self):
         tracker = Tracker('test')
-        tracker.completed = asyncio.Future()
 
         blocked_list = BlockedList.from_tracker(tracker)
         new_update_callback = asynctest.CoroutineMock()
