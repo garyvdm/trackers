@@ -89,6 +89,7 @@ class TestEventWithMockTracker(fixtures.TestWithFixtures):
 
     def do_setup(self, data):
         repo = self.useFixture(TempRepoFixture()).repo
+        cache_dir = self.useFixture(fixtures.TempDir())
         writer = TreeWriter(repo)
         writer.set_data('events/test_event/data.yaml', dedent(data).encode())
         writer.commit('add test_event')
@@ -99,8 +100,9 @@ class TestEventWithMockTracker(fixtures.TestWithFixtures):
             return tracker
 
         app, settings = get_test_app_and_settings(repo)
+        settings['cache_path'] = cache_dir.path
         app['start_event_trackers'] = {
-            'mock': start_mock_event_tracker
+            'mock': start_mock_event_tracker,
         }
         return app, settings, writer
 

@@ -11,6 +11,7 @@ from trackers.analyse import AnalyseTracker, get_analyse_routes
 from trackers.base import BlockedList
 from trackers.dulwich_helpers import TreeReader, TreeWriter
 from trackers.general import index_and_hash_tracker, start_replay_tracker
+from trackers.persisted_func_cache import PersistedFuncCache
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,9 @@ class Event(object):
 
             if analyse:
                 analyse_routes = get_analyse_routes(self.routes)
+                find_closest_cache_dir = os.path.join(app['trackers.settings']['cache_path'], 'find_closest')
+                os.makedirs(find_closest_cache_dir, exist_ok=True)
+                find_closest_cache = PersistedFuncCache(os.path.join(find_closest_cache_dir, self.routes_hash))
 
             if replay:
                 replay_start = datetime.datetime.now() + datetime.timedelta(seconds=2)
@@ -104,7 +108,7 @@ class Event(object):
                     if replay:
                         tracker = await start_replay_tracker(tracker, event_start, replay_start)
                     if analyse:
-                        tracker = await AnalyseTracker.start(tracker, event_start, analyse_routes)
+                        tracker = await AnalyseTracker.start(tracker, event_start, analyse_routes, find_closest_cache=find_closest_cache)
                     tracker = await index_and_hash_tracker(tracker)
                     self.rider_trackers[rider['name']] = tracker
                     self.rider_trackers_blocked_list[rider['name']] = BlockedList.from_tracker(tracker, entire_block=not is_live)

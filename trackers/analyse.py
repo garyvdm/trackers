@@ -4,6 +4,7 @@ import copy
 import datetime
 import logging
 import operator
+from functools import partial
 from itertools import chain
 
 import attr
@@ -63,13 +64,21 @@ class AnalyseTracker(Tracker):
 
     @classmethod
     async def start(cls, org_tracker, analyse_start_time, routes, track_break_time=datetime.timedelta(minutes=20),
-                    track_break_dist=10000):
+                    track_break_dist=10000, find_closest_cache=None):
         self = cls('analysed.{}'.format(org_tracker.name))
         self.org_tracker = org_tracker
         self.analyse_start_time = analyse_start_time
         self.routes = routes
         self.track_break_time = track_break_time
         self.track_break_dist = track_break_dist
+        if find_closest_cache:
+            find_closest_cache.func = find_closest_point_pair_routes
+            find_closest_cache.key = find_closest_point_pair_routes_cache_key
+            find_closest_cache.unpack = partial(find_closest_point_pair_routes_unpack, routes)
+            find_closest_cache.pack = find_closest_point_pair_routes_pack
+            self.find_closest = find_closest_cache
+        else:
+            self.find_closest = find_closest_point_pair_routes
 
         self.make_inactive_fut = None
         self.prev_point_with_position = None
@@ -127,7 +136,10 @@ class AnalyseTracker(Tracker):
                 point_point = Point(*point['position'][:2])
 
                 if self.analyse_start_time and self.analyse_start_time <= point['time']:
-                    closest = find_closest_point_pair_routes(self.routes, point_point, 1000, self.prev_closest_route_point, 250, self.prev_route_dist)
+                    closest = self.find_closest(
+                        self.routes, point_point, 1000,
+                        self.prev_closest_route_point.route_i if self.prev_closest_route_point else None,
+                        250, self.prev_route_dist)
                     if closest and closest.dist > 5000:
                         closest = None
 
@@ -328,16 +340,33 @@ def ramer_douglas_peucker_sections(points, epsilon, split_at_dist, split_point_r
 find_closest_point_pair_routes_result = collections.namedtuple('closest_point_pair_route', ('route_i', 'route', 'point_pair', 'dist', 'point'))
 
 
-def find_closest_point_pair_routes(routes, to_point, min_search_complex_dist, prev_closest_route_point, break_out_dist, prev_dist):
+def find_closest_point_pair_routes_cache_key(routes, to_point, min_search_complex_dist, prev_closest_route_i, break_out_dist, prev_dist):
+    return to_point.lat, to_point.lng, min_search_complex_dist, prev_closest_route_i, break_out_dist, prev_dist
+
+
+def find_closest_point_pair_routes_pack(result):
+    return result.route_i, result.point_pair[0].index, result.dist, result.point.lat, result.point.lng
+
+
+def find_closest_point_pair_routes_unpack(routes, packed):
+    route_i, point_pair_index, dist, lat, lng = packed
+    route = routes[route_i]
+    point_pair = route['point_pairs'][point_pair_index]
+    point = Point(lat, lng)
+    return find_closest_point_pair_routes_result(route_i, route, point_pair, dist, point)
+
+
+def find_closest_point_pair_routes(routes, to_point, min_search_complex_dist, prev_closest_route_i, break_out_dist, prev_dist):
     results = []
     if routes:
         special_routes = (0, )
-        if prev_closest_route_point and prev_closest_route_point.route_i != 0:
-            special_routes += (prev_closest_route_point.route_i, )
+        if prev_closest_route_i:
+            special_routes += (prev_closest_route_i, )
 
         for route_i in reversed(special_routes):
+            route = routes[route_i]
             result = find_closest_point_pair_routes_result(
-                route_i, routes[route_i], *find_closest_point_pair_route(routes[route_i], to_point, min_search_complex_dist, prev_dist))
+                route_i, route, *find_closest_point_pair_route(route, to_point, min_search_complex_dist, prev_dist))
             if result.dist < break_out_dist:
                 return result
             results.append(result)
