@@ -58,6 +58,7 @@ class Observable(object):
             except asyncio.CancelledError:
                 raise
             except Exception:
+                print((args, kwargs))
                 self.logger.exception(self.error_msg)
 
 
@@ -155,4 +156,4 @@ class BlockedList(object):
 
     async def on_new_items(self):
         self.full, update = get_blocked_list(self.source, self.full, **self.kwargs)
-        await self.new_update_observable(update)
+        await self.new_update_observable(self, update)

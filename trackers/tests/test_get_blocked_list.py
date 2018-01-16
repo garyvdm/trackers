@@ -179,10 +179,10 @@ class TestBlockedList(asynctest.TestCase):
 
         new_update_callback = asynctest.CoroutineMock()
 
-        BlockedList.from_tracker(tracker, new_update_callbacks=(new_update_callback, ))
+        blocked_list = BlockedList.from_tracker(tracker, new_update_callbacks=(new_update_callback, ))
 
         await tracker.new_points(source[:1])
         tracker.completed.set_result(None)
         await tracker.complete()
 
-        new_update_callback.assert_called_once_with({'add_block': [{'x': 'L', 'index': 0, 'hash': 'u0Zw'}]})
+        new_update_callback.assert_called_once_with(blocked_list, {'add_block': [{'x': 'L', 'index': 0, 'hash': 'u0Zw'}]})

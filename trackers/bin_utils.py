@@ -169,8 +169,8 @@ def convert_to_static_parser():
 async def convert_to_static(app, settings, args):
     tree_writer = TreeWriter(app['trackers.data_repo'])
 
-    event = trackers.events.Event.load(app, args.event_name, tree_writer)
-    await event.start_trackers(app)
+    event = await trackers.events.Event.load(app, args.event_name, tree_writer)
+    await event.start_trackers()
 
     for rider in event.config['riders']:
         rider_name = rider['name']
@@ -194,7 +194,7 @@ async def convert_to_static(app, settings, args):
 @async_command(partial(event_command_parser, description="Assigns unique colors to riders"), basic=True)
 async def assign_rider_colors(app, settings, args):
     tree_writer = TreeWriter(app['trackers.data_repo'])
-    event = trackers.events.Event.load(app, args.event_name, tree_writer)
+    event = await trackers.events.Event.load(app, args.event_name, tree_writer)
     num_riders = len(event.config['riders'])
     hues = [round(i * 360 / num_riders) for i in range(num_riders)]
     alternating_chunks = floor(sqrt(num_riders))
@@ -236,7 +236,7 @@ async def add_gpx_to_event_routes(app, settings, args):
     points = [[float(trkpt.attrib['lat']), float(trkpt.attrib['lon'])] for trkpt in trkpts]
 
     writer = TreeWriter(app['trackers.data_repo'])
-    event = trackers.events.Event.load(app, args.event_name, writer)
+    event = await trackers.events.Event.load(app, args.event_name, writer)
     route = {'original_points': points}
     for key in ('no_elevation', 'split_at_dist', 'split_point_range', 'rdp_epsilon'):
         route[key] = getattr(args, key)
@@ -251,7 +251,7 @@ async def add_gpx_to_event_routes(app, settings, args):
 @async_command(partial(event_command_parser, description="Open and save event. Side effect is convert to new formats."), basic=True)
 async def reformat_event(app, settings, args):
     writer = TreeWriter(app['trackers.data_repo'])
-    event = trackers.events.Event.load(app, args.event_name, writer)
+    event = await trackers.events.Event.load(app, args.event_name, writer)
     event.save('reformat_event: {}'.format(args.event_name), tree_writer=writer)
 
 
@@ -259,7 +259,7 @@ async def reformat_event(app, settings, args):
 async def update_bounds(app, settings, args):
     writer = TreeWriter(app['trackers.data_repo'])
 
-    event = trackers.events.Event.load(app, args.event_name, writer)
+    event = await trackers.events.Event.load(app, args.event_name, writer)
     points = list(itertools.chain.from_iterable(
         [((marker['position']['lat'], marker['position']['lng']), ) for marker in event.config.get('markers', ())] +
         [route['points'] for route in event.routes]
@@ -280,7 +280,7 @@ async def update_bounds(app, settings, args):
 @async_command(partial(event_command_parser, description="Reprocess event routes."), basic=True)
 async def process_event_routes(app, settings, args):
     writer = TreeWriter(app['trackers.data_repo'])
-    event = trackers.events.Event.load(app, args.event_name, writer)
+    event = await trackers.events.Event.load(app, args.event_name, writer)
     for route in event.routes:
         await process_route(settings, route)
     process_secondary_route_details(event.routes)
@@ -354,7 +354,7 @@ async def get_elevation_for_points(settings, points):
 @async_command(partial(event_command_parser, description="Loads csv from stdin, writes to riders in config"), basic=True)
 async def load_riders_from_csv(app, settings, args):
     tree_writer = TreeWriter(app['trackers.data_repo'])
-    event = trackers.events.Event.load(app, args.event_name, tree_writer)
+    event = await trackers.events.Event.load(app, args.event_name, tree_writer)
 
     import csv
     reader = csv.DictReader(sys.stdin)

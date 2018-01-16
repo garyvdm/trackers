@@ -9,23 +9,23 @@ from trackers.events import Event, load_events
 from trackers.tests import get_test_app_and_settings, TempRepoFixture
 
 
-class TestEvents(fixtures.TestWithFixtures):
+class TestEvents(asynctest.TestCase, fixtures.TestWithFixtures):
 
-    def test_load_events(self):
+    async def test_load_events(self):
         repo = self.useFixture(TempRepoFixture()).repo
         writer = TreeWriter(repo)
         writer.set_data('events/test_event/data.yaml', '{}'.encode())
         writer.commit('add test_event')
 
         app, settings = get_test_app_and_settings(repo)
-        load_events(app, settings)
+        await load_events(app)
 
         events = app['trackers.events']
         self.assertEqual(len(events), 1)
         event = events['test_event']
         self.assertEqual(event.name, 'test_event')
 
-    def test_load(self):
+    async def test_from_load(self):
         repo = self.useFixture(TempRepoFixture()).repo
         writer = TreeWriter(repo)
         writer.set_data('events/test_event/data.yaml', '''
@@ -34,11 +34,11 @@ class TestEvents(fixtures.TestWithFixtures):
         writer.commit('add test_event')
 
         app, settings = get_test_app_and_settings(repo)
-        event = Event.load(app, 'test_event', writer)
+        event = await Event.load(app, 'test_event', writer)
         self.assertEqual(event.config, {'title': 'Test event'})
         self.assertEqual(event.routes, [])
 
-    def test_load_with_routes(self):
+    async def test_from_load_with_routes(self):
         repo = self.useFixture(TempRepoFixture()).repo
         writer = TreeWriter(repo)
         writer.set_data('events/test_event/data.yaml', '{}'.encode())
@@ -46,10 +46,10 @@ class TestEvents(fixtures.TestWithFixtures):
         writer.commit('add test_event')
 
         app, settings = get_test_app_and_settings(repo)
-        event = Event.load(app, 'test_event', writer)
+        event = await Event.load(app, 'test_event', writer)
         self.assertEqual(event.routes, [{'points': []}])
 
-    def test_save(self):
+    async def test_save(self):
         repo = self.useFixture(TempRepoFixture()).repo
         writer = TreeWriter(repo)
 
@@ -60,7 +60,7 @@ class TestEvents(fixtures.TestWithFixtures):
         self.assertEqual(writer.get('events/test_event/data.yaml').data.decode(), 'title: Test event\n')
         self.assertEqual(writer.get('events/test_event/routes').data, b'\x91\x81\xa6points\x90')
 
-    def test_save_no_routes(self):
+    async def test_save_no_routes(self):
         repo = self.useFixture(TempRepoFixture()).repo
         writer = TreeWriter(repo)
         writer.set_data('events/test_event/data.yaml', '{}'.encode())
@@ -68,13 +68,13 @@ class TestEvents(fixtures.TestWithFixtures):
         writer.commit('add test_event')
 
         app, settings = get_test_app_and_settings(repo)
-        event = Event.load(app, 'test_event', writer)
+        event = await Event.load(app, 'test_event', writer)
         event.routes.pop()
         event.save('save test_event', tree_writer=writer)
 
         self.assertFalse(writer.exists('events/test_event/routes'))
 
-    def test_save_no_routes_before_and_after(self):
+    async def test_save_no_routes_before_and_after(self):
         repo = self.useFixture(TempRepoFixture()).repo
         writer = TreeWriter(repo)
 
@@ -116,8 +116,8 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
                 tracker: {type: mock}
         ''')
 
-        event = Event.load(app, 'test_event', writer)
-        await event.start_trackers(app)
+        event = await Event.load(app, 'test_event', writer)
+        await event.start_trackers()
 
         self.assertEqual(event.rider_trackers['foo'].name, 'indexed_and_hashed.mock_tracker')
         self.assertIn('foo', event.rider_trackers_blocked_list)
@@ -132,8 +132,8 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
                 tracker: {type: mock}
         ''')
 
-        event = Event.load(app, 'test_event', writer)
-        await event.start_trackers(app)
+        event = await Event.load(app, 'test_event', writer)
+        await event.start_trackers()
 
         self.assertEqual(event.rider_trackers['foo'].name, 'indexed_and_hashed.analysed.mock_tracker')
 
@@ -148,8 +148,8 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
                 tracker: {type: mock}
         ''')
 
-        event = Event.load(app, 'test_event', writer)
-        await event.start_trackers(app)
+        event = await Event.load(app, 'test_event', writer)
+        await event.start_trackers()
 
         self.assertEqual(event.rider_trackers['foo'].name, 'indexed_and_hashed.replay.mock_tracker')
 
@@ -162,8 +162,8 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
                 tracker: null
         ''')
 
-        event = Event.load(app, 'test_event', writer)
-        await event.start_trackers(app)
+        event = await Event.load(app, 'test_event', writer)
+        await event.start_trackers()
 
         self.assertEqual(len(event.rider_trackers), 0)
 

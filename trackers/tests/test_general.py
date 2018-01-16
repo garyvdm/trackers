@@ -24,7 +24,7 @@ class TestStatic(asynctest.TestCase, fixtures.TestWithFixtures):
         writer.commit('add test_event')
 
         app, settings = get_test_app_and_settings(repo)
-        event = Event.load(app, 'test_event', writer)
+        event = await Event.load(app, 'test_event', writer)
         tracker = await static_start_event_tracker(app, event, 'Test rider', {'name': 'test_rider', 'format': 'msgpack'})
         await tracker.complete()
         self.assertEqual(len(tracker.points), 1)
@@ -41,7 +41,7 @@ class TestStatic(asynctest.TestCase, fixtures.TestWithFixtures):
         writer.commit('add test_event')
 
         app, settings = get_test_app_and_settings(repo)
-        event = Event.load(app, 'test_event', writer)
+        event = await Event.load(app, 'test_event', writer)
         tracker = await static_start_event_tracker(app, event, 'Test rider', {'name': 'test_rider', 'format': 'json'})
         await tracker.complete()
         self.assertEqual(tracker.points, [])

@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import re
+from collections import defaultdict
 from functools import partial, wraps
 
 import magic
@@ -17,7 +18,7 @@ from slugify import slugify
 import trackers.bin_utils
 import trackers.events
 from trackers.analyse import AnalyseTracker
-from trackers.base import cancel_and_wait_task, list_register
+from trackers.base import cancel_and_wait_task, list_register, Observable
 from trackers.general import json_dumps
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ async def make_aio_app(settings,
     app['trackers.settings'] = settings
 
     app['trackers.ws_sessions'] = []
+    app['trackers.event_ws_sessions'] = defaultdict(list)
     app['static_urls'] = static_urls = {}
     app['trackers.individual_trackers'] = {}
     app['exception_recorder'] = exception_recorder
@@ -95,10 +97,12 @@ async def make_aio_app(settings,
     app['trackers.app_setup_cm'] = app_setup_cm = await app_setup(app, settings)
     await app_setup_cm.__aenter__()
 
-    trackers.events.load_events(app, settings)
-    for event in app['trackers.events'].values():
-        if event.config.get('live', False):
-            await event.start_trackers(app)
+    app['load_events_with_watcher_task'] = asyncio.ensure_future(
+        trackers.events.load_events_with_watcher(
+            app,
+            new_event_observable=Observable(logger=trackers.events.logger, callbacks=(on_new_event, )),
+            removed_event_observable=Observable(logger=trackers.events.logger, callbacks=(on_removed_event, )),
+        ))
 
     return app
 
@@ -107,6 +111,8 @@ async def shutdown(app):
     for ws in app['trackers.ws_sessions']:
         await ws.close(code=WSCloseCode.GOING_AWAY,
                        message='Server shutdown')
+
+    await cancel_and_wait_task(app['load_events_with_watcher_task'])
 
     for event in app['trackers.events'].values():
         await event.stop_and_complete_trackers()
@@ -222,7 +228,7 @@ def event_handler(func):
         event = request.app['trackers.events'].get(event_name)
         if event is None:
             raise web.HTTPNotFound()
-        await event.start_trackers(request.app)
+        await event.start_trackers()
         return await func(request, event)
     return event_handler_inner
 
@@ -326,6 +332,43 @@ async def rider_points(request, event):
                          cache_control=immutable_cache_control)
 
 
+async def on_new_event(event):
+    event.config_routes_change_observable.subscribe(on_event_config_routes_change)
+    event.rider_new_points_observable.subscribe(on_event_rider_new_points)
+    event.rider_blocked_list_update_observable.subscribe(on_event_rider_blocked_list_update)
+    if event.config.get('live', False):
+        await event.start_trackers()
+
+
+async def on_removed_event(event):
+    pass
+
+
+async def on_event_config_routes_change(event):
+    print('on_event_config_routes_change')
+    message_to_multiple_wss(
+        event.app,
+        event.app['trackers.event_ws_sessions'][event.name],
+        {
+            'live': event.config.get('live', False),
+            'config_hash': event.config_hash,
+            'routes_hash': event.routes_hash,
+        },
+    )
+
+
+async def on_event_rider_new_points(event, rider_name, tracker, new_points):
+    pass
+
+
+async def on_event_rider_blocked_list_update(event, rider_name, blocked_list, update):
+    message_to_multiple_wss(
+        event.app,
+        event.app['trackers.event_ws_sessions'][event.name],
+        {'riders_points': {rider_name: update}},
+    )
+
+
 async def event_ws(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
@@ -333,10 +376,7 @@ async def event_ws(request):
         try:
             exit_stack.enter_context(list_register(request.app['trackers.ws_sessions'], ws))
 
-            def send(data):
-                msg = json_dumps(data)
-                logger.debug('send: {}'.format(msg[:1000]))
-                ws.send_str(msg)
+            send = partial(message_to_multiple_wss, request.app, (ws, ))
 
             event_name = request.match_info['event']
             event = request.app['trackers.events'].get(event_name)
@@ -347,12 +387,12 @@ async def event_ws(request):
             if not event.config.get('live', False):
                 send({'live': False})
                 ws.close(message='Event not live. Use rest api')
-            else:
-                await event.start_trackers(request.app)
-                send(get_event_state(request.app, event))
-                for rider_name, tracker_block_list in event.rider_trackers_blocked_list.items():
-                    exit_stack.enter_context(list_register(tracker_block_list.new_update_callbacks,
-                                                           partial(tracker_updates_to_ws, request.app, send, rider_name)))
+                return ws
+
+            await event.start_trackers()
+
+            send(get_event_state(request.app, event))
+            exit_stack.enter_context(list_register(request.app['trackers.event_ws_sessions'][event_name], ws))
 
             async for msg in ws:
                 if msg.tp == WSMsgType.text:
@@ -369,18 +409,20 @@ async def event_ws(request):
         except Exception as e:
             request.app['exception_recorder']()
             await ws.close(message='Server Error: {}'.format(e))
-            raise
+            logger.exception('Error in event_ws: ')
         finally:
             return ws
 
 
-async def tracker_updates_to_ws(app, ws_send, rider_name, update):
-    try:
-        if update:
-            ws_send({'riders_points': {rider_name: update}})
-    except Exception:
-        app['exception_recorder']()
-        logger.exception('Error in tracker_new_points_to_ws:')
+def message_to_multiple_wss(app, wss, msg):
+    msg = json_dumps(msg)
+    logger.debug('send: {}'.format(msg[:1000]))
+    for ws in wss:
+        try:
+            ws.send_str(msg)
+        except Exception:
+            app['exception_recorder']()
+            logger.exception('Error sending msg to ws:')
 
 
 async def event_set_start(request):

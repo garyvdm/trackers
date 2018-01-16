@@ -3,6 +3,8 @@ import datetime
 import functools
 import logging
 import time
+from collections import defaultdict
+from functools import partial
 
 import aiohttp
 import more_itertools
@@ -24,7 +26,7 @@ async def config(app, settings):
             connector=aiohttp.TCPConnector(limit=4),
             raise_for_status=True,
         )
-        server['position_received_observables'] = position_received_observables = {}
+        server['position_received_observables'] = position_received_observables = defaultdict(partial(Observable, logger))
         server['ws_task'] = asyncio.ensure_future(server_ws_task(app, settings, session, server_name, server, position_received_observables))
         server['login_lock'] = asyncio.Lock()
 
@@ -176,7 +178,7 @@ async def start_tracker(app, tracker_name, server_name, device_unique_id, start,
     points = [traccar_position_translate(position) for position in positions]
     seen_ids.update([position['id'] for position in positions])
     tracker.position_recived = functools.partial(tracker_position_received, tracker)
-    server['position_received_observables'].setdefault(device_id, Observable(logger)).subscribe(tracker.position_recived)
+    server['position_received_observables'][device_id].subscribe(tracker.position_recived)
     await tracker.new_points(points)
 
     tracker.finished = asyncio.Event()
