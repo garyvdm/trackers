@@ -4,7 +4,7 @@ import datetime
 import hashlib
 import logging
 import os
-from contextlib import closing
+from contextlib import closing, suppress
 from functools import partial
 
 import aionotify
@@ -81,17 +81,16 @@ class Event(object):
         self.name = name
         self.app = app
         self.logger = logging.getLogger(f'event.{name}')
-        self.rider_trackers = {}
-        self.rider_trackers_blocked_list = {}
-        self.rider_current_values = {}
-        self.on_rider_current_values_change = []
 
         self.trackers_started = False
         self.starting_fut = None
+        self.predicted_task = None
 
         self.config_routes_change_observable = Observable(self.logger)
         self.rider_new_points_observable = Observable(self.logger)
         self.rider_blocked_list_update_observable = Observable(self.logger)
+        self.rider_predicted_updated_observable = Observable(self.logger)
+        self.new_points = asyncio.Event()
 
         self.path = os.path.join('events', name)
         self.routes_path = os.path.join(self.path, 'routes')
@@ -115,7 +114,7 @@ class Event(object):
         _, git_hash = tree_reader.lookup(self.path)
         if self.git_hash != git_hash:
             was_started = self.trackers_started
-            await self.stop_and_complete_trackers(call_tracker_change_callbacks=False)
+            await self.stop_and_complete_trackers()
             await self._load(tree_reader)
             if was_started:
                 await self.start_trackers()
@@ -174,10 +173,16 @@ class Event(object):
         is_live = self.config.get('live', False)
         event_start = self.config.get('event_start')
 
-        if analyse:
-            loop = asyncio.get_event_loop()
+        self.rider_trackers = {}
+        self.rider_trackers_blocked_list = {}
+        self.rider_current_values = {}
 
+        if analyse:
+            self.rider_analyse_trackers = {}
+
+            loop = asyncio.get_event_loop()
             analyse_routes = await loop.run_in_executor(None, get_analyse_routes, self.routes)
+
             find_closest_cache_dir = os.path.join(self.app['trackers.settings']['cache_path'], 'find_closest')
             os.makedirs(find_closest_cache_dir, exist_ok=True)
             if self.routes:
@@ -186,19 +191,23 @@ class Event(object):
                 find_closest_cache = None
 
         if replay:
-            replay_start = datetime.datetime.now() + datetime.timedelta(seconds=2)
+            replay_start = datetime.datetime.now()
 
         for rider in self.config['riders']:
             if rider['tracker']:
                 start_tracker = self.app['start_event_trackers'][rider['tracker']['type']]
                 tracker = await start_tracker(self.app, self, rider['name'], rider['tracker'])
                 if replay:
-                    tracker = await start_replay_tracker(tracker, event_start, replay_start)
+                    tracker = await start_replay_tracker(tracker, event_start, replay_start,
+                                                         offset=datetime.timedelta(seconds=5), speed_multiply=50)
                 if analyse:
                     tracker = await AnalyseTracker.start(tracker, event_start, analyse_routes, find_closest_cache=find_closest_cache)
+                    self.rider_analyse_trackers[rider['name']] = tracker
+
                 tracker = await index_and_hash_tracker(tracker)
 
                 self.rider_current_values[rider['name']] = {}
+
                 await self.on_rider_new_points(rider['name'], tracker, tracker.points)
                 tracker.new_points_observable.subscribe(partial(self.on_rider_new_points, rider['name']))
 
@@ -206,22 +215,34 @@ class Event(object):
                 self.rider_trackers_blocked_list[rider['name']] = BlockedList.from_tracker(
                     tracker, entire_block=not is_live,
                     new_update_callbacks=(partial(self.rider_blocked_list_update_observable, self, rider['name']), ))
+        if analyse:
+            self.predicted_task = asyncio.ensure_future(self.predicted())
         self.trackers_started = True
 
-    async def stop_and_complete_trackers(self, call_tracker_change_callbacks=True):
+    async def stop_and_complete_trackers(self):
         if self.starting_fut:
-            cancel_and_wait_task(self.starting_fut)
+            await cancel_and_wait_task(self.starting_fut)
 
-        for tracker in self.rider_trackers.values():
-            tracker.stop()
-        for tracker in self.rider_trackers.values():
-            try:
-                await tracker.complete()
-            except Exception:
-                self.logger.exception('Unhandled tracker error: ')
-        self.rider_trackers = {}
-        self.rider_trackers_blocked_list = {}
-        self.trackers_started = False
+        if self.trackers_started:
+            if self.predicted_task:
+                await cancel_and_wait_task(self.predicted_task)
+                self.predicted_task = None
+
+            for tracker in self.rider_trackers.values():
+                tracker.stop()
+            for tracker in self.rider_trackers.values():
+                try:
+                    await tracker.complete()
+                except Exception:
+                    self.logger.exception('Unhandled tracker error: ')
+
+            del self.rider_trackers
+            del self.rider_trackers_blocked_list
+            del self.rider_current_values
+            with suppress(AttributeError):
+                del self.rider_analyse_trackers
+
+            self.trackers_started = False
 
     async def on_rider_new_points(self, rider_name, tracker, new_points):
         if new_points:
@@ -229,3 +250,21 @@ class Event(object):
             for point in new_points:
                 values.update(point)
             await self.rider_new_points_observable(self, rider_name, tracker, new_points)
+        self.new_points.set()
+
+    async def predicted(self):
+        while True:
+            with suppress(asyncio.TimeoutError):
+                await asyncio.wait_for(self.new_points.wait(), 5)
+
+            try:
+                time = datetime.datetime.now()
+                rider_predicted_points = [(rider_name, tracker.get_predicted_position(time))
+                                          for rider_name, tracker in self.rider_analyse_trackers.items()]
+                filtered = [item for item in rider_predicted_points if item[1]]
+                await self.rider_predicted_updated_observable(self, dict(filtered), time)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                self.logger.exception('Error in predicted:')
+            self.new_points.clear()

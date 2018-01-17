@@ -5,7 +5,7 @@ import json
 import os
 from base64 import urlsafe_b64encode
 from copy import copy
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import msgpack
 
@@ -36,23 +36,23 @@ async def static_start_event_tracker(app, event, rider_name, tracker_data):
     return tracker
 
 
-async def start_replay_tracker(org_tracker, event_start_time, replay_start, speed_multiply=2000):
+async def start_replay_tracker(org_tracker, event_start_time, replay_start, offset=timedelta(0), speed_multiply=2000):
     replay_tracker = Tracker('replay.{}'.format(org_tracker.name))
     replay_task = asyncio.ensure_future(
-        replay(replay_tracker, org_tracker, event_start_time, replay_start, speed_multiply))
+        replay(replay_tracker, org_tracker, event_start_time, replay_start, offset, speed_multiply))
     replay_tracker.stop = replay_task.cancel
     replay_tracker.completed = replay_task
     return replay_tracker
 
 
-async def replay(replay_tracker, org_tracker, event_start_time, replay_start, speed_multiply):
+async def replay(replay_tracker, org_tracker, event_start_time, replay_start, offset, speed_multiply):
     point_i = 0
     while not org_tracker.completed.done() or point_i < len(org_tracker.points):
         now = datetime.now()
         new_points = []
         while point_i < len(org_tracker.points):
             point = org_tracker.points[point_i]
-            new_time = replay_start + ((point['time'] - event_start_time) / speed_multiply)
+            new_time = replay_start + ((point['time'] - event_start_time + offset) / speed_multiply)
             if new_time <= now:
                 point_i += 1
                 point['time'] = new_time

@@ -4,8 +4,10 @@ from trackers.analyse import (
     distance,
     find_c_point,
     get_equal_spaced_points,
+    move_along_route,
     Point,
     ramer_douglas_peucker,
+    route_with_distance_and_index,
 )
 
 
@@ -71,3 +73,14 @@ class TestGetEqualSpacedPoints(unittest.TestCase):
             (Point(lat=0.000802, lng=0.001), 200),
             (Point(lat=0.001, lng=0.001), 221.89376661216434)
         ])
+
+
+class TestMoveAlongRoute(unittest.TestCase):
+
+    def test_non_indexed(self):
+        point = move_along_route([Point(0, 0), Point(0, 0.2), Point(0, 1)], 100000)
+        self.assertEqual(point, Point(lat=0.0, lng=0.898323))
+
+    def test_indexed(self):
+        point = move_along_route(route_with_distance_and_index([(0, 0), (0, 0.2), (0, 1)]), 100000)
+        self.assertEqual(point, Point(lat=0.0, lng=0.898323))

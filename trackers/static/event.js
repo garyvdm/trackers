@@ -1,5 +1,9 @@
 "use strict";
 
+var options = {
+    'predicted': true
+}
+
 var loader_html = '<span class="l1"></span><span class="l2"></span><span class="l3"></span> '
 
 function get(url) {
@@ -52,6 +56,7 @@ var riders_by_name = {};
 var riders_client_items = {};
 var riders_points = {};
 var riders_values = {};
+var riders_predicted = {}
 
 function on_new_state_received(new_state) {
     var need_save = false;
@@ -87,6 +92,7 @@ function on_new_state_received(new_state) {
         riders_client_items = {};
         riders_points = {};
         riders_values = {};
+        riders_predicted = {};
 
         state.config_hash = new_state.config_hash;
         get('/config?hash=' + new_state.config_hash).then(function (new_config){
@@ -112,12 +118,19 @@ function on_new_state_received(new_state) {
             var name = entry[0];
             var values = entry[1];
             riders_values[name] = values;
-            on_new_rider_values(name);
+            if (!options.predicted) on_new_rider_values(name);
         });
-        update_rider_table();
-        elevation_chart.redraw(false);
+        if (!options.predicted) update_rider_table();
     }
+    if (new_state.hasOwnProperty('riders_predicted')) {
+        riders_predicted = new_state.riders_predicted;
 
+        var changed = {};
+        Object.assign(changed, riders_predicted);
+        Object.assign(changed, riders_values);
+        Object.keys(changed).forEach(on_new_rider_values);
+        update_rider_table();
+    }
     if (new_state.hasOwnProperty('riders_points')) {
         Object.entries(new_state.riders_points).forEach(function (entry){
             var name = entry[0];
@@ -474,6 +487,12 @@ function on_new_rider_values(rider_name){
         if (!rider) return;
         var rider_items = riders_client_items[rider_name];
         var values = riders_values[rider_name];
+
+        if (options.predicted && riders_predicted.hasOwnProperty(rider_name)) {
+            values = Object.assign({}, values);
+            Object.assign(values, riders_predicted[rider_name]);
+        }
+
         var marker_color = rider.color_marker || 'white';
         var marker_html = '<div class="rider-marker" style="background: ' + marker_color + ';">' + (rider.name_short || rider.name)+ '</div>' +
                           '<div class="rider-marker-pointer" style="border-color: transparent ' + marker_color + ' ' + marker_color + ' transparent;"></div>';
@@ -507,7 +526,7 @@ function on_new_rider_values(rider_name){
                     color: marker_color,
                     data: [],
                     turboThreshold: 1000,
-                }, true);
+                }, false);
                 series = elevation_chart.get(rider_name);
             }
             series.setData([{
@@ -523,7 +542,7 @@ function on_new_rider_values(rider_name){
                         textOutline: 'none'
                     }
                 },
-            }], false, false, false);
+            }], true, false);
         }
 
     }).catch(promise_catch);
@@ -535,10 +554,24 @@ var riders_el = [];
 function update_rider_table(){
     if (config) {
         document.getElementById('riders_contain').className = (config.riders.length >= 10? 'big':'small')
+        var riders_values_l = riders_values;
+        if (options.predicted) {
+            riders_values_l = Object.assign({}, riders_values_l);
+            Object.keys(riders_values_l).forEach(function (rider_name) {
+                if (riders_predicted.hasOwnProperty(rider_name)) {
+                    var values = riders_values_l[rider_name];
+                    values = Object.assign({}, values);
+                    Object.assign(values, riders_predicted[rider_name]);
+                    riders_values_l[rider_name] = values;
+                }
+            });
+
+        }
+
         var sorted_riders = config.riders.slice();
         sorted_riders.sort(function (a, b){
-            var a_values = riders_values[a.name] || {};
-            var b_values = riders_values[b.name] || {};
+            var a_values = riders_values_l[a.name] || {};
+            var b_values = riders_values_l[b.name] || {};
 
             if (a_values.finished_time && !b_values.finished_time || a_values.finished_time < b_values.finished_time) return -1;
             if (!a_values.finished_time && b_values.finished_time || a_values.finished_time > b_values.finished_time) return 1;
@@ -552,7 +585,7 @@ function update_rider_table(){
         var show_detail = riders_detail_el.checked;
         var rider_rows = sorted_riders.map(function (rider){
             var rider_items = riders_client_items[rider.name] || {};
-            var values = riders_values[rider.name] || {};
+            var values = riders_values_l[rider.name] || {};
             var last_position_time;
             var finished_time;
             var speed;

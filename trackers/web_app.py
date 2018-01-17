@@ -337,6 +337,8 @@ async def on_new_event(event):
     event.config_routes_change_observable.subscribe(on_event_config_routes_change)
     event.rider_new_points_observable.subscribe(on_event_rider_new_points)
     event.rider_blocked_list_update_observable.subscribe(on_event_rider_blocked_list_update)
+    event.rider_predicted_updated_observable.subscribe(on_event_rider_predicted_updated)
+
     if event.config.get('live', False):
         await event.start_trackers()
 
@@ -374,6 +376,14 @@ async def on_event_rider_blocked_list_update(event, rider_name, blocked_list, up
     # )
 
 
+async def on_event_rider_predicted_updated(event, predicted, time):
+    message_to_multiple_wss(
+        event.app,
+        event.app['trackers.event_ws_sessions'][event.name],
+        {'riders_predicted': predicted, },
+    )
+
+
 async def event_ws(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
@@ -382,6 +392,7 @@ async def event_ws(request):
             exit_stack.enter_context(list_register(request.app['trackers.ws_sessions'], ws))
 
             send = partial(message_to_multiple_wss, request.app, (ws, ))
+            send({})
 
             event_name = request.match_info['event']
             event = request.app['trackers.events'].get(event_name)

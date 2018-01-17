@@ -12,6 +12,7 @@ from operator import itemgetter
 import attr
 from numpy import (
     arccos,
+    array_equal,
     cross,
     deg2rad,
     dot,
@@ -23,6 +24,7 @@ from nvector import (
     lat_lon2n_E,
     n_E2lat_lon,
     n_EB_E2p_EB_E,
+    p_EB_E2n_EB_E,
     unit,
 )
 
@@ -85,11 +87,13 @@ class AnalyseTracker(Tracker):
         self.make_inactive_fut = None
         self.prev_point_with_position = None
         self.prev_point_with_position_point = None
+        self.prev_unit_vector = None
         self.current_track_id = 0
         self.status = None
         self.prev_closest_route_point = None
-        self.dist_ridden = 0
         self.prev_route_dist = 0
+        self.prev_route_dist_time = None
+        self.going_forward = None
         self.finished = False
 
         self.completed = asyncio.ensure_future(self._completed())
@@ -145,10 +149,23 @@ class AnalyseTracker(Tracker):
                     if closest and closest.dist > 5000:
                         closest = None
 
+                    dist_from_last_set = False
+
                     if closest:
-                        point['dist_route'] = self.prev_route_dist = route_distance(closest.route, closest)
+                        point['dist_route'] = route_dist = route_distance(closest.route, closest)
+                        self.going_forward = route_dist > self.prev_route_dist
+                        if self.prev_route_dist_time and self.going_forward:
+                            # TODO these should not be affected by secondary route dist factor.
+                            dist_from_last_set = True
+                            point['dist_from_last'] = route_dist - self.prev_route_dist
+                            seconds = (point['time'] - self.prev_route_dist_time).total_seconds()
+                            if seconds != 0:
+                                point['speed_from_last'] = round(point['dist_from_last'] / seconds * 3.6, 1)
+
+                        self.prev_route_dist = route_dist
+                        self.prev_route_dist_time = point['time']
                         if 'elevation' in closest.route:
-                            point['route_elevation'] = route_elevation(closest.route, self.prev_route_dist)
+                            point['route_elevation'] = route_elevation(closest.route, route_dist)
 
                         if not self.finished:
                             if closest.route_i == 0 and abs(point['dist_route'] - last_route_point.distance) < 100:
@@ -156,6 +173,9 @@ class AnalyseTracker(Tracker):
                                 self.finished = True
                                 point['finished_time'] = point['time']
                                 point['rider_status'] = 'Finished'
+                    else:
+                        self.going_forward = None
+                        self.prev_route_dist_time = None
 
                     self.prev_closest_route_point = closest
 
@@ -168,19 +188,26 @@ class AnalyseTracker(Tracker):
                             self.apply_status_to_point(
                                 {'time': prev_point['time'] + self.track_break_time},
                                 'Inactive', new_new_points.append)
-                        point['dist_from_last'] = round(dist)
-                        seconds = time.total_seconds()
-                        if seconds != 0:
-                            point['speed_from_last'] = round(dist / seconds * 3.6, 1)
-                        self.dist_ridden += dist
-                        point['dist_ridden'] = round(self.dist_ridden)
-
-                    self.prev_point_with_position_point = point_point
+                        if not dist_from_last_set:
+                            point['dist_from_last'] = round(dist)
+                            seconds = time.total_seconds()
+                            if seconds != 0:
+                                point['speed_from_last'] = round(dist / seconds * 3.6, 1)
+                        if not array_equal(point_point.pv, self.prev_point_with_position_point.pv):
+                            self.prev_unit_vector = unit(point_point.pv - self.prev_point_with_position_point.pv)
+                        else:
+                            self.prev_unit_vector = None
+                    else:
+                        self.prev_unit_vector = None
+                else:
+                    self.prev_closest_route_point = None
+                    self.going_forward = None
 
                 # TODO what about status from source tracker?
                 self.apply_status_to_point(point, 'Active')
 
                 self.prev_point_with_position = prev_point_with_position = point
+                self.prev_point_with_position_point = point_point
                 point['track_id'] = self.current_track_id
 
             new_new_points.append(point)
@@ -189,7 +216,7 @@ class AnalyseTracker(Tracker):
             if i % 10 == 9 or is_last_point:
                 now = datetime.datetime.now()
                 log_time_delta = (now - log_time).total_seconds()
-                if log_time_delta >= 5 or (is_last_point and did_slow_log):
+                if log_time_delta >= 1 or (is_last_point and did_slow_log):
                     self.logger.info('{}/{} ({:.1f}%) points analysed at {:.2f} points/second.'.format(
                         i, len(new_points), i / (len(new_points) - 1) * 100, (i - log_i) / log_time_delta))
                     log_time = now
@@ -227,6 +254,39 @@ class AnalyseTracker(Tracker):
             if append_to:
                 append_to(point)
 
+    def get_predicted_position(self, time):
+        # TODO if time > a position received - then interpolate beteen thoes positions.
+        if self.prev_point_with_position:
+            if self.status != 'Inactive' and not self.finished and self.prev_point_with_position.get('speed_from_last', 0) > 1:
+                closest = self.prev_closest_route_point
+                time_from_last = (time - self.prev_point_with_position['time']).total_seconds()
+                dist_moved_from_last = self.prev_point_with_position['speed_from_last'] / 3.6 * time_from_last
+                if closest and self.going_forward and closest.dist < 500:
+                    # Predicted to follow route if they are on the route and going forward.
+                    dist_route = self.prev_point_with_position['dist_route'] + dist_moved_from_last
+                    proceeding_route = list(chain(
+                        (closest.point, ),
+                        closest.route['points'][closest.point_pair[1].index:],
+                    ))
+                    # TODO continue main route
+                    point_point = move_along_route(proceeding_route, dist_moved_from_last)
+                    point = {
+                        'position': [point_point.lat, point_point.lng],
+                        'dist_route': dist_route,
+                    }
+                    if 'elevation' in closest.route:
+                        point['route_elevation'] = route_elevation(closest.route, dist_route)
+
+                    return point
+                elif self.prev_unit_vector is not None:
+                    # Just keep going in the direction that they were going on.
+                    pv = (self.prev_unit_vector * dist_moved_from_last) + self.prev_point_with_position_point.pv
+                    nv = p_EB_E2n_EB_E(pv)
+                    new_point = Point.from_nv(nv[0])
+                    return {
+                        'position': [new_point.lat, new_point.lng] + self.prev_point_with_position['position'][2:],
+                    }
+
 
 @attr.s(slots=True)
 class Point(object):
@@ -249,6 +309,13 @@ class Point(object):
         if self._pv is None:
             self._pv = n_EB_E2p_EB_E(self.nv)
         return self._pv
+
+    @classmethod
+    def from_nv(cls, nv, round_digits=6):
+        lat, lng = n_E2lat_lon(nv)
+        point = cls(round(rad2deg(lat[0]), round_digits), round(rad2deg(lng[0]), round_digits))
+        point._nv = nv
+        return point
 
 
 @attr.s(slots=True)
@@ -404,7 +471,7 @@ def find_closest_point_pair(route, point_pairs, to_point, prev_dist):
     if prev_dist is not None:
         def min_key(closest):
             move_distance = abs(route_distance(route, closest) - prev_dist)
-            move_distnace_adj = pow(2, (move_distance - 50000) / 1000)
+            move_distnace_adj = pow(2, (move_distance - 50000) / 1000)  # TODO make this configurable.
             rank = closest.dist + move_distnace_adj
             # print(move_distance, n, move_distnace_adj, closest.dist, rank)
             return rank
@@ -506,14 +573,25 @@ def get_equal_spaced_points(points, dist_between_points, start_dist=0, round_dig
             point_dist_remaining -= dist_between_points
             cum_dist += dist_between_points
             new_point_nv = interpolate((last_point.nv, point.nv), (point_distance - point_dist_remaining) / point_distance)
-            new_point_lat, new_point_lng = n_E2lat_lon(new_point_nv)
-            new_point = Point(round(rad2deg(new_point_lat[0]), round_digits), round(rad2deg(new_point_lng[0]), round_digits))
-            new_point._nv = new_point_nv
+            new_point = Point.from_nv(new_point_nv, round_digits=round_digits)
             yield (new_point, cum_dist)
         dist_from_last_step = point_dist_remaining
         last_point = point
     cum_dist += dist_from_last_step
     yield (points[-1], cum_dist)
+
+
+def move_along_route(route, dist):
+    for i, (point1, point2) in enumerate(pairs(route)):
+        dist_between = point2.distance - point1.distance if isinstance(point1, IndexedPoint) and isinstance(point2, IndexedPoint) else distance(point1, point2)
+        if dist > dist_between:
+            dist -= dist_between
+        else:
+            ti = dist / dist_between
+            nv = interpolate((point1.nv, point2.nv), ti)
+            return Point.from_nv(nv)
+    else:
+        return point2
 
 
 class KeyifyList(object):

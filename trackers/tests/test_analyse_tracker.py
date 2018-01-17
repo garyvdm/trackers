@@ -31,10 +31,10 @@ class TestAnalyseTracker(asynctest.TestCase):
         pprint.pprint(analyse_tracker.points)
         self.assertSequenceEqual(analyse_tracker.points, (
             {'time': d('2017/01/01 05:00:00'), 'position': (-26.300822, 28.049444, 1800), 'track_id': 0, 'status': 'Active'},
-            {'time': d('2017/01/01 05:01:00'), 'position': (-26.302245, 28.051139, 1800), 'track_id': 0, 'dist_from_last': 231.0, 'dist_ridden': 231.0, 'speed_from_last': 13.9},
+            {'time': d('2017/01/01 05:01:00'), 'position': (-26.302245, 28.051139, 1800), 'track_id': 0, 'dist_from_last': 231.0, 'speed_from_last': 13.9},
             {'time': d('2017/01/01 05:21:00'), 'status': 'Inactive'},
-            {'time': d('2017/01/01 05:30:00'), 'position': (-27.280315, 27.969365, 1800), 'track_id': 1, 'status': 'Active', 'dist_from_last': 108674.0, 'dist_ridden': 108905.0, 'speed_from_last': 224.8},
-            {'time': d('2017/01/01 05:31:00'), 'position': (-27.282870, 27.970620, 1800), 'track_id': 1, 'dist_from_last': 309.0, 'dist_ridden': 109214.0, 'speed_from_last': 18.600000000000001},
+            {'time': d('2017/01/01 05:30:00'), 'position': (-27.280315, 27.969365, 1800), 'track_id': 1, 'status': 'Active', 'dist_from_last': 108674.0, 'speed_from_last': 224.8},
+            {'time': d('2017/01/01 05:31:00'), 'position': (-27.282870, 27.970620, 1800), 'track_id': 1, 'dist_from_last': 309.0, 'speed_from_last': 18.600000000000001},
         ))
         await analyse_tracker.complete()
 
@@ -66,7 +66,7 @@ class TestAnalyseTracker(asynctest.TestCase):
         pprint.pprint(analyse_tracker.points)
         self.assertSequenceEqual(analyse_tracker.points, (
             {'time': t1, 'position': (-26.300822, 28.049444, 1800), 'track_id': 0, 'status': 'Active'},
-            {'time': t2, 'position': (-26.302245, 28.051139, 1800), 'track_id': 0, 'dist_from_last': 231, 'dist_ridden': 231},
+            {'time': t2, 'position': (-26.302245, 28.051139, 1800), 'track_id': 0, 'dist_from_last': 231},
             {'time': t2 + break_time, 'status': 'Inactive'},
         ))
         await analyse_tracker.complete()
@@ -109,8 +109,8 @@ class TestAnalyseTracker(asynctest.TestCase):
 
         pprint.pprint(analyse_tracker.points)
         self.assertSequenceEqual(analyse_tracker.points, (
-            {'time': d('2017/01/01 05:00:00'), 'position': (-26.300824, 28.050185, 1800), 'track_id': 0, 'status': 'Active', 'dist_route': 82},
-            {'time': d('2017/01/01 05:01:00'), 'position': (-26.322167, 28.042920, 1800), 'track_id': 0, 'dist_from_last': 2473, 'dist_ridden': 2473, 'dist_route': 4198, 'speed_from_last': 148.4, 'finished_time': d('2017/01/01 05:01:00'), 'rider_status': 'Finished'},
+            {'time': d('2017/01/01 05:00:00'), 'position': (-26.300824, 28.050185, 1800), 'track_id': 0, 'status': 'Active', 'dist_route': 82.0},
+            {'time': d('2017/01/01 05:01:00'), 'position': (-26.322167, 28.042920, 1800), 'track_id': 0, 'dist_from_last': 4116.0, 'dist_route': 4198.0, 'speed_from_last': 247.0, 'finished_time': d('2017/01/01 05:01:00'), 'rider_status': 'Finished'},
             {'status': 'Inactive', 'time': datetime.datetime(2017, 1, 1, 5, 21)},
         ))
 
@@ -143,7 +143,7 @@ class TestAnalyseTracker(asynctest.TestCase):
         pprint.pprint(analyse_tracker.points)
         self.assertSequenceEqual(analyse_tracker.points, (
             {'time': d('2017/01/01 05:00:00'), 'position': (-26.300824, 28.050185, 1800), 'track_id': 0, 'status': 'Active', 'dist_route': 82.0},
-            {'time': d('2017/01/01 05:00:00'), 'position': (-26.322167, 28.042920, 1800), 'track_id': 0, 'dist_from_last': 2473.0, 'dist_ridden': 2473.0, 'dist_route': 4198.0, 'finished_time': d('2017/01/01 05:00:00'), 'rider_status': 'Finished'},
+            {'time': d('2017/01/01 05:00:00'), 'position': (-26.322167, 28.042920, 1800), 'track_id': 0, 'dist_from_last': 4116.0, 'dist_route': 4198.0, 'finished_time': d('2017/01/01 05:00:00'), 'rider_status': 'Finished'},
             {'status': 'Inactive', 'time': datetime.datetime(2017, 1, 1, 5, 20)},
         ))
 
@@ -182,9 +182,9 @@ class TestAnalyseTracker(asynctest.TestCase):
 
         pprint.pprint(analyse_tracker.points)
         self.assertSequenceEqual(analyse_tracker.points, [
-            {'time': d('2017/01/01 05:00:00'), 'position': (-26.300824, 28.050185, 1800), 'track_id': 0, 'status': 'Active', 'dist_route': 82},
-            {'time': d('2017/01/01 05:01:00'), 'position': (-26.325051, 27.9856, 1800), 'track_id': 0, 'dist_from_last': 6985, 'dist_ridden': 6985, 'dist_route': 5256, 'speed_from_last': 419.1, },
-            {'time': d('2017/01/01 05:02:00'), 'position': (-26.417149, 28.073087, 1800), 'track_id': 0, 'dist_from_last': 13430, 'dist_ridden': 20415, 'dist_route': 13423, 'speed_from_last': 805.8, 'finished_time': d('2017/01/01 05:02:00'), 'rider_status': 'Finished'},
+            {'time': d('2017/01/01 05:00:00'), 'position': (-26.300824, 28.050185, 1800), 'track_id': 0, 'status': 'Active', 'dist_route': 82.0},
+            {'time': d('2017/01/01 05:01:00'), 'position': (-26.325051, 27.9856, 1800), 'track_id': 0, 'dist_from_last': 5174.0, 'dist_route': 5256.0, 'speed_from_last': 310.39999999999998, },
+            {'time': d('2017/01/01 05:02:00'), 'position': (-26.417149, 28.073087, 1800), 'track_id': 0, 'dist_from_last': 8167.0, 'dist_route': 13423.0, 'speed_from_last': 490.0, 'finished_time': d('2017/01/01 05:02:00'), 'rider_status': 'Finished'},
             {'status': 'Inactive', 'time': datetime.datetime(2017, 1, 1, 5, 22)},
         ])
 
@@ -244,14 +244,43 @@ class TestAnalyseTracker(asynctest.TestCase):
         pprint.pprint(analyse_tracker.points)
         self.assertSequenceEqual(analyse_tracker.points, [
             {'time': d('2017/01/01 05:00:00'), 'position': (-27.880490000, 27.917450000, 1800), 'track_id': 0, 'dist_route': 114.0, 'status': 'Active', },
-            {'time': d('2017/01/01 05:01:00'), 'position': (-27.843790000, 28.164510000, 1800), 'track_id': 0, 'dist_from_last': 24670.0, 'dist_ridden': 24670.0, 'dist_route': 40054.0, 'speed_from_last': 1480.2, },
-            {'time': d('2017/01/01 05:02:00'), 'position': (-27.945580000, 28.044930000, 1800), 'track_id': 0, 'dist_from_last': 16305.0, 'dist_ridden': 40975.0, 'dist_route': 56359.0, 'speed_from_last': 978.3, },
-            {'time': d('2017/01/01 05:03:00'), 'position': (-27.881250000, 27.919840000, 1800), 'track_id': 0, 'dist_from_last': 14229.0, 'dist_ridden': 55203.0, 'dist_route': 70588.0, 'speed_from_last': 853.7, },
-            {'time': d('2017/01/01 05:04:00'), 'position': (-27.779830000, 27.746380000, 1800), 'track_id': 0, 'dist_from_last': 20453.0, 'dist_ridden': 75657.0, 'dist_route': 92187.0, 'speed_from_last': 1227.2, },
-            {'time': d('2017/01/01 05:05:00'), 'position': (-28.043810000, 27.969710000, 1800), 'track_id': 0, 'dist_from_last': 36594.0, 'dist_ridden': 112251.0, 'dist_route': 141196.0, 'speed_from_last': 2195.6, },
-            {'time': d('2017/01/01 05:06:00'), 'position': (-27.880490000, 27.917450000, 1800), 'track_id': 0, 'dist_from_last': 18815.0, 'dist_ridden': 131066.0, 'dist_route': 166916.0, 'speed_from_last': 1128.9, 'finished_time': d('2017/01/01 05:06:00'), 'rider_status': 'Finished', },
+            {'time': d('2017/01/01 05:01:00'), 'position': (-27.843790000, 28.164510000, 1800), 'track_id': 0, 'dist_from_last': 39940.0, 'dist_route': 40054.0, 'speed_from_last': 2396.4, },
+            {'time': d('2017/01/01 05:02:00'), 'position': (-27.945580000, 28.044930000, 1800), 'track_id': 0, 'dist_from_last': 16305.0, 'dist_route': 56359.0, 'speed_from_last': 978.3, },
+            {'time': d('2017/01/01 05:03:00'), 'position': (-27.881250000, 27.919840000, 1800), 'track_id': 0, 'dist_from_last': 14229.0, 'dist_route': 70588.0, 'speed_from_last': 853.7, },
+            {'time': d('2017/01/01 05:04:00'), 'position': (-27.779830000, 27.746380000, 1800), 'track_id': 0, 'dist_from_last': 21599.0, 'dist_route': 92187.0, 'speed_from_last': 1295.9, },
+            {'time': d('2017/01/01 05:05:00'), 'position': (-28.043810000, 27.969710000, 1800), 'track_id': 0, 'dist_from_last': 49009.0, 'dist_route': 141196.0, 'speed_from_last': 2940.5, },
+            {'time': d('2017/01/01 05:06:00'), 'position': (-27.880490000, 27.917450000, 1800), 'track_id': 0, 'dist_from_last': 25720.0, 'dist_route': 166916.0, 'speed_from_last': 1543.2, 'finished_time': d('2017/01/01 05:06:00'), 'rider_status': 'Finished', },
             {'time': d('2017/01/01 05:26:00'), 'status': 'Inactive'},
         ])
+
+    async def test_get_predicted_position(self):
+        tracker = Tracker('test')
+        routes = [
+            {
+                'main': True,
+                'points': [
+                    [-27.881250000, 27.919840000],
+                    [-27.862210000, 27.917000000],
+                    [-27.743550000, 27.942480000],
+                    [-27.843790000, 28.164510000],
+                    [-27.945580000, 28.044930000],
+                ]
+            },
+        ]
+        event_routes = get_analyse_routes(routes)
+
+        await tracker.new_points((
+            {'time': d('2017/01/01 05:00:00'), 'position': (-27.880490000, 27.917450000, 1800)},
+            {'time': d('2017/01/01 05:01:00'), 'position': (-27.843790000, 28.164510000, 1800)},
+        ))
+        analyse_tracker = await AnalyseTracker.start(tracker, d('2017/01/01 05:00:00'), event_routes)
+        pprint.pprint(analyse_tracker.points)
+
+        predicted_point = analyse_tracker.get_predicted_position(d('2017/01/01 05:01:30'))
+        pprint.pprint(predicted_point)
+
+        tracker.completed.set_result(None)
+        await analyse_tracker.complete()
 
 
 class TestRouteElevation(unittest.TestCase):
