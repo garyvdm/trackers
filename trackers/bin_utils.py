@@ -53,6 +53,10 @@ defaults_yaml = """
             level: INFO
             handlers: [console, ]
 
+        loggers:
+            aiohttp.access:
+                level: ERROR
+
 """
 
 

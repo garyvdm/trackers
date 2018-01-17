@@ -51,6 +51,7 @@ var route_paths = [];
 var riders_by_name = {};
 var riders_client_items = {};
 var riders_points = {};
+var riders_values = {};
 
 function on_new_state_received(new_state) {
     var need_save = false;
@@ -88,6 +89,17 @@ function on_new_state_received(new_state) {
         }).catch(promise_catch);
         need_save = true;
     }
+    if (new_state.hasOwnProperty('riders_values')) {
+        Object.entries(new_state.riders_values).forEach(function (entry){
+            var name = entry[0];
+            var values = entry[1];
+            riders_values[name] = values;
+            on_new_rider_values(name);
+        });
+        update_rider_table();
+        elevation_chart.redraw(false);
+    }
+
     if (new_state.hasOwnProperty('riders_points')) {
         Object.entries(new_state.riders_points).forEach(function (entry){
             var name = entry[0];
@@ -252,7 +264,13 @@ setInterval(function(){
 function on_new_config(){
     event_markers.forEach(function (marker) { marker.setMap(null) });
     event_markers = [];
-    Object.keys(riders_client_items).forEach(on_clear_rider_points);
+    Object.keys(riders_client_items).forEach(function (rider_name){
+        var rider_items = riders_client_items[rider_name]
+        Object.values(rider_items.paths || {}).forEach(function (path){ path.setMap(null) });
+        if (rider_items.marker) rider_items.marker.setMap(null);
+        if (rider_items.elevation_chart_series) rider_items.elevation_chart_series.remove(false);
+        delete riders_client_items[rider_name];
+    });
 
     if (config) {
         if (!map) {
@@ -307,11 +325,19 @@ function on_new_config(){
         }
 
         riders_by_name = {};
+        riders_client_items = {}
         config.riders.forEach(function (rider) {
             riders_by_name[rider.name] = rider
-            on_new_rider_points(rider.name, [], [], [])
+            riders_client_items[rider.name] = {
+                paths: {},
+                marker: null,
+                elevation_chart_series: null,
+            };
+            if (riders_values.hasOwnProperty(rider.name)) {
+                on_new_rider_values(rider.name);
+            }
         });
-
+        elevation_chart.redraw(false);
         update_rider_table();
     }
 }
@@ -378,11 +404,11 @@ function on_new_routes(){
                     },
                 }
 
-            }, false);
+            }, false, false);
         });
         elevation_chart.redraw(false);
         adjust_elevation_chart_bounds();
-    });
+    }).catch(promise_catch);
 }
 
 var bounds_changed_timeout_id;
@@ -406,35 +432,20 @@ function adjust_elevation_chart_bounds() {
     }
 }
 
-function on_clear_rider_points(rider_name){
-    if (riders_client_items.hasOwnProperty(rider_name)) {
-        var rider_items = riders_client_items[rider_name]
-        Object.values(rider_items.paths || {}).forEach(function (path){ path.setMap(null) });
-        if (rider_items.marker) rider_items.marker.setMap(null);
-        // TODO the following errors on chrome. Need to fix
-        if (rider_items.elevation_chart_series) rider_items.elevation_chart_series.remove(false);
-        delete riders_client_items[rider_name];
-    }
-}
 
 function on_new_rider_points(rider_name, items, new_items, old_items){
     config_loaded.promise.then( function () {
 
+        var rider = riders_by_name[rider_name]
+        if (!rider) return;
+        var rider_items = riders_client_items[rider_name];
+
         if (old_items.length) {
-            on_clear_rider_points(rider_name);
+            Object.values(rider_items.paths || {}).forEach(function (path){ path.setMap(null) });
+            rider_items.paths = [];
             new_items = items;
         }
 
-        var rider = riders_by_name[rider_name]
-        if (!rider) return;
-        var rider_items = riders_client_items[rider_name] || (riders_client_items[rider_name] = {
-            paths: {},
-            marker: null,
-            elevation_chart_series: null,
-            current_values: {},
-            last_position_point: null,
-            position_point: null,
-        });
         var path_color = rider.color || 'black';
         var rider_current_values = rider_items.current_values;
 
@@ -449,17 +460,24 @@ function on_new_rider_points(rider_name, items, new_items, old_items){
                     strokeWeight: 2
                 }))).getPath()
                 path.push(new google.maps.LatLng(point.position[0], point.position[1]));
-                rider_items.last_position_point = rider_items.position_point;
-                rider_items.position_point = point;
             }
-            Object.assign(rider_current_values, point);
         });
+
+    }).catch(promise_catch);
+}
+
+function on_new_rider_values(rider_name){
+    config_loaded.promise.then( function () {
+        var rider = riders_by_name[rider_name]
+        if (!rider) return;
+        var rider_items = riders_client_items[rider_name];
+        var values = riders_values[rider_name];
         var marker_color = rider.color_marker || 'white';
         var marker_html = '<div class="rider-marker" style="background: ' + marker_color + ';">' + (rider.name_short || rider.name)+ '</div>' +
-                          '<div class="rider-marker-pointer" style="border-color: transparent ' + marker_color + ' ' + marker_color + ' transparent;"></div>'
+                          '<div class="rider-marker-pointer" style="border-color: transparent ' + marker_color + ' ' + marker_color + ' transparent;"></div>';
 
-        if (rider_items.position_point) {
-            var position = new google.maps.LatLng(rider_items.position_point.position[0], rider_items.position_point.position[1])
+        if (values.hasOwnProperty('position')) {
+            var position = new google.maps.LatLng(values.position[0], values.position[1])
             if (!rider_items.marker) {
                 rider_items.marker = new RichMarker({
                     map: map,
@@ -471,45 +489,45 @@ function on_new_rider_points(rider_name, items, new_items, old_items){
                 rider_items.marker.setPosition(position);
             }
         }
-        if (rider_items.position_point && rider_items.position_point.hasOwnProperty('dist_route')) {
-            if (!rider_items.elevation_chart_series) {
-                rider_items.elevation_chart_series = elevation_chart.addSeries({
-                    marker: { symbol: 'circle'},
-                    color: marker_color,
-                    data: [],
-                }, false);
-            }
+        if (values.hasOwnProperty('dist_route')) {
             var elevation = null;
-            if (rider_items.position_point && rider_items.position_point.position.length > 2) {
-                elevation = rider_items.position_point.position[2]
+            if (values.hasOwnProperty('position') && values.position.length > 2) {
+                elevation = values.position[2]
             } else if (routes) {
                 // TODO the server analyse tracker should do this.
                 elevation = binarySearchClosest(
                     routes[0].elevation,
-                    rider_items.position_point.dist_route,
+                    values.dist_route,
                     function (point) { return point[3] }  // [3] = distance
                 )[2];  // [2] = elevation
             } else {
                 elevation = 0;
             }
+            if (!rider_items.elevation_chart_series) {
+                rider_items.elevation_chart_series = elevation_chart.addSeries({
+                    marker: { symbol: 'circle'},
+                    color: marker_color,
+                    data: [],
+                    turboThreshold: 1000,
+                }, true);
+            }
             rider_items.elevation_chart_series.setData([{
-                x: rider_current_values['dist_route'],
+                x: values['dist_route'],
                 y: elevation,
                 dataLabels: {
                     enabled: true,
                     format: rider.name_short || rider.name,
                     allowOverlap: true,
                     shape: 'callout',
-                    backgroundColor: marker_color,
+                    backgroundColor: rider.color_marker || 'white',
                     style: {
                         textOutline: 'none'
                     }
                 },
             }], false, false, false)
         }
-        update_rider_table();
-        elevation_chart.redraw(false);
-    });
+
+    }).catch(promise_catch);
 }
 
 var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -520,16 +538,14 @@ function update_rider_table(){
         document.getElementById('riders_contain').className = (config.riders.length >= 10? 'big':'small')
         var sorted_riders = config.riders.slice();
         sorted_riders.sort(function (a, b){
-            var a_rider_items = riders_client_items[a.name] || {};
-            var a_current_values = a_rider_items.current_values || {};
-            var b_rider_items = riders_client_items[b.name] || {};
-            var b_current_values = b_rider_items.current_values || {};
+            var a_values = riders_values[a.name] || {};
+            var b_values = riders_values[b.name] || {};
 
-            if (a_current_values.finished_time && !b_current_values.finished_time || a_current_values.finished_time < b_current_values.finished_time) return -1;
-            if (!a_current_values.finished_time && b_current_values.finished_time || a_current_values.finished_time > b_current_values.finished_time) return 1;
+            if (a_values.finished_time && !b_values.finished_time || a_values.finished_time < b_values.finished_time) return -1;
+            if (!a_values.finished_time && b_values.finished_time || a_values.finished_time > b_values.finished_time) return 1;
 
-            if (a_current_values.dist_route && !b_current_values.dist_route || a_current_values.dist_route > b_current_values.dist_route) return -1;
-            if (!a_current_values.dist_route && b_current_values.dist_route || a_current_values.dist_route < b_current_values.dist_route) return 1;
+            if (a_values.dist_route && !b_values.dist_route || a_values.dist_route > b_values.dist_route) return -1;
+            if (!a_values.dist_route && b_values.dist_route || a_values.dist_route < b_values.dist_route) return 1;
             return 0;
         });
 
@@ -537,42 +553,37 @@ function update_rider_table(){
         var show_detail = riders_detail_el.checked;
         var rider_rows = sorted_riders.map(function (rider){
             var rider_items = riders_client_items[rider.name] || {};
-            var current_values = rider_items.current_values || {};
-            var last_position_point = rider_items.last_position_point;
-            var position_point = rider_items.position_point;
+            var values = riders_values[rider.name] || {};
             var last_position_time;
             var finished_time;
             var speed;
-            var rider_status = (rider.hasOwnProperty('status') ? rider.status : current_values.rider_status || '' );
-            if (current_values.finished_time) {
+            var rider_status = (rider.hasOwnProperty('status') ? rider.status : values.rider_status || '' );
+            if (values.finished_time) {
                 if (config && config.hasOwnProperty('event_start')){
-                    finished_time = format_time_delta(current_values.finished_time - config.event_start);
+                    finished_time = format_time_delta(values.finished_time - config.event_start);
                 } else {
-                    var time = new Date(current_values.finished_time * 1000);
+                    var time = new Date(values.finished_time * 1000);
                     finished_time = sprintf('%s %02i:%02i:%02i', days[time.getDay()], time.getHours(), time.getMinutes(), time.getSeconds() )
                 }
 
             }
-            if (position_point) {
+            if (values.hasOwnProperty('time')) {
                 // TODO more than a day
-                var seconds = current_time - position_point.time;
+                var seconds = current_time - values.time;
                 if (seconds < 60) { last_position_time = '< 1 min ago' }
                 else if (seconds < 60 * 60) { last_position_time = sprintf('%i min ago', Math.floor(seconds / 60))}
                 else { last_position_time = sprintf('%i:%02i ago', Math.floor(seconds / 60 / 60), Math.floor(seconds / 60 % 60))}
-            }
-            if (position_point && last_position_point && position_point.hasOwnProperty('dist_ridden') && last_position_point.hasOwnProperty('dist_ridden') && current_values.status == 'Active') {
-                speed = Math.round((position_point.dist_ridden - last_position_point.dist_ridden) / (position_point.time - last_position_point.time) * 3.6 * 10) /10
             }
             if (show_detail) {
                 return '<tr rider_name="' + rider.name + '" class="rider">' +
                        '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
                        '<td>' + rider.name + '</td>' +
                        '<td>' + rider_status + '</td>' +
-                       '<td>' + (current_values.status || '') + '</td>' +
+                       '<td>' + (values.status || '') + '</td>' +
                        '<td style="text-align: right">' +  (last_position_time || '') + '</td>' +
-//                           '<td style="text-align: right">' + (current_values.hasOwnProperty('dist_ridden') ? sprintf('%.1f', current_values.dist_ridden / 1000) : '') + '</td>' +
-                       '<td style="text-align: right">' + (speed || '') + '</td>' +
-                       '<td style="text-align: right">' + (current_values.hasOwnProperty('dist_route') ? sprintf('%.1f', current_values.dist_route / 1000) : '') + '</td>' +
+//                           '<td style="text-align: right">' + (values.hasOwnProperty('dist_ridden') ? sprintf('%.1f', values.dist_ridden / 1000) : '') + '</td>' +
+                       '<td style="text-align: right">' + (values.status == 'Active' ? values.speed_from_last || '': '') + '</td>' +
+                       '<td style="text-align: right">' + (values.hasOwnProperty('dist_route') ? sprintf('%.1f', values.dist_route / 1000) : '') + '</td>' +
                        '<td style="text-align: right">' + (finished_time || '') + '</td>' +
                        '</tr>';
             } else {
@@ -580,8 +591,8 @@ function update_rider_table(){
                        '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
                        '<td>' + rider.name + '</td>' +
                        '<td style="text-align: right">' +
-                            (finished_time || (current_values.hasOwnProperty('dist_route') ? sprintf('%.1f km', current_values.dist_route / 1000) : ''))
-                            + ' ' + (rider_status || current_values.status || '') +'</td>' +
+                            (finished_time || (values.hasOwnProperty('dist_route') ? sprintf('%.1f km', values.dist_route / 1000) : ''))
+                            + ' ' + (rider_status || values.status || '') +'</td>' +
                        '</tr>';
             }
         });
@@ -663,10 +674,9 @@ function rider_onclick(row, rider_name, event) {
     event_markers.forEach(function (marker) { marker.setOpacity((selected_rider ? 0.5 : 1)) });
 
     if (event.ctrlKey) {
-        var rider_items = riders_client_items[rider_name] || {};
-        var position_point = rider_items.position_point;
-        if (position_point) {
-            window.open('https://www.google.com/maps/place/' + position_point.position[0] + ',' + position_point.position[1], '_blank');
+        var values = riders_values[rider_name] || {};
+        if (values.hasOwnProperty('position')) {
+            window.open('https://www.google.com/maps/place/' + values.position[0] + ',' + values.position[1], '_blank');
         }
     }
 }

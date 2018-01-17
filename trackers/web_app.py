@@ -65,6 +65,8 @@ async def make_aio_app(settings,
         add_static('/static/richmarker.js', '/static/richmarker.js', charset='utf8', content_type='text/javascript')
         add_static('/static/es7-shim.min.js', '/static/es7-shim.min.js', charset='utf8', content_type='text/javascript')
         add_static('/static/highcharts.js', '/static/highcharts.js', charset='utf8', content_type='text/javascript')
+        add_static('/static/highcharts.js.map', '/static/highcharts.js.map', charset='utf8', content_type='text/javascript')
+        add_static('/static/highcharts.src.js', '/static/highcharts.src.js', charset='utf8', content_type='text/javascript')
         add_static('/static/traccar_testing.html', '/testing', charset='utf8', content_type='text/html')
 
         for name in pkg_resources.resource_listdir('trackers', '/static/markers'):
@@ -234,13 +236,12 @@ def event_handler(func):
 
 
 def get_event_state(app, event):
-    riders_points = {rider_name: blocked_list.full for rider_name, blocked_list in event.rider_trackers_blocked_list.items()}
     ensure_event_page(app, event)
     return {
         'live': event.config.get('live', False),
         'config_hash': event.config_hash,
         'routes_hash': event.routes_hash,
-        'riders_points': riders_points,
+        'riders_values': event.rider_current_values,
         'client_hash': event.page[1],
         'server_time': datetime.datetime.now(),
     }
@@ -345,7 +346,6 @@ async def on_removed_event(event):
 
 
 async def on_event_config_routes_change(event):
-    print('on_event_config_routes_change')
     message_to_multiple_wss(
         event.app,
         event.app['trackers.event_ws_sessions'][event.name],
@@ -358,15 +358,20 @@ async def on_event_config_routes_change(event):
 
 
 async def on_event_rider_new_points(event, rider_name, tracker, new_points):
-    pass
-
-
-async def on_event_rider_blocked_list_update(event, rider_name, blocked_list, update):
     message_to_multiple_wss(
         event.app,
         event.app['trackers.event_ws_sessions'][event.name],
-        {'riders_points': {rider_name: update}},
+        {'riders_values': {rider_name: event.rider_current_values[rider_name]}}
     )
+
+
+async def on_event_rider_blocked_list_update(event, rider_name, blocked_list, update):
+    pass
+    # message_to_multiple_wss(
+    #     event.app,
+    #     event.app['trackers.event_ws_sessions'][event.name],
+    #     {'riders_points': {rider_name: update}},
+    # )
 
 
 async def event_ws(request):

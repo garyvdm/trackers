@@ -58,6 +58,8 @@
         }}
 
         function promise_catch(error){{
+            errors.push(error);
+            update_status();
             var full_error_message = error + '\n' + (error? error.stack: '')
             log_to_server(full_error_message);
             throw error;

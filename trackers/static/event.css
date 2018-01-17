@@ -204,12 +204,10 @@ html, body {
 
 .rider-marker {
     padding: 4px;
-    box-shadow: 2px 2px 3px -1px rgba(0, 0, 0, 0.5);
     border-radius: 2px;
 }
 .rider-marker-pointer {
     position: relative;
-    box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.5);
     border-width: 5px;
     border-style: solid;
     width: 0;

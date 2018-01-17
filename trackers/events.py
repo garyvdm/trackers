@@ -83,6 +83,8 @@ class Event(object):
         self.logger = logging.getLogger(f'event.{name}')
         self.rider_trackers = {}
         self.rider_trackers_blocked_list = {}
+        self.rider_current_values = {}
+        self.on_rider_current_values_change = []
 
         self.trackers_started = False
         self.starting_fut = None
@@ -190,6 +192,7 @@ class Event(object):
                     tracker = await AnalyseTracker.start(tracker, event_start, analyse_routes, find_closest_cache=find_closest_cache)
                 tracker = await index_and_hash_tracker(tracker)
 
+                self.rider_current_values[rider['name']] = {}
                 await self.on_rider_new_points(rider['name'], tracker, tracker.points)
                 tracker.new_points_observable.subscribe(partial(self.on_rider_new_points, rider['name']))
 
@@ -215,4 +218,8 @@ class Event(object):
         self.trackers_started = False
 
     async def on_rider_new_points(self, rider_name, tracker, new_points):
-        await self.rider_new_points_observable(self, rider_name, tracker, new_points)
+        if new_points:
+            values = self.rider_current_values[rider_name]
+            for point in new_points:
+                values.update(point)
+            await self.rider_new_points_observable(self, rider_name, tracker, new_points)
