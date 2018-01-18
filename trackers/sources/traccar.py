@@ -10,7 +10,7 @@ from aiocontext import async_contextmanager
 from aiohttp.web import Application as WebApplication
 from aniso8601 import parse_datetime
 
-from trackers.base import call_callbacks, Tracker
+from trackers.base import Observable, Tracker
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +24,8 @@ async def config(app, settings):
             connector=aiohttp.TCPConnector(limit=4),
             raise_for_status=True,
         )
-        server['position_received_callbacks'] = position_received_callbacks = {}
-        server['ws_task'] = asyncio.ensure_future(server_ws_task(app, settings, session, server_name, server, position_received_callbacks))
+        server['position_received_observables'] = position_received_observables = {}
+        server['ws_task'] = asyncio.ensure_future(server_ws_task(app, settings, session, server_name, server, position_received_observables))
         server['login_lock'] = asyncio.Lock()
 
         servers[server_name] = server
@@ -80,7 +80,7 @@ async def logout(app, server_name):
         del server['user_id']
 
 
-async def server_ws_task(app, settings, session, server_name, server, position_received_callbacks):
+async def server_ws_task(app, settings, session, server_name, server, position_received_observables):
     try:
         url = '{}/api/socket'.format(server['url'])
         logger = logging.getLogger('{}.{}'.format(__name__, server_name))
@@ -97,8 +97,9 @@ async def server_ws_task(app, settings, session, server_name, server, position_r
                             if 'positions' in data:
                                 for position in data['positions']:
                                     device_id = position['deviceId']
-                                    callbacks = position_received_callbacks.get(device_id, ())
-                                    await call_callbacks(callbacks, 'Error in position_received_callback:', logger, position)
+                                    observable = position_received_observables.get(device_id)
+                                    if observable:
+                                        await observable(position)
                         elif msg.type == aiohttp.WSMsgType.CLOSED:
                             break
                         elif msg.type == aiohttp.WSMsgType.ERROR:
@@ -175,7 +176,7 @@ async def start_tracker(app, tracker_name, server_name, device_unique_id, start,
     points = [traccar_position_translate(position) for position in positions]
     seen_ids.update([position['id'] for position in positions])
     tracker.position_recived = functools.partial(tracker_position_received, tracker)
-    server['position_received_callbacks'].setdefault(device_id, []).append(tracker.position_recived)
+    server['position_received_observables'].setdefault(device_id, Observable(logger)).subscribe(tracker.position_recived)
     await tracker.new_points(points)
 
     tracker.finished = asyncio.Event()
@@ -201,12 +202,12 @@ def tracker_stop(tracker):
 
 
 def tracker_on_completed(tracker, fut):
-    tracker.server['position_received_callbacks'][tracker.device_id].remove(tracker.position_recived)
+    tracker.server['position_received_observables'][tracker.device_id].unsubscribe(tracker.position_recived)
 
 
 async def tracker_finish(tracker):
     await tracker.finished.wait()
-    tracker.server['position_received_callbacks'][tracker.device_id].remove(tracker.position_recived)
+    tracker.server['position_received_observables'][tracker.device_id].unsubscribe(tracker.position_recived)
 
 
 def traccar_position_translate(position):

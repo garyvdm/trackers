@@ -77,7 +77,7 @@ async def cropped_tracker_start(org_tracker, tracker_data):
     cropped_tracker.org_tracker = org_tracker
 
     await cropped_tracker_newpoints(cropped_tracker, tracker_data.get('start'), tracker_data.get('end'), org_tracker, org_tracker.points)
-    org_tracker.new_points_callbacks.append(
+    org_tracker.new_points_observable.subscribe(
         functools.partial(cropped_tracker_newpoints, cropped_tracker, tracker_data.get('start'), tracker_data.get('end')))
     return cropped_tracker
 
@@ -97,7 +97,7 @@ async def index_and_hash_tracker(org_tracker, hasher=None):
     ih_tracker.hasher = hasher
 
     await index_and_hash_tracker_newpoints(ih_tracker, org_tracker, org_tracker.points)
-    org_tracker.new_points_callbacks.append(
+    org_tracker.new_points_observable.subscribe(
         functools.partial(index_and_hash_tracker_newpoints, ih_tracker))
     return ih_tracker
 

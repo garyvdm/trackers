@@ -6,19 +6,19 @@ import unittest.mock
 import asynctest
 
 from trackers.base import (
-    call_callbacks,
     cancel_and_wait_task,
     list_register,
+    Observable,
     Tracker,
 )
 
 
-class TestCallCallbacks(asynctest.TestCase):
+class TestObservable(asynctest.TestCase):
 
     async def test_normal(self):
         logger = logging.getLogger('call_callbacks')
         callback = asynctest.CoroutineMock()
-        await call_callbacks([callback], 'error_msg', logger, foo='bar')
+        await Observable(logger, callbacks=[callback])(foo='bar')
         callback.assert_called_once_with(foo='bar')
 
     async def test_error(self):
@@ -29,7 +29,7 @@ class TestCallCallbacks(asynctest.TestCase):
             raise Exception('foo')
 
         with self.assertLogs(logger) as (_, log_output):
-            await call_callbacks([raise_error_callback, normal_callback], 'error_msg', logger)
+            await Observable(logger, callbacks=[raise_error_callback, normal_callback], error_msg='error_msg')()
 
         # the error callback should not stop the following callbacks
         normal_callback.assert_called_once_with()
@@ -42,8 +42,10 @@ class TestCallCallbacks(asynctest.TestCase):
         async def slow_callback():
             await asyncio.sleep(1)
 
+        observable = Observable(logger, callbacks=[slow_callback])
+
         with self.assertRaises(asyncio.CancelledError):
-            fut = asyncio.ensure_future(call_callbacks([slow_callback], 'error_msg', logger))
+            fut = asyncio.ensure_future(observable())
             await asyncio.sleep(0.1)
             fut.cancel()
             await fut
@@ -77,10 +79,9 @@ class TestListRegister(unittest.TestCase):
 class TestTracker(asynctest.TestCase):
 
     async def test(self):
-        tracker = Tracker('test')
-        tracker.stop = lambda: tracker.completed.set_result(None)
         new_points_callback = asynctest.CoroutineMock()
-        tracker.new_points_callbacks.append(new_points_callback)
+        tracker = Tracker('test', new_points_callbacks=(new_points_callback, ))
+        tracker.stop = lambda: tracker.completed.set_result(None)
 
         await tracker.new_points([{'foo': 'bar'}])
         new_points_callback.assert_called_once_with(tracker, [{'foo': 'bar'}])

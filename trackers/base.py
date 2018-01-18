@@ -10,12 +10,12 @@ logger = logging.getLogger(__name__)
 
 class Tracker(object):
 
-    def __init__(self, name, completed=None):
+    def __init__(self, name, completed=None, new_points_callbacks=()):
         self.name = name
         self.points = []
         self.status = None
-        self.new_points_callbacks = []
         self.logger = logging.getLogger('trackers.{}'.format(name))
+        self.new_points_observable = Observable(self.logger, callbacks=new_points_callbacks)
         self.callback_tasks = []
         if completed is None:
             completed = asyncio.Future()
@@ -25,7 +25,7 @@ class Tracker(object):
 
     async def new_points(self, new_points):
         self.points.extend(new_points)
-        await call_callbacks(self.new_points_callbacks, 'Error calling new_points callback:', self.logger, self, new_points)
+        await self.new_points_observable(self, new_points)
 
     def stop(self):
         pass
@@ -37,14 +37,28 @@ class Tracker(object):
             pass
 
 
-async def call_callbacks(callbacks, error_msg, logger, *args, **kwargs):
-    for callback in callbacks:
-        try:
-            await callback(*args, **kwargs)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            logger.exception(error_msg)
+class Observable(object):
+
+    def __init__(self, logger, callbacks=(), error_msg='Error calling callback: '):
+        self.callbacks = []
+        self.callbacks.extend(callbacks)
+        self.error_msg = error_msg
+        self.logger = logger
+
+    def subscribe(self, callback):
+        self.callbacks.append(callback)
+
+    def unsubscribe(self, callback):
+        self.callbacks.remove(callback)
+
+    async def __call__(self, *args, **kwargs):
+        for callback in self.callbacks:
+            try:
+                await callback(*args, **kwargs)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                self.logger.exception(self.error_msg)
 
 
 async def cancel_and_wait_task(task):
@@ -123,11 +137,11 @@ def get_blocked_list(source, existing, smallest_block_len=8, entire_block=False)
 
 class BlockedList(object):
 
-    def __init__(self, source, **kwargs):
+    def __init__(self, source, new_update_callbacks=(), **kwargs):
         self.source = source
         self.kwargs = kwargs
         self.full, _ = get_blocked_list(self.source, {}, **self.kwargs)
-        self.new_update_callbacks = []
+        self.new_update_observable = Observable(logger, callbacks=new_update_callbacks)
 
     @staticmethod
     def from_tracker(tracker, **kwargs):
@@ -136,9 +150,9 @@ class BlockedList(object):
         def tracker_callback(tracker, newpoints):
             return blocked_list.on_new_items()
 
-        tracker.new_points_callbacks.append(tracker_callback)
+        tracker.new_points_observable.subscribe(tracker_callback)
         return blocked_list
 
     async def on_new_items(self):
         self.full, update = get_blocked_list(self.source, self.full, **self.kwargs)
-        await call_callbacks(self.new_update_callbacks, 'Error calling new_update callback:', logger, update)
+        await self.new_update_observable(update)

@@ -177,9 +177,9 @@ class TestBlockedList(asynctest.TestCase):
     async def test_from_tracker(self):
         tracker = Tracker('test')
 
-        blocked_list = BlockedList.from_tracker(tracker)
         new_update_callback = asynctest.CoroutineMock()
-        blocked_list.new_update_callbacks.append(new_update_callback)
+
+        BlockedList.from_tracker(tracker, new_update_callbacks=(new_update_callback, ))
 
         await tracker.new_points(source[:1])
         tracker.completed.set_result(None)

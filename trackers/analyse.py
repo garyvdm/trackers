@@ -92,7 +92,7 @@ class AnalyseTracker(Tracker):
 
         self.completed = asyncio.ensure_future(self._completed())
         await self.on_new_points(org_tracker, org_tracker.points)
-        org_tracker.new_points_callbacks.append(self.on_new_points)
+        org_tracker.new_points_observable.subscribe(self.on_new_points)
 
         return self
 

@@ -91,7 +91,7 @@ class TestReplayTracker(asynctest.TestCase):
         event_start = datetime.datetime(2017, 1, 1, 6, 0)
         now = datetime.datetime.now() + datetime.timedelta(seconds=0.01)
         replay_tracker = await start_replay_tracker(org_tracker, event_start, now)
-        replay_tracker.new_points_callbacks.append(new_points_callback)
+        replay_tracker.new_points_observable.subscribe(new_points_callback)
 
         await replay_tracker.complete()
 
