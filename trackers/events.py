@@ -155,6 +155,9 @@ class Event(object):
         _, self.git_hash = tree_writer.lookup(self.path)
 
     async def start_trackers(self):
+        if self.starting_fut:
+            await self.starting_fut
+
         if not self.trackers_started:
             self.starting_fut = asyncio.ensure_future(self._start_trackers())
             try:
@@ -163,6 +166,7 @@ class Event(object):
                 self.starting_fut = None
 
     async def _start_trackers(self):
+        await asyncio.sleep(1)
         self.logger.info('Starting {}'.format(self.name))
 
         analyse = self.config.get('analyse', False)
@@ -171,7 +175,9 @@ class Event(object):
         event_start = self.config.get('event_start')
 
         if analyse:
-            analyse_routes = get_analyse_routes(self.routes)
+            loop = asyncio.get_event_loop()
+
+            analyse_routes = await loop.run_in_executor(None, get_analyse_routes, self.routes)
             find_closest_cache_dir = os.path.join(self.app['trackers.settings']['cache_path'], 'find_closest')
             os.makedirs(find_closest_cache_dir, exist_ok=True)
             if self.routes:
