@@ -1,11 +1,12 @@
 import asyncio
 import datetime
 import pprint
+import unittest
 from contextlib import suppress
 
 import asynctest
 
-from trackers.analyse import AnalyseTracker, get_analyse_routes
+from trackers.analyse import AnalyseTracker, get_analyse_routes, route_elevation
 from trackers.base import Tracker
 from trackers.bin_utils import process_secondary_route_details
 
@@ -251,3 +252,23 @@ class TestAnalyseTracker(asynctest.TestCase):
             {'time': d('2017/01/01 05:06:00'), 'position': (-27.880490000, 27.917450000, 1800), 'track_id': 0, 'dist_from_last': 18815.0, 'dist_ridden': 131066.0, 'dist_route': 166916.0, 'speed_from_last': 1128.9, 'finished_time': d('2017/01/01 05:06:00'), 'rider_status': 'Finished', },
             {'time': d('2017/01/01 05:26:00'), 'status': 'Inactive'},
         ])
+
+
+class TestRouteElevation(unittest.TestCase):
+
+    def test_route_elevation(self):
+        routes = [
+            {
+                'main': True,
+                'elevation': [
+                    [0, 0.01, 100, 0],
+                    [0, 0.02, 200, 1113],
+                    [0, 0.03, 300, 2226],
+                ]
+            },
+        ]
+
+        self.assertEqual(route_elevation(routes[0], 0), 100)
+        self.assertEqual(route_elevation(routes[0], 1113), 200)
+        self.assertEqual(route_elevation(routes[0], 1669.5), 250)
+        self.assertEqual(route_elevation(routes[0], 2226), 300)

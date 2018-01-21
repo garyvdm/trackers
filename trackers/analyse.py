@@ -1,4 +1,5 @@
 import asyncio
+import bisect
 import collections
 import copy
 import datetime
@@ -6,6 +7,7 @@ import logging
 import operator
 from functools import partial
 from itertools import chain
+from operator import itemgetter
 
 import attr
 from numpy import (
@@ -145,6 +147,8 @@ class AnalyseTracker(Tracker):
 
                     if closest:
                         point['dist_route'] = self.prev_route_dist = route_distance(closest.route, closest)
+                        if 'elevation' in closest.route:
+                            point['route_elevation'] = route_elevation(closest.route, self.prev_route_dist)
 
                         if not self.finished:
                             if closest.route_i == 0 and abs(point['dist_route'] - last_route_point.distance) < 100:
@@ -421,6 +425,23 @@ def route_distance(route, closest):
         return round(alt_route_dist * route['dist_factor'] + route['start_distance'])
 
 
+def route_elevation(route, route_dist):
+    elevation = route['elevation']
+    if route['main']:
+        dist_on_route = route_dist
+    else:
+        dist_on_route = (route_dist - route['start_distance']) / route['dist_factor']
+    point2_i = bisect.bisect(KeyifyList(elevation, itemgetter(3)), dist_on_route)
+    if point2_i == len(elevation):
+        point2_i -= 1
+
+    point2 = elevation[point2_i]
+    point1 = elevation[point2_i - 1]
+
+    dist_factor = (dist_on_route - point2[3]) / (point2[3] - point1[3])
+    return ((point2[2] - point1[2]) * dist_factor) + point2[2]
+
+
 find_c_point_result = collections.namedtuple('c_point', ('dist', 'point'))
 
 
@@ -493,3 +514,15 @@ def get_equal_spaced_points(points, dist_between_points, start_dist=0, round_dig
         last_point = point
     cum_dist += dist_from_last_step
     yield (points[-1], cum_dist)
+
+
+class KeyifyList(object):
+    def __init__(self, inner, key):
+        self.inner = inner
+        self.key = key
+
+    def __len__(self):
+        return len(self.inner)
+
+    def __getitem__(self, k):
+        return self.key(self.inner[k])

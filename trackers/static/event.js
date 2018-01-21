@@ -490,18 +490,11 @@ function on_new_rider_values(rider_name){
             }
         }
         if (values.hasOwnProperty('dist_route')) {
-            var elevation = null;
+            var elevation = 0;
             if (values.hasOwnProperty('position') && values.position.length > 2) {
                 elevation = values.position[2]
-            } else if (routes) {
-                // TODO the server analyse tracker should do this.
-                elevation = binarySearchClosest(
-                    routes[0].elevation,
-                    values.dist_route,
-                    function (point) { return point[3] }  // [3] = distance
-                )[2];  // [2] = elevation
-            } else {
-                elevation = 0;
+            } else if (values.hasOwnProperty('route_elevation')) {
+                elevation = values.route_elevation;
             }
             if (!rider_items.elevation_chart_series) {
                 rider_items.elevation_chart_series = elevation_chart.addSeries({
@@ -524,7 +517,7 @@ function on_new_rider_values(rider_name){
                         textOutline: 'none'
                     }
                 },
-            }], false, false, false)
+            }], false, false, false);
         }
 
     }).catch(promise_catch);
