@@ -113,6 +113,39 @@ class TestAnalyseTracker(asynctest.TestCase):
             {'status': 'Inactive', 'time': datetime.datetime(2017, 1, 1, 5, 21)},
         ))
 
+    async def test_with_route_points_same_time(self):
+        # test to make sure we don't do division by zero when doing speed calcs.
+
+        tracker = Tracker('test')
+        routes = [
+            {
+                'main': True,
+                'points': [
+                    [-26.300420, 28.049410],
+                    [-26.315691, 28.062354],
+                    [-26.322250, 28.042440],
+                ]
+            },
+        ]
+        event_routes = get_analyse_routes(routes)
+
+        await tracker.new_points((
+            {'time': d('2017/01/01 05:00:00'), 'position': (-26.300824, 28.050185, 1800)},
+            {'time': d('2017/01/01 05:00:00'), 'position': (-26.322167, 28.042920, 1800)},
+        ))
+        # Time is the same for both points.
+
+        tracker.completed.set_result(None)
+        analyse_tracker = await AnalyseTracker.start(tracker, d('2017/01/01 05:00:00'), event_routes)
+        await analyse_tracker.complete()
+
+        pprint.pprint(analyse_tracker.points)
+        self.assertSequenceEqual(analyse_tracker.points, (
+            {'time': d('2017/01/01 05:00:00'), 'position': (-26.300824, 28.050185, 1800), 'track_id': 0, 'status': 'Active', 'dist_route': 82.0},
+            {'time': d('2017/01/01 05:00:00'), 'position': (-26.322167, 28.042920, 1800), 'track_id': 0, 'dist_from_last': 2473.0, 'dist_ridden': 2473.0, 'dist_route': 4198.0, 'finished_time': d('2017/01/01 05:00:00'), 'rider_status': 'Finished'},
+            {'status': 'Inactive', 'time': datetime.datetime(2017, 1, 1, 5, 20)},
+        ))
+
     async def test_with_route_alt(self):
         tracker = Tracker('test')
         routes = [

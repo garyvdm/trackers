@@ -165,7 +165,9 @@ class AnalyseTracker(Tracker):
                                 {'time': prev_point['time'] + self.track_break_time},
                                 'Inactive', new_new_points.append)
                         point['dist_from_last'] = round(dist)
-                        point['speed_from_last'] = round(dist / time.total_seconds() * 3.6, 1)
+                        seconds = time.total_seconds()
+                        if seconds != 0:
+                            point['speed_from_last'] = round(dist / seconds * 3.6, 1)
                         self.dist_ridden += dist
                         point['dist_ridden'] = round(self.dist_ridden)
 
