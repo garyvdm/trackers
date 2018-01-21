@@ -331,7 +331,6 @@ function on_new_config(){
             riders_client_items[rider.name] = {
                 paths: {},
                 marker: null,
-                elevation_chart_series: null,
             };
             if (riders_values.hasOwnProperty(rider.name)) {
                 on_new_rider_values(rider.name);
@@ -496,15 +495,19 @@ function on_new_rider_values(rider_name){
             } else if (values.hasOwnProperty('route_elevation')) {
                 elevation = values.route_elevation;
             }
-            if (!rider_items.elevation_chart_series) {
-                rider_items.elevation_chart_series = elevation_chart.addSeries({
+
+            var series = elevation_chart.get(rider_name);
+            if (!series) {
+                elevation_chart.addSeries({
+                    id: rider_name,
                     marker: { symbol: 'circle'},
                     color: marker_color,
                     data: [],
                     turboThreshold: 1000,
                 }, true);
+                series = elevation_chart.get(rider_name);
             }
-            rider_items.elevation_chart_series.setData([{
+            series.setData([{
                 x: values['dist_route'],
                 y: elevation,
                 dataLabels: {
