@@ -73,6 +73,21 @@ function on_new_state_received(new_state) {
         need_save = true;
     }
     if (new_state.hasOwnProperty('config_hash') && state.config_hash != new_state.config_hash) {
+        event_markers.forEach(function (marker) { marker.setMap(null) });
+        event_markers = [];
+        Object.keys(riders_client_items).forEach(function (rider_name){
+            var rider_items = riders_client_items[rider_name]
+            Object.values(rider_items.paths || {}).forEach(function (path){ path.setMap(null) });
+            if (rider_items.marker) rider_items.marker.setMap(null);
+            var series = elevation_chart.get(rider_name);
+            if (series) series.remove();
+        });
+
+        riders_by_name = {};
+        riders_client_items = {};
+        riders_points = {};
+        riders_values = {};
+
         state.config_hash = new_state.config_hash;
         get('/config?hash=' + new_state.config_hash).then(function (new_config){
             config = new_config;
@@ -82,6 +97,9 @@ function on_new_state_received(new_state) {
         need_save = true;
     }
     if (new_state.hasOwnProperty('routes_hash') && state.routes_hash != new_state.routes_hash) {
+        route_paths.forEach(function (path) { path.setMap(null) });
+        elevation_chart.series.forEach(function (series) { series.remove(false) });
+
         state.routes_hash = new_state.routes_hash;
         get('/routes?hash=' + state.routes_hash).then(function (new_routes){
             routes = new_routes;
@@ -211,8 +229,6 @@ function ws_onmessage(event){
 
 }
 
-load_state();
-
 var main_el = document.getElementById('foo');
 var mobile_selectors = document.getElementById('mobile_select').querySelectorAll('div');
 var mobile_selected;
@@ -262,16 +278,6 @@ setInterval(function(){
 }, 1000);
 
 function on_new_config(){
-    event_markers.forEach(function (marker) { marker.setMap(null) });
-    event_markers = [];
-    Object.keys(riders_client_items).forEach(function (rider_name){
-        var rider_items = riders_client_items[rider_name]
-        Object.values(rider_items.paths || {}).forEach(function (path){ path.setMap(null) });
-        if (rider_items.marker) rider_items.marker.setMap(null);
-        if (rider_items.elevation_chart_series) rider_items.elevation_chart_series.remove(false);
-        delete riders_client_items[rider_name];
-    });
-
     if (config) {
         if (!map) {
             map = new google.maps.Map(document.getElementById('map_el'), {
@@ -346,9 +352,6 @@ var route_marker;
 
 function on_new_routes(){
     config_loaded.promise.then( function () {
-        route_paths.forEach(function (path) { path.setMap(null) });
-        elevation_chart.series.forEach(function (series) { series.remove(false) });
-
         route_paths = routes.map(function (route){
             return new google.maps.Polyline({
                 map: map,
@@ -677,28 +680,6 @@ function rider_onclick(row, rider_name, event) {
     }
 }
 
+load_state();
 
-function binarySearchClosest(arr, searchElement, key) {
 
-  var minIndex = 0;
-  var maxIndex = arr.length - 1;
-  var currentIndex;
-  var currentElement;
-
-  while (minIndex <= maxIndex) {
-      currentIndex = (minIndex + maxIndex) / 2 | 0;
-      currentElement = key(arr[currentIndex]);
-      nextElement = key(arr[currentIndex + 1]);
-
-      if (searchElement > currentElement && searchElement < nextElement ) {
-          return currentIndex;
-      } else if (currentElement < searchElement) {
-          minIndex = currentIndex + 1;
-      }
-      else if (currentElement > searchElement) {
-          maxIndex = currentIndex - 1;
-      }
-  }
-
-  return -1;
-}
