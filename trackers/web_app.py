@@ -357,6 +357,8 @@ async def on_event_config_routes_change(event):
             'routes_hash': event.routes_hash,
         },
     )
+    if event.config.get('live', False):
+        await event.start_trackers()
 
 
 async def on_event_rider_new_points(event, rider_name, tracker, new_points):

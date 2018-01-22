@@ -113,11 +113,8 @@ class Event(object):
     async def reload(self, tree_reader):
         _, git_hash = tree_reader.lookup(self.path)
         if self.git_hash != git_hash:
-            was_started = self.trackers_started
             await self.stop_and_complete_trackers()
             await self._load(tree_reader)
-            if was_started:
-                await self.start_trackers()
 
     async def _load(self, tree_reader):
         if self.starting_fut or self.trackers_started:
