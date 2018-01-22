@@ -1,13 +1,15 @@
 "use strict";
 
 var options = {
-    'predicted': true
+    'predicted': true,
+    'show_routes': 'riders_points'
 }
 
 var loader_html = '<span class="l1"></span><span class="l2"></span><span class="l3"></span> '
 
 function get(url) {
-    return fetch(location.pathname + url).then( function(response) { return response.json() }, function(error) { throw error });
+    return fetch(location.pathname + url).catch(promise_catch)
+        .then( function(response) { return response.json() }).catch(promise_catch);
 }
 
 function load_state(){
@@ -55,6 +57,7 @@ var route_paths = [];
 var riders_by_name = {};
 var riders_client_items = {};
 var riders_points = {};
+var riders_off_route = {};
 var riders_values = {};
 var riders_predicted = {}
 
@@ -82,7 +85,9 @@ function on_new_state_received(new_state) {
         event_markers = [];
         Object.keys(riders_client_items).forEach(function (rider_name){
             var rider_items = riders_client_items[rider_name]
-            Object.values(rider_items.paths || {}).forEach(function (path){ path.setMap(null) });
+            Object.values(rider_items.paths || {}).forEach(function (paths){
+                Object.values(paths || {}).forEach(function (path){ path.setMap(null) });
+            });
             if (rider_items.marker) rider_items.marker.setMap(null);
             var series = elevation_chart.get(rider_name);
             if (series) series.remove();
@@ -131,29 +136,28 @@ function on_new_state_received(new_state) {
         Object.keys(changed).forEach(on_new_rider_values);
         update_rider_table();
     }
-    if (new_state.hasOwnProperty('riders_points')) {
-        Object.entries(new_state.riders_points).forEach(function (entry){
-            var name = entry[0];
-            var update = entry[1];
+    [['riders_points', riders_points], ['riders_off_route', riders_off_route]].forEach(function(item){
+        var list_name = item[0];
+        var list_container = item[1];
+        if (new_state.hasOwnProperty(list_name)) {
+            Object.entries(new_state[list_name]).forEach(function (entry){
+                var name = entry[0];
+                var update = entry[1];
 
-            var rider_points = riders_points[name] || [];
+                var list = list_container[name] || [];
 
-            function fetch_block(block) {
-                return get('/rider_points?name=' + name + '&start_index=' + block.start_index +
-                           '&end_index=' + block.end_index + '&end_hash=' + block.end_hash);
-            }
+                function fetch_block(block) {
+                    return get('/' + list_name + '?name=' + name + '&start_index=' + block.start_index +
+                               '&end_index=' + block.end_index + '&end_hash=' + block.end_hash);
+                }
 
-            process_update_list(fetch_block, rider_points, update).then(function (rider_points) {
-                riders_points[name] = rider_points.new_list;
-                on_new_rider_points(name, rider_points.new_list, rider_points.new_items, rider_points.old_items);
+                process_update_list(fetch_block, list, update).then(function (rider_points) {
+                    list_container[name] = rider_points.new_list;
+                    on_new_rider_points(name, list_name, rider_points.new_list, rider_points.new_items, rider_points.old_items);
+                });
             });
-        });
-
-    }
-    if (state.hasOwnProperty('riders_points')) {
-        delete state.riders_points;
-        need_save = true;
-    }
+        }
+    });
 
     if (need_save) save_state(state);
 }
@@ -348,7 +352,10 @@ function on_new_config(){
         config.riders.forEach(function (rider) {
             riders_by_name[rider.name] = rider
             riders_client_items[rider.name] = {
-                paths: {},
+                paths: {
+                    'riders_points': {},
+                    'riders_off_route': {},
+                },
                 marker: null,
             };
             if (riders_values.hasOwnProperty(rider.name)) {
@@ -448,16 +455,16 @@ function adjust_elevation_chart_bounds() {
 }
 
 
-function on_new_rider_points(rider_name, items, new_items, old_items){
+function on_new_rider_points(rider_name, list_name, items, new_items, old_items){
     config_loaded.promise.then( function () {
 
         var rider = riders_by_name[rider_name]
         if (!rider) return;
         var rider_items = riders_client_items[rider_name];
-
+        var paths = rider_items.paths[list_name];
         if (old_items.length) {
-            Object.values(rider_items.paths || {}).forEach(function (path){ path.setMap(null) });
-            rider_items.paths = [];
+            Object.values(paths).forEach(function (path){ path.setMap(null) });
+            rider_items.paths[list_name] = paths = [];
             new_items = items;
         }
 
@@ -466,7 +473,7 @@ function on_new_rider_points(rider_name, items, new_items, old_items){
 
         new_items.forEach(function (point) {
             if (point.hasOwnProperty('position')) {
-                var path = (rider_items.paths[point.track_id] || (rider_items.paths[point.track_id] = new google.maps.Polyline({
+                var path = (paths[point.track_id] || (paths[point.track_id] = new google.maps.Polyline({
                     map: map,
                     path: [],
                     geodesic: false,
@@ -692,8 +699,10 @@ function rider_onclick(row, rider_name, event) {
             rider_items.marker.setZIndex(zIndex);
             rider_items.marker.markerContent_.style.opacity = opacity;
         }
-        Object.values(rider_items.paths).forEach(function (path) {
-            path.setOptions({zIndex: zIndex, strokeOpacity: opacity});
+        Object.values(rider_items.paths).forEach(function (paths) {
+            Object.values(paths).forEach(function (path) {
+                path.setOptions({zIndex: zIndex, strokeOpacity: opacity});
+            });
         });
     });
     if (selected_rider) {

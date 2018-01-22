@@ -90,7 +90,8 @@ async def make_aio_app(settings,
     app.router.add_route('GET', '/{event}/state', handler=event_state, name='event_state')
     app.router.add_route('GET', '/{event}/config', handler=event_config, name='event_config')
     app.router.add_route('GET', '/{event}/routes', handler=event_routes, name='event_routes')
-    app.router.add_route('GET', '/{event}/rider_points', handler=rider_points, name='rider_points')
+    app.router.add_route('GET', '/{event}/riders_points', handler=partial(rider_points, tracker_attr_name='rider_trackers'), name='riders_points')
+    app.router.add_route('GET', '/{event}/riders_off_route', handler=partial(rider_points, tracker_attr_name='rider_off_route_trackers'), name='riders_off_route')
 
     app.router.add_route('GET', '/{event}/set_start', handler=event_set_start, name='event_set_start')
 
@@ -208,9 +209,9 @@ def page_body_processor(app, body, **kwargs):
 
 def say_error_handler(func):
     @wraps(func)
-    async def say_error_handler_inner(request):
+    async def say_error_handler_inner(request, **kwargs):
         try:
-            return await func(request)
+            return await func(request, **kwargs)
         except web.HTTPException:
             raise
         except Exception as e:
@@ -225,13 +226,13 @@ def say_error_handler(func):
 
 def event_handler(func):
     @wraps(func)
-    async def event_handler_inner(request):
+    async def event_handler_inner(request, **kwargs):
         event_name = request.match_info['event']
         event = request.app['trackers.events'].get(event_name)
         if event is None:
             raise web.HTTPNotFound()
         await event.start_trackers()
-        return await func(request, event)
+        return await func(request, event, **kwargs)
     return event_handler_inner
 
 
@@ -244,6 +245,8 @@ def get_event_state(app, event):
         'riders_values': event.rider_current_values,
         'client_hash': event.page[1],
         'server_time': datetime.datetime.now(),
+        'riders_off_route': {rider_name: list.full for rider_name, list in event.rider_off_route_blocked_list.items()},
+        'riders_points': {rider_name: list.full for rider_name, list in event.rider_trackers_blocked_list.items()},
     }
 
 
@@ -319,13 +322,14 @@ def compress_point(point):
 
 @say_error_handler
 @event_handler
-async def rider_points(request, event):
+async def rider_points(request, event, tracker_attr_name):
     rider_name = request.query.get('name')
     start_index = int(request.query.get('start_index'))
     end_index = int(request.query.get('end_index'))
     end_hash = request.query.get('end_hash')
 
-    points = event.rider_trackers[rider_name].points[start_index:end_index + 1]
+    trackers = getattr(event, tracker_attr_name)
+    points = trackers[rider_name].points[start_index:end_index + 1]
     if points and points[-1]['hash'] != end_hash:
         raise web.HTTPInternalServerError(text='Wrong end_hash')
 
@@ -337,6 +341,7 @@ async def on_new_event(event):
     event.config_routes_change_observable.subscribe(on_event_config_routes_change)
     event.rider_new_points_observable.subscribe(on_event_rider_new_points)
     event.rider_blocked_list_update_observable.subscribe(on_event_rider_blocked_list_update)
+    event.rider_off_route_blocked_list_update_observable.subscribe(on_event_rider_off_route_blocked_list_update)
     event.rider_predicted_updated_observable.subscribe(on_event_rider_predicted_updated)
 
     if event.config.get('live', False):
@@ -370,12 +375,19 @@ async def on_event_rider_new_points(event, rider_name, tracker, new_points):
 
 
 async def on_event_rider_blocked_list_update(event, rider_name, blocked_list, update):
-    pass
-    # message_to_multiple_wss(
-    #     event.app,
-    #     event.app['trackers.event_ws_sessions'][event.name],
-    #     {'riders_points': {rider_name: update}},
-    # )
+    message_to_multiple_wss(
+        event.app,
+        event.app['trackers.event_ws_sessions'][event.name],
+        {'riders_points': {rider_name: update}},
+    )
+
+
+async def on_event_rider_off_route_blocked_list_update(event, rider_name, blocked_list, update):
+    message_to_multiple_wss(
+        event.app,
+        event.app['trackers.event_ws_sessions'][event.name],
+        {'riders_off_route': {rider_name: update}},
+    )
 
 
 async def on_event_rider_predicted_updated(event, predicted, time):

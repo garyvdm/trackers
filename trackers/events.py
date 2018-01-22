@@ -89,6 +89,7 @@ class Event(object):
         self.config_routes_change_observable = Observable(self.logger)
         self.rider_new_points_observable = Observable(self.logger)
         self.rider_blocked_list_update_observable = Observable(self.logger)
+        self.rider_off_route_blocked_list_update_observable = Observable(self.logger)
         self.rider_predicted_updated_observable = Observable(self.logger)
         self.new_points = asyncio.Event()
 
@@ -173,6 +174,8 @@ class Event(object):
         self.rider_trackers = {}
         self.rider_trackers_blocked_list = {}
         self.rider_current_values = {}
+        self.rider_off_route_trackers = {}
+        self.rider_off_route_blocked_list = {}
 
         if analyse:
             self.rider_analyse_trackers = {}
@@ -196,15 +199,17 @@ class Event(object):
                 tracker = await start_tracker(self.app, self, rider['name'], rider['tracker'])
                 if replay:
                     tracker = await start_replay_tracker(tracker, event_start, replay_start,
-                                                         offset=datetime.timedelta(seconds=5), speed_multiply=50)
+                                                         offset=datetime.timedelta(hours=-3), speed_multiply=200)
                 if analyse:
                     tracker = await AnalyseTracker.start(tracker, event_start, analyse_routes, find_closest_cache=find_closest_cache)
                     self.rider_analyse_trackers[rider['name']] = tracker
+                    self.rider_off_route_trackers[rider['name']] = off_route_tracker = await index_and_hash_tracker(tracker.off_route_tracker)
+                    self.rider_off_route_blocked_list[rider['name']] = BlockedList.from_tracker(
+                        off_route_tracker, entire_block=not is_live,
+                        new_update_callbacks=(partial(self.rider_off_route_blocked_list_update_observable, self, rider['name']), ))
 
                 tracker = await index_and_hash_tracker(tracker)
-
                 self.rider_current_values[rider['name']] = {}
-
                 await self.on_rider_new_points(rider['name'], tracker, tracker.points)
                 tracker.new_points_observable.subscribe(partial(self.on_rider_new_points, rider['name']))
 

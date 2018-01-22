@@ -97,6 +97,11 @@ class AnalyseTracker(Tracker):
         self.finished = False
 
         self.completed = asyncio.ensure_future(self._completed())
+
+        self.is_off_route = False
+        self.off_route_track_id = 0
+        self.off_route_tracker = Tracker(f'offroute.{self.name}', completed=self.completed)
+
         await self.on_new_points(org_tracker, org_tracker.points)
         org_tracker.new_points_observable.subscribe(self.on_new_points)
 
@@ -120,6 +125,7 @@ class AnalyseTracker(Tracker):
         self.logger.debug('analyse_tracker_new_points ({} points)'.format(len(new_points)))
 
         new_new_points = []
+        new_off_route_points = []
         prev_point_with_position = None
         log_time = datetime.datetime.now()
         log_i = 0
@@ -141,7 +147,7 @@ class AnalyseTracker(Tracker):
 
                 point_point = Point(*point['position'][:2])
 
-                if self.analyse_start_time and self.analyse_start_time <= point['time']:
+                if not self.finished and self.analyse_start_time and self.analyse_start_time <= point['time']:
                     closest = self.find_closest(
                         self.routes, point_point, 1000,
                         self.prev_closest_route_point.route_i if self.prev_closest_route_point else None,
@@ -167,15 +173,24 @@ class AnalyseTracker(Tracker):
                         if 'elevation' in closest.route:
                             point['route_elevation'] = route_elevation(closest.route, route_dist)
 
-                        if not self.finished:
-                            if closest.route_i == 0 and abs(point['dist_route'] - last_route_point.distance) < 100:
-                                self.logger.debug('Finished')
-                                self.finished = True
-                                point['finished_time'] = point['time']
-                                point['rider_status'] = 'Finished'
+                        if closest.route_i == 0 and abs(point['dist_route'] - last_route_point.distance) < 100:
+                            self.logger.debug('Finished')
+                            self.finished = True
+                            point['finished_time'] = point['time']
+                            point['rider_status'] = 'Finished'
                     else:
                         self.going_forward = None
                         self.prev_route_dist_time = None
+
+                    if not closest or closest.dist > 500:
+                        if not self.is_off_route and self.prev_point_with_position:
+                            new_off_route_points.append({'position': self.prev_point_with_position['position'], 'track_id': self.off_route_track_id})
+                        self.is_off_route = True
+                        new_off_route_points.append({'position': point['position'], 'track_id': self.off_route_track_id})
+                    elif self.is_off_route:
+                        new_off_route_points.append({'position': point['position'], 'track_id': self.off_route_track_id})
+                        self.is_off_route = False
+                        self.off_route_track_id += 1
 
                     self.prev_closest_route_point = closest
 
@@ -225,12 +240,17 @@ class AnalyseTracker(Tracker):
                     if new_new_points:
                         await self.new_points(new_new_points)
                         new_new_points = []
+                    if new_off_route_points:
+                        await self.off_route_tracker(new_off_route_points)
+                        new_off_route_points = []
 
             if self.finished:
                 break
 
         if new_new_points:
             await self.new_points(new_new_points)
+        if new_off_route_points:
+            await self.off_route_tracker.new_points(new_off_route_points)
 
         if prev_point_with_position:
             self.make_inactive_fut = asyncio.ensure_future(
