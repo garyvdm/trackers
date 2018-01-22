@@ -613,6 +613,7 @@ function update_rider_table(){
                        '<td>' + rider_status + '</td>' +
                        '<td>' + (values.status || '') + '</td>' +
                        '<td style="text-align: right">' +  (last_position_time || '') + '</td>' +
+                       '<td style="text-align: right">' +  (values.battery ? sprintf('%i %%', values.battery) : '') + '</td>' +
 //                           '<td style="text-align: right">' + (values.hasOwnProperty('dist_ridden') ? sprintf('%.1f', values.dist_ridden / 1000) : '') + '</td>' +
                        '<td style="text-align: right">' + (values.status == 'Active' ? values.speed_from_last || '': '') + '</td>' +
                        '<td style="text-align: right">' + (values.hasOwnProperty('dist_route') ? sprintf('%.1f', values.dist_route / 1000) : '') + '</td>' +
@@ -636,6 +637,7 @@ function update_rider_table(){
                 '<td>Rider<br>Status</td>' +
                 '<td>Tracker<br>Status</td>' +
                 '<td style="text-align: right">Last<br>Position</td>' +
+                '<td>Tracker<br>Battery</td>' +
 //                    '<td style="text-align: right">Dist<br>Ridden</td>' +
                 '<td style="text-align: right">Current<br>Speed</td>' +
                 '<td style="text-align: right">Dist on<br>Route</td>' +
