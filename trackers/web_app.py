@@ -7,25 +7,28 @@ import json
 import logging
 import re
 from collections import defaultdict
+from contextlib import suppress
 from functools import partial, wraps
 
-import magic
 import pkg_resources
 from aiohttp import web, WSCloseCode, WSMsgType
 from more_itertools import chunked
-from slugify import slugify
 
 import trackers.bin_utils
 import trackers.events
 from trackers.analyse import AnalyseTracker
 from trackers.base import cancel_and_wait_task, list_register, Observable
 from trackers.general import json_dumps
+from trackers.web_helpers import (
+    etag_query_hash_response,
+    etag_response,
+    immutable_cache_control,
+    ProcessedStaticManager,
+)
 
 logger = logging.getLogger(__name__)
 
 server_version = 10
-immutable_cache_control = 'public,max-age=31536000,immutable'
-mutable_cache_control = 'public'
 
 
 async def client_error_logger(request):
@@ -52,38 +55,33 @@ async def make_aio_app(settings,
 
     app['trackers.ws_sessions'] = []
     app['trackers.event_ws_sessions'] = defaultdict(list)
-    app['static_urls'] = static_urls = {}
     app['trackers.individual_trackers'] = {}
     app['exception_recorder'] = exception_recorder
 
-    with magic.Magic(flags=magic.MAGIC_MIME_TYPE) as m:
-        add_static = partial(add_static_resource, app, 'trackers', static_urls, m)
-        add_static('/static/event.css', '/static/event.css', charset='utf8', content_type='text/css')
-        add_static('/static/event.js', '/static/event.js', charset='utf8', content_type='text/javascript')
-        add_static('/static/lib.js', '/static/lib.js', charset='utf8', content_type='text/javascript')
-        add_static('/static/individual.js', '/static/individual.js', charset='utf8', content_type='text/javascript')
-        add_static('/static/richmarker.js', '/static/richmarker.js', charset='utf8', content_type='text/javascript')
-        add_static('/static/es7-shim.min.js', '/static/es7-shim.min.js', charset='utf8', content_type='text/javascript')
-        add_static('/static/highcharts.js', '/static/highcharts.js', charset='utf8', content_type='text/javascript')
-        add_static('/static/highcharts.js.map', '/static/highcharts.js.map', charset='utf8', content_type='text/javascript')
-        add_static('/static/highcharts.src.js', '/static/highcharts.src.js', charset='utf8', content_type='text/javascript')
-        add_static('/static/traccar_testing.html', '/testing', charset='utf8', content_type='text/html')
+    app['static_manager'] = static_manager = ProcessedStaticManager(app, 'trackers', (on_static_processed, ))
+    static_manager.add_resource('/static/event.css', charset='utf8', content_type='text/css')
+    static_manager.add_resource('/static/event.js', charset='utf8', content_type='text/javascript')
+    static_manager.add_resource('/static/lib.js', charset='utf8', content_type='text/javascript')
+    static_manager.add_resource('/static/individual.js', charset='utf8', content_type='text/javascript')
+    static_manager.add_resource('/static/richmarker.js', charset='utf8', content_type='text/javascript')
+    static_manager.add_resource('/static/es7-shim.min.js', charset='utf8', content_type='text/javascript')
+    static_manager.add_resource('/static/highcharts.js', charset='utf8', content_type='text/javascript')
+    static_manager.add_resource('/static/highcharts.js.map', charset='utf8', content_type='text/javascript')
+    static_manager.add_resource('/static/highcharts.src.js', charset='utf8', content_type='text/javascript')
 
-        for name in pkg_resources.resource_listdir('trackers', '/static/markers'):
-            full_name = '/static/markers/{}'.format(name)
-            add_static(full_name, full_name)
-        add_static('/static/internet-sa-logo.png', '/static/internet-sa-logo.png')
-        add_static('/static/lindley_gravel_grind.png', '/static/lindley_gravel_grind.png')
+    static_manager.add_resource('/static/traccar_testing.html', '/testing', charset='utf8', content_type='text/html')
+    static_manager.add_resource('/static/event.html')  # This is just here so that we reload on change.
+    static_manager.add_resource('/static/individual.html', route_name='individual_page',
+                                charset='utf8', content_type='text/html',
+                                body_processor=partial(
+                                    page_body_processor,
+                                    api_key=settings['google_api_key'],
+                                ))
 
-        # print(list(static_urls.keys()))
+    static_manager.add_resource_dir('/static/markers')
+    static_manager.add_resource_dir('/static/logos')
 
-    app['individual_page'] = get_static_processed_resouce(
-        app, 'trackers', '/static/individual.html',
-        body_processor=partial(
-            page_body_processor,
-            api_key=settings['google_api_key'],
-        )
-    )
+    static_manager.start_monitor_and_process_resources()
 
     app.router.add_route('GET', '/{event}', handler=event_page, name='event_page')
     app.router.add_route('GET', '/{event}/websocket', handler=event_ws, name='event_ws')
@@ -123,68 +121,13 @@ async def shutdown(app):
     await app['trackers.app_setup_cm'].__aexit__(None, None, None)
 
 
-def etag_response(request, response, etag, cache_control=None):
-    if cache_control is None:
-        cache_control = mutable_cache_control
-    headers = {'ETag': etag, 'Cache-Control': cache_control}
-    if request.headers.get('If-None-Match', '') == etag:
-        return web.Response(status=304, headers=headers)
-    else:
-        if callable(response):
-            response = response()
-        response.headers.update(headers)
-        return response
-
-
-def etag_query_hash_response(request, response, etag):
-    query_hash = request.query.get('hash')
-    if query_hash and query_hash != etag:
-        # Redirect to same url with correct hash query
-        return web.HTTPFound(request.rel_url.with_query({'hash': etag}))
-    else:
-        cache_control = immutable_cache_control if query_hash else mutable_cache_control
-        return etag_response(request, response, etag, cache_control=cache_control)
-
-
 def json_response(data, **kwargs):
     return web.Response(text=json_dumps(data), content_type='application/json', **kwargs)
 
 
-def get_static_processed_resouce(app, package, resource_name, body_processor):
-    body = pkg_resources.resource_string(package, resource_name)
-    if body_processor:
-        body, etag = body_processor(app, body)
-    else:
-        etag = base64.urlsafe_b64encode(hashlib.sha1(body).digest()).decode('ascii')
-    return body, etag
-
-
-def add_static_resource(app, package, static_urls, magic, resource_name, route, *args, **kwargs):
-    body, etag = get_static_processed_resouce(app, package, resource_name, kwargs.pop('body_processor', None))
-
-    if 'content_type' not in kwargs:
-        kwargs['content_type'] = magic.id_buffer(body)
-    kwargs['body'] = body
-
-    async def static_resource_handler(request):
-        return etag_query_hash_response(request, lambda: web.Response(*args, **kwargs), etag)
-
-    route_name = slugify(resource_name)
-    if route:
-        app.router.add_route('GET', route, static_resource_handler, name=route_name)
-
-    try:
-        static_urls[route_name] = str(app.router[route_name].url_for().with_query({'hash': etag}))
-    except KeyError:
-        pass  # for routes with match items
-
-    return static_resource_handler
-
-
-def page_body_processor(app, body, **kwargs):
+def page_body_processor(static_manager, body, **kwargs):
     # since we need the hash in the body, we manually hash every thing that goes into the body.
 
-    static_urls = app['static_urls']
     hash = hashlib.sha1(body)
 
     for key, value in kwargs.items():
@@ -192,15 +135,15 @@ def page_body_processor(app, body, **kwargs):
         hash.update(value.encode())
 
     # Probably should not use all static resources.
-    for key, value in static_urls.items():
+    for key, value in static_manager.urls.items():
         hash.update(key.encode())
-        hash.update(value.encode())
+        hash.update(str(value).encode())
 
     client_hash = base64.urlsafe_b64encode(hash.digest()).decode('ascii')
 
     formated_body = body.decode('utf8').format(
         client_hash=client_hash,
-        static_urls=static_urls,
+        static_urls=static_manager.urls,
         **kwargs,
     ).encode('utf8')
 
@@ -253,8 +196,8 @@ def get_event_state(app, event):
 def ensure_event_page(app, event):
     if not hasattr(event, 'page'):
         page_path = event.config.get('page', '/static/event.html')
-        event.page = get_static_processed_resouce(
-            app, 'trackers', page_path,
+        event.page = app['static_manager'].get_static_processed_resource(
+            page_path,
             body_processor=partial(
                 page_body_processor,
                 api_key=app['trackers.settings']['google_api_key'],
@@ -335,6 +278,21 @@ async def rider_points(request, event, tracker_attr_name):
 
     return etag_response(request, json_response(points), end_hash,
                          cache_control=immutable_cache_control)
+
+
+async def on_static_processed(static_manager):
+    app = static_manager.app
+    for event in app.get('trackers.events', {}).values():
+        with suppress(AttributeError):
+            del event.page
+        event_wss = event.app['trackers.event_ws_sessions'][event.name]
+        if event_wss:
+            ensure_event_page(app, event)
+            message_to_multiple_wss(
+                event.app,
+                event_wss,
+                {'client_hash': event.page[1]}
+            )
 
 
 async def on_new_event(event):
@@ -469,9 +427,7 @@ async def event_set_start(request):
 
 
 async def individual_page(request):
-    body, etag = request.app['individual_page']
-    response = web.Response(body=body, charset='utf8', content_type='text/html',)
-    return etag_response(request, response, etag)
+    return await request.app['static_manager'].resource_handler('individual_page', request)
 
 
 async def individual_ws(get_key, get_tracker, request):
@@ -482,7 +438,8 @@ async def individual_ws(get_key, get_tracker, request):
             def send(msg):
                 logger.debug('send: {}'.format(str(msg)[:1000]))
                 ws.send_str(json_dumps(msg))
-            send({'client_hash': request.app['individual_page'][1], 'server_time': datetime.datetime.now()})
+            send({'client_hash': request.app['static_manager'].processed_resources['individual_page'].hash,
+                  'server_time': datetime.datetime.now()})
 
             tracker_key = get_key(request)
             tracker_info = request.app['trackers.individual_trackers'].get(tracker_key)

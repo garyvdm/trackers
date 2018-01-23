@@ -3,7 +3,7 @@
   <head>
     <title>{title} Live Tracking</title>
     <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
-    <link rel="stylesheet" type="text/css" href="{static_urls[static-event-css]}">
+    <link rel="stylesheet" type="text/css" href="{static_urls[/static/event.css]}">
     <style>
       #head {{
           background: white;
@@ -41,14 +41,14 @@
         <div id="title_contain" style="justify-content: left;">
           <div style="margin-right: auto;">
             <div id="title">
-              <img src="{static_urls[static-lindley-gravel-grind-png]}" alt="{title}" style="vertical-align:text-top; height: 40px; margin-top: -4px;">
+              <img src="{static_urls[/static/logos/lindley_gravel_grind.png]}" alt="{title}" style="vertical-align:text-top; height: 40px; margin-top: -4px;">
             </div>
             <div id="race_time">&nbsp;</div>
           </div>
         </div>
         <div id="advert">
           <a href="http://www.internet-sa.co.za/">
-            <img src="{static_urls[static-internet-sa-logo-png]}">
+            <img src="{static_urls[/static/logos/internet-sa-logo.png]}">
           </a>
         </div>
         <div style="justify-content: right;">
@@ -99,6 +99,8 @@
         }}
 
         function promise_catch(error){{
+            errors.push(error);
+            update_status();
             var full_error_message = error + '\n' + (error? error.stack: '')
             log_to_server(full_error_message);
             throw error;
@@ -114,14 +116,14 @@
     </script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/es5-shim/4.5.9/es5-shim.min.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/es6-shim/0.35.3/es6-shim.min.js"></script>
-    <script defer src="{static_urls[static-es7-shim-min-js]}"></script>
+    <script defer src="{static_urls[/static/es7-shim.min.js]}"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/fetch/2.0.3/fetch.min.js"></script>
     <script defer src="https://maps.googleapis.com/maps/api/js?v=3&key={api_key}"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/sprintf/1.0.3/sprintf.min.js"></script>
-    <script defer src="{static_urls[static-richmarker-js]}"></script>
-    <script defer src="{static_urls[static-highcharts-js]}"></script>
-    <script defer src="{static_urls[static-lib-js]}"></script>
-    <script defer src="{static_urls[static-event-js]}"></script>
+    <script defer src="{static_urls[/static/richmarker.js]}"></script>
+    <script defer src="{static_urls[/static/highcharts.js]}"></script>
+    <script defer src="{static_urls[/static/lib.js]}"></script>
+    <script defer src="{static_urls[/static/event.js]}"></script>
   </body>
 </html>
 

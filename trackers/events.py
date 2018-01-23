@@ -33,9 +33,9 @@ async def load_events_with_watcher(app, ref=b'HEAD', **kwargs):
 
             try:
                 with closing(aionotify.Watcher()) as watcher:
-                    await watcher.setup(asyncio.get_event_loop())
                     for path in paths:
                         watcher.watch(path, flags=aionotify.Flags.MODIFY + aionotify.Flags.DELETE_SELF + aionotify.Flags.MOVE_SELF)
+                    await watcher.setup(asyncio.get_event_loop())
                     await watcher.get_event()
             except OSError as e:
                 logger.error(e)
