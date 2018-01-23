@@ -523,7 +523,7 @@ async def individual_ws(get_key, get_tracker, request):
                         new_points = tracker.points[last_index:]
                         if new_points:
                             await individual_tracker_new_points_to_ws(request.app, send, tracker, new_points)
-                        exit_stack.enter_context(list_register(tracker.new_points_callbacks,
+                        exit_stack.enter_context(list_register(tracker.new_points_observable.callbacks,
                                                                partial(individual_tracker_new_points_to_ws, request.app, send)))
 
                 if msg.tp == WSMsgType.close:
