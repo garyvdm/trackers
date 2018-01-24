@@ -1,10 +1,5 @@
 "use strict";
 
-var options = {
-    'predicted': true,
-    'show_routes': 'riders_points'
-}
-
 var loader_html = '<span class="l1"></span><span class="l2"></span><span class="l3"></span> '
 
 function get(url) {
@@ -123,9 +118,9 @@ function on_new_state_received(new_state) {
             var name = entry[0];
             var values = entry[1];
             riders_values[name] = values;
-            if (!options.predicted) on_new_rider_values(name);
+            if (!predicted_el.checked) on_new_rider_values(name);
         });
-        if (!options.predicted) update_rider_table();
+        if (!predicted_el.checked) update_rider_table();
     }
     if (new_state.hasOwnProperty('riders_predicted')) {
         riders_predicted = new_state.riders_predicted;
@@ -252,16 +247,37 @@ var mobile_selected;
 
 function apply_mobile_selected(selected){
     mobile_selected = selected;
-    main_el.className = 'show_' + selected;
+    ['show_map', 'show_riders', 'show_options'].forEach(function(className){ if (main_el.classList.contains(className)) main_el.classList.remove(className); });
+    main_el.classList.add('show_' + selected);
     Array.prototype.forEach.call(mobile_selectors, function (el){
         el.className = (el.getAttribute('show') == selected?'selected':'')
     });
     if (selected=='map') google.maps.event.trigger(map, 'resize');
 }
+
 Array.prototype.forEach.call(mobile_selectors, function (el){
     var el_selects = el.getAttribute('show')
     el.onclick = function(){apply_mobile_selected(el_selects);};
 });
+
+
+var desktop_selectors = document.getElementById('desktop_select').querySelectorAll('div');
+var desktop_selected;
+
+function apply_desktop_selected(selected){
+    desktop_selected = selected;
+    ['desktop_show_riders', 'desktop_show_options'].forEach(function(className){ if (main_el.classList.contains(className)) main_el.classList.remove(className); });
+    main_el.classList.add('desktop_show_' + selected);
+    Array.prototype.forEach.call(desktop_selectors, function (el){
+        el.className = (el.getAttribute('show') == selected?'selected':'')
+    });
+}
+
+Array.prototype.forEach.call(desktop_selectors, function (el){
+    var el_selects = el.getAttribute('show')
+    el.onclick = function(){apply_desktop_selected(el_selects);};
+});
+
 
 var config_loaded = new Deferred();
 var map;
@@ -353,8 +369,8 @@ function on_new_config(){
             riders_by_name[rider.name] = rider
             riders_client_items[rider.name] = {
                 paths: {
-                    'riders_points': {},
-                    'riders_off_route': {},
+                    'riders_points': [],
+                    'riders_off_route': [],
                 },
                 marker: null,
             };
@@ -455,6 +471,26 @@ function adjust_elevation_chart_bounds() {
 }
 
 
+var show_routes;
+
+function onclick_show_routes() {
+    var radios = document.getElementsByName('show_routes');
+    Array.prototype.forEach.call(radios, function (radio) {
+        if (radio.checked) show_routes = radio.value;
+    });
+
+    Object.values(riders_client_items).forEach( function (rider_client_items){
+        Object.keys(rider_client_items.paths).forEach( function (route_name) {
+            var paths = rider_client_items.paths[route_name];
+            var show = (route_name == show_routes);
+            paths.forEach(function (path) { path.setVisible(show) });
+        });
+    });
+}
+
+onclick_show_routes();
+Array.prototype.forEach.call(document.getElementsByName('show_routes'), function(radio) { radio.onclick = onclick_show_routes; });
+
 function on_new_rider_points(rider_name, list_name, items, new_items, old_items){
     config_loaded.promise.then( function () {
 
@@ -479,7 +515,8 @@ function on_new_rider_points(rider_name, list_name, items, new_items, old_items)
                     geodesic: false,
                     strokeColor: path_color,
                     strokeOpacity: 1.0,
-                    strokeWeight: 2
+                    strokeWeight: 2,
+                    visible: (list_name == show_routes)
                 }))).getPath()
                 path.push(new google.maps.LatLng(point.position[0], point.position[1]));
             }
@@ -488,6 +525,15 @@ function on_new_rider_points(rider_name, list_name, items, new_items, old_items)
     }).catch(promise_catch);
 }
 
+var predicted_el = document.getElementById('predicted');
+predicted_el.onclick = function () {
+    var changed = {};
+    Object.assign(changed, riders_predicted);
+    Object.assign(changed, riders_values);
+    Object.keys(changed).forEach(on_new_rider_values);
+    update_rider_table();
+};
+
 function on_new_rider_values(rider_name){
     config_loaded.promise.then( function () {
         var rider = riders_by_name[rider_name]
@@ -495,7 +541,7 @@ function on_new_rider_values(rider_name){
         var rider_items = riders_client_items[rider_name];
         var values = riders_values[rider_name];
 
-        if (options.predicted && riders_predicted.hasOwnProperty(rider_name)) {
+        if (predicted_el.checked && riders_predicted.hasOwnProperty(rider_name)) {
             values = Object.assign({}, values);
             Object.assign(values, riders_predicted[rider_name]);
         }
@@ -562,7 +608,7 @@ function update_rider_table(){
     if (config) {
         document.getElementById('riders_contain').className = (config.riders.length >= 10? 'big':'small')
         var riders_values_l = riders_values;
-        if (options.predicted) {
+        if (predicted_el.checked) {
             riders_values_l = Object.assign({}, riders_values_l);
             Object.keys(riders_values_l).forEach(function (rider_name) {
                 if (riders_predicted.hasOwnProperty(rider_name)) {

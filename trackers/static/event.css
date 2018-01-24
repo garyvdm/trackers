@@ -72,6 +72,16 @@ html, body {
     background: white;
 }
 
+#options {
+    padding: 8px;
+}
+
+#options div {
+    display: block;
+    padding: 8px;
+    width: 200px;
+}
+
 #riders {
     padding: 8px;
     overflow: auto;
@@ -125,27 +135,55 @@ html, body {
     color: white;
 }
 
+
+.select {
+    background: #4285F4;
+    color: white;
+    justify-content: space-around;
+}
+
+.select > * {
+    border-bottom: 4px solid #4285F4;
+    flex-basis: 8em;
+    padding: 10px;
+    text-align: center;
+    font-weight: bold;
+    cursor: pointer;
+}
+.select > .selected {
+    border-bottom: 4px solid white;
+}
+
+#desktop_select {
+    display: flex;
+
+}
+
+.desktop_show_riders #options {
+    display: none;
+}
+.desktop_show_riders #riders {
+    display: block;
+}
+.desktop_show_options #options {
+    display: block;
+}
+.desktop_show_options #riders {
+    display: none;
+}
+
+
 #mobile_select {
     display: none;
 }
 
 @media screen and (max-width: 800px) {
+    #desktop_select {
+        display: none;
+    }
+
     #mobile_select {
         display: flex;
-        background: #4285F4;
-        color: white;
-        justify-content: space-around;
-    }
-    #mobile_select > * {
-        border-bottom: 4px solid #4285F4;
-        flex-basis: 8em;
-        padding: 10px;
-        text-align: center;
-        font-weight: bold;
-        cursor: pointer;
-    }
-    #mobile_select > .selected {
-        border-bottom: 4px solid white;
     }
 
     .show_map #map_contain, .show_map #elevation{
@@ -154,10 +192,16 @@ html, body {
     .show_map #riders_contain{
         display: none;
     }
-    .show_riders #map_contain, .show_riders #elevation{
+    .show_riders #map_contain, .show_riders #elevation, .show_riders #options{
         display: none;
     }
-    .show_riders #riders_contain{
+    .show_riders #riders_contain, .show_riders #riders{
+        display: block;
+    }
+    .show_options #map_contain, .show_options #elevation, .show_options #riders{
+        display: none;
+    }
+    .show_options #riders_contain, .show_options #options{
         display: block;
     }
     #riders_contain.small, #riders_contain.big{

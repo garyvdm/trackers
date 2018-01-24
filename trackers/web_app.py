@@ -402,9 +402,9 @@ async def event_ws(request):
             return ws
 
 
-def message_to_multiple_wss(app, wss, msg):
+def message_to_multiple_wss(app, wss, msg, log_level=logging.DEBUG):
     msg = json_dumps(msg)
-    logger.debug('send: {}'.format(msg[:1000]))
+    logger.log(log_level, 'send: {}'.format(msg[:1000]))
     for ws in wss:
         try:
             ws.send_str(msg)

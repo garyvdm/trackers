@@ -33,9 +33,9 @@ async def load_events_with_watcher(app, ref=b'HEAD', **kwargs):
 
             try:
                 with closing(aionotify.Watcher()) as watcher:
+                    await watcher.setup(asyncio.get_event_loop())
                     for path in paths:
                         watcher.watch(path, flags=aionotify.Flags.MODIFY + aionotify.Flags.DELETE_SELF + aionotify.Flags.MOVE_SELF)
-                    await watcher.setup(asyncio.get_event_loop())
                     await watcher.get_event()
             except OSError as e:
                 logger.error(e)
@@ -199,7 +199,7 @@ class Event(object):
                 tracker = await start_tracker(self.app, self, rider['name'], rider['tracker'])
                 if replay:
                     tracker = await start_replay_tracker(tracker, event_start, replay_start,
-                                                         offset=datetime.timedelta(hours=-3), speed_multiply=200)
+                                                         offset=datetime.timedelta(hours=-4, minutes=-20), speed_multiply=10)
                 if analyse:
                     tracker = await AnalyseTracker.start(tracker, event_start, analyse_routes, find_closest_cache=find_closest_cache)
                     self.rider_analyse_trackers[rider['name']] = tracker
