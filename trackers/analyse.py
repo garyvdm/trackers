@@ -158,7 +158,8 @@ class AnalyseTracker(Tracker):
                     dist_from_last_set = False
 
                     if closest:
-                        point['dist_route'] = route_dist = route_distance(closest.route, closest)
+                        route_dist = route_distance(closest.route, closest)
+                        point['dist_route'] = round(route_dist)
                         self.going_forward = route_dist > self.prev_route_dist
                         if self.prev_route_dist_time and self.going_forward:
                             # TODO these should not be affected by secondary route dist factor.
@@ -171,9 +172,9 @@ class AnalyseTracker(Tracker):
                         self.prev_route_dist = route_dist
                         self.prev_route_dist_time = point['time']
                         if 'elevation' in closest.route:
-                            point['route_elevation'] = route_elevation(closest.route, route_dist)
+                            point['route_elevation'] = round(route_elevation(closest.route, route_dist))
 
-                        if closest.route_i == 0 and abs(point['dist_route'] - last_route_point.distance) < 100:
+                        if closest.route_i == 0 and abs(route_dist - last_route_point.distance) < 100:
                             self.logger.debug('Finished')
                             self.finished = True
                             point['finished_time'] = point['time']
@@ -292,10 +293,10 @@ class AnalyseTracker(Tracker):
                     point_point = move_along_route(proceeding_route, dist_moved_from_last)
                     point = {
                         'position': [point_point.lat, point_point.lng],
-                        'dist_route': dist_route,
+                        'dist_route': round(dist_route),
                     }
                     if 'elevation' in closest.route:
-                        point['route_elevation'] = route_elevation(closest.route, dist_route)
+                        point['route_elevation'] = round(route_elevation(closest.route, dist_route))
 
                     return point
                 elif self.prev_unit_vector is not None:
