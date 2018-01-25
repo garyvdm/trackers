@@ -188,8 +188,6 @@ def get_event_state(app, event):
         'riders_values': event.rider_current_values,
         'client_hash': event.page[1],
         'server_time': datetime.datetime.now(),
-        'riders_off_route': {rider_name: list.full for rider_name, list in event.rider_off_route_blocked_list.items()},
-        'riders_points': {rider_name: list.full for rider_name, list in event.rider_trackers_blocked_list.items()},
     }
 
 
@@ -333,10 +331,12 @@ async def on_event_rider_new_points(event, rider_name, tracker, new_points):
 
 
 async def on_event_rider_blocked_list_update(event, rider_name, blocked_list, update):
+    event_wss = event.app['trackers.event_ws_sessions'][event.name]
     message_to_multiple_wss(
         event.app,
-        event.app['trackers.event_ws_sessions'][event.name],
+        event_wss,
         {'riders_points': {rider_name: update}},
+        filter_ws=lambda ws: 'riders_points' in ws.subscriptions or f'riders_points.{rider_name}' in ws.subscriptions,
     )
 
 
@@ -345,6 +345,7 @@ async def on_event_rider_off_route_blocked_list_update(event, rider_name, blocke
         event.app,
         event.app['trackers.event_ws_sessions'][event.name],
         {'riders_off_route': {rider_name: update}},
+        filter_ws=lambda ws: 'riders_off_route' in ws.subscriptions,
     )
 
 
@@ -353,11 +354,13 @@ async def on_event_rider_predicted_updated(event, predicted, time):
         event.app,
         event.app['trackers.event_ws_sessions'][event.name],
         {'riders_predicted': predicted, },
+        filter_ws=lambda ws: 'riders_predicted' in ws.subscriptions,
     )
 
 
 async def event_ws(request):
     ws = web.WebSocketResponse()
+    ws.subscriptions = set()
     await ws.prepare(request)
     with contextlib.ExitStack() as exit_stack:
         try:
@@ -384,9 +387,30 @@ async def event_ws(request):
 
             async for msg in ws:
                 if msg.tp == WSMsgType.text:
-                    logger.debug('receive: {}'.format(msg.data))
-                    # We used to do stuff here, but now we just send stuff. Will do subscribe stuff later
-                    # Maybe we want to switch to SSE
+                    try:
+                        logger.debug('receive: {}'.format(msg.data))
+                        data = json.loads(msg.data)
+                        if 'subscriptions' in data:
+                            old_subscriptions = ws.subscriptions
+                            ws.subscriptions = set(data['subscriptions'])
+                            added_subscriptions = ws.subscriptions - old_subscriptions
+                            if 'riders_points' in added_subscriptions:
+                                send({'riders_points': {rider_name: list.full for rider_name, list in event.rider_trackers_blocked_list.items()}})
+                            else:
+                                selected_rider_points = {rider_name: list.full
+                                                         for rider_name, list in event.rider_trackers_blocked_list.items()
+                                                         if f'riders_points.{rider_name}' in added_subscriptions}
+                                if selected_rider_points:
+                                    send({'riders_points': selected_rider_points})
+
+                            if 'riders_off_route' in added_subscriptions:
+                                send({'riders_off_route': {rider_name: list.full for rider_name, list in event.rider_off_route_blocked_list.items()}})
+
+                            if 'riders_predicted' in added_subscriptions:
+                                send({'riders_predicted': event.rider_predicted_points})
+
+                    except Exception:
+                        logger.exception('Error in receive ws msg:')
 
                 if msg.tp == WSMsgType.close:
                     await ws.close()
@@ -402,15 +426,17 @@ async def event_ws(request):
             return ws
 
 
-def message_to_multiple_wss(app, wss, msg, log_level=logging.DEBUG):
+def message_to_multiple_wss(app, wss, msg, log_level=logging.DEBUG, filter_ws=None):
     msg = json_dumps(msg)
     logger.log(log_level, 'send: {}'.format(msg[:1000]))
     for ws in wss:
-        try:
-            ws.send_str(msg)
-        except Exception:
-            app['exception_recorder']()
-            logger.exception('Error sending msg to ws:')
+        send = filter_ws(ws) if filter_ws else True
+        if send:
+            try:
+                ws.send_str(msg)
+            except Exception:
+                app['exception_recorder']()
+                logger.exception('Error sending msg to ws:')
 
 
 async def event_set_start(request):

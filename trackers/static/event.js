@@ -159,6 +159,7 @@ function on_new_state_received(new_state) {
 
 
 var ws;
+var ws_connected = false;
 var close_reason;
 var reconnect_time = 1000;
 
@@ -192,6 +193,8 @@ function ws_onopen(event) {
     set_status('&#x2713; Connected');
     reconnect_time = 500;
     close_reason = null;
+    ws_connected = true;
+    send_subscriptions_to_ws();
 }
 
 function reconnect_status(time){
@@ -200,6 +203,7 @@ function reconnect_status(time){
 
 function ws_onclose(event) {
     ws = null;
+    ws_connected = false;
     if (!ws_connection_wanted) {
         set_status('');
     } else if (event.reason.startsWith('Server Error:')) {
@@ -238,8 +242,25 @@ function ws_onmessage(event){
             get_state();
         }
     }
-
 }
+
+var subscriptions = {};
+
+function subscriptions_updated() {
+    if (state.live) {
+        if (ws_connected) send_subscriptions_to_ws();
+    } else {
+        // TODO
+    }
+}
+
+function send_subscriptions_to_ws(){
+    var subscriptions_for_server = Object.keys(subscriptions).filter(function (name) {return subscriptions[name] > 0});
+    var data = JSON.stringify({'subscriptions': subscriptions_for_server});
+    // console.log(data);
+    ws.send(data);
+}
+
 
 var main_el = document.getElementById('foo');
 var mobile_selectors = document.getElementById('mobile_select').querySelectorAll('div');
@@ -474,12 +495,16 @@ function adjust_elevation_chart_bounds() {
 var show_routes;
 
 function onclick_show_routes() {
+    if (show_routes) subscriptions[show_routes] = Math.max((subscriptions[show_routes] || 0) - 1, 0);
     var radios = document.getElementsByName('show_routes');
     Array.prototype.forEach.call(radios, function (radio) {
         if (radio.checked) show_routes = radio.value;
     });
 
     Object.keys(riders_client_items).forEach(update_rider_paths_visible);
+
+    subscriptions[show_routes] = Math.max((subscriptions[show_routes] || 0) + 1, 0);
+    subscriptions_updated();
 }
 
 function show_route_for_rider(route_name, rider_name) {
@@ -537,9 +562,14 @@ predicted_el.onclick = function () {
     var changed = {};
     Object.assign(changed, riders_predicted);
     Object.assign(changed, riders_values);
+    if (!predicted_el.checked) riders_predicted = {};
     Object.keys(changed).forEach(on_new_rider_values);
     update_rider_table();
+    subscriptions['riders_predicted'] = (predicted_el.checked?1:0)
+    subscriptions_updated();
 };
+predicted_el.onclick();
+
 
 function on_new_rider_values(rider_name){
     config_loaded.promise.then( function () {
@@ -722,6 +752,8 @@ riders_detail_el.onclick = update_rider_table;
 
 var selected_rider = null;
 function rider_onclick(row, rider_name, event) {
+    if (selected_rider) subscriptions['riders_points.'+selected_rider] = Math.max((subscriptions['rider_points.'+selected_rider] || 0) - 1, 0);
+
     Array.prototype.forEach.call(riders_el, function (el){
         el.classList.remove('selected');
     });
@@ -776,6 +808,8 @@ function rider_onclick(row, rider_name, event) {
             window.open('https://www.google.com/maps/place/' + values.position[0] + ',' + values.position[1], '_blank');
         }
     }
+    if (selected_rider) subscriptions['riders_points.'+selected_rider] = Math.max((subscriptions['rider_points.'+selected_rider] || 0) + 1, 0);
+    subscriptions_updated();
 }
 
 load_state();

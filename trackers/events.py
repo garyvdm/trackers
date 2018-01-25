@@ -176,6 +176,7 @@ class Event(object):
         self.rider_current_values = {}
         self.rider_off_route_trackers = {}
         self.rider_off_route_blocked_list = {}
+        self.rider_predicted_points = {}
 
         if analyse:
             self.rider_analyse_trackers = {}
@@ -264,6 +265,7 @@ class Event(object):
                 rider_predicted_points = [(rider_name, tracker.get_predicted_position(time))
                                           for rider_name, tracker in self.rider_analyse_trackers.items()]
                 filtered = [item for item in rider_predicted_points if item[1]]
+                self.rider_predicted_points = filtered
                 await self.rider_predicted_updated_observable(self, dict(filtered), time)
             except asyncio.CancelledError:
                 raise
