@@ -94,6 +94,9 @@ function on_new_state_received(new_state) {
         riders_points = {};
         riders_values = {};
         riders_predicted = {};
+        riders_points = {};
+        riders_off_route = {};
+        config_loaded = new Deferred();
 
         state.config_hash = new_state.config_hash;
         get('/config?hash=' + new_state.config_hash).then(function (new_config){
