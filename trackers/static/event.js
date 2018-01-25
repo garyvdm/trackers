@@ -245,12 +245,23 @@ function ws_onmessage(event){
 }
 
 var subscriptions = {};
+var non_live_subscriptions_got = {};
 
 function subscriptions_updated() {
     if (state.live) {
         if (ws_connected) send_subscriptions_to_ws();
     } else {
-        // TODO
+        Object.keys(subscriptions).forEach(function (name) {
+            if (subscriptions[name] > 0 && !non_live_subscriptions_got[name]) {
+                non_live_subscriptions_got[name] = true;
+                if (name=='riders_points') {
+                    get('/riders_points').then(function(data) {on_new_state_received({'riders_points': data});}).catch(promise_catch);
+                }
+                if (name=='riders_off_route') {
+                    get('/riders_off_route').then(function(data) {on_new_state_received({'riders_off_route': data});}).catch(promise_catch);
+                }
+            }
+        });
     }
 }
 

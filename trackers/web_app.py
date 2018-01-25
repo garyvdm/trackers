@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import re
+from base64 import urlsafe_b64encode
 from collections import defaultdict
 from contextlib import suppress
 from functools import partial, wraps
@@ -88,8 +89,10 @@ async def make_aio_app(settings,
     app.router.add_route('GET', '/{event}/state', handler=event_state, name='event_state')
     app.router.add_route('GET', '/{event}/config', handler=event_config, name='event_config')
     app.router.add_route('GET', '/{event}/routes', handler=event_routes, name='event_routes')
-    app.router.add_route('GET', '/{event}/riders_points', handler=partial(rider_points, tracker_attr_name='rider_trackers'), name='riders_points')
-    app.router.add_route('GET', '/{event}/riders_off_route', handler=partial(rider_points, tracker_attr_name='rider_off_route_trackers'), name='riders_off_route')
+    app.router.add_route('GET', '/{event}/riders_points', name='riders_points',
+                         handler=partial(blocked_lists, blocked_list_attr_name='rider_trackers_blocked_list'))
+    app.router.add_route('GET', '/{event}/riders_off_route', name='riders_off_route',
+                         handler=partial(blocked_lists, blocked_list_attr_name='rider_off_route_blocked_list'))
 
     app.router.add_route('GET', '/{event}/set_start', handler=event_set_start, name='event_set_start')
 
@@ -263,19 +266,28 @@ def compress_point(point):
 
 @say_error_handler
 @event_handler
-async def rider_points(request, event, tracker_attr_name):
+async def blocked_lists(request, event, blocked_list_attr_name):
     rider_name = request.query.get('name')
-    start_index = int(request.query.get('start_index'))
-    end_index = int(request.query.get('end_index'))
-    end_hash = request.query.get('end_hash')
+    blocked_lists = getattr(event, blocked_list_attr_name)
+    if not rider_name:
+        hasher = hashlib.sha1()
+        for blocked_list in blocked_lists.values():
+            if blocked_list.source:
+                hasher.update(blocked_list.source[-1]['hash'].encode())
+        hash = urlsafe_b64encode(hasher.digest()[:3]).decode('ascii')
+        blocked_lists_full = {rider_name: list.full for rider_name, list in blocked_lists.items()}
+        return etag_response(request, partial(json_response, blocked_lists_full), hash)
+    else:
+        start_index = int(request.query.get('start_index'))
+        end_index = int(request.query.get('end_index'))
+        end_hash = request.query.get('end_hash')
 
-    trackers = getattr(event, tracker_attr_name)
-    points = trackers[rider_name].points[start_index:end_index + 1]
-    if points and points[-1]['hash'] != end_hash:
-        raise web.HTTPInternalServerError(text='Wrong end_hash')
+        points = blocked_lists[rider_name].source[start_index:end_index + 1]
+        if points and points[-1]['hash'] != end_hash:
+            raise web.HTTPInternalServerError(text='Wrong end_hash')
 
-    return etag_response(request, json_response(points), end_hash,
-                         cache_control=immutable_cache_control)
+        return etag_response(request, json_response(points), end_hash,
+                             cache_control=immutable_cache_control)
 
 
 async def on_static_processed(static_manager):
