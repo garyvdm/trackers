@@ -17,6 +17,17 @@ html, body {
     max-width: 100%;
 }
 
+#badbrowser {
+    position: absolute;
+    top: 0; bottom: 0; left: 0; right: 0;
+    margin: 10em;
+    background:  red;
+    color: white;
+    padding: 10em;
+    text-align: center;
+}
+
+
 #head{
     padding: 8px;
     background: #4285F4;
@@ -71,12 +82,12 @@ html, body {
     -ms-flex-direction: column; flex-direction: column;
     -ms-flex: 1 1 20%; flex: 1 1 20%;
     background: white;
-
+    position: relative;
 }
 
 #riders_contain {
     position: relative;
-    -ms-flex: 1 1 20%; flex: 1 1 20%;
+    -ms-flex: 1 1 100%; flex: 1 1 100%;
 }
 
 #options {
@@ -94,10 +105,6 @@ html, body {
     overflow: auto;
 }
 
-#riders_sizer {
-    visible: false;
-}
-
 .big #riders_contain #riders {
     position: absolute;
     left: 0;
@@ -105,6 +112,10 @@ html, body {
     top: 0;
     bottom: 0;
     max-height: 100%;
+}
+
+.big #riders_contain {
+    height: 100%;
 }
 
 #riders_options.small  {
@@ -145,6 +156,7 @@ html, body {
 
 
 .select {
+    display: -ms-flexbox; display: flex;
     background: #4285F4;
     color: white;
     justify-content: space-around;
@@ -162,10 +174,6 @@ html, body {
     border-bottom: 4px solid white;
 }
 
-#desktop_select {
-    display: flex;
-
-}
 
 .desktop_show_riders #options {
     display: none;
@@ -191,9 +199,8 @@ html, body {
     }
 
     #mobile_select {
-        display: flex;
+        display: -ms-flexbox; display: flex;
     }
-
 
     #riders {
         position: absolute;
@@ -238,9 +245,6 @@ html, body {
     }
     #riders>table{
         width: 100%
-    }
-    #riders_sizer {
-        display: none;
     }
 
 }

@@ -66,9 +66,7 @@
             <div show="riders" class="selected">Riders</div>
             <div show="options">Options</div>
           </div>
-
           <div id="riders_contain">
-            <div id="riders_sizer"></div>
             <div id="riders">
               <label style="padding: 10px; display: block;"><input type="checkbox" id="riders_detail"> Riders Detail</label>
               <div id="riders_actual"></div>
@@ -95,8 +93,15 @@
       </div>
       <div id="elevation"></div>
     </div>
+    <div id="badbrowser" style="display: none;">
+      <p>
+      Unfortunately your browser is not supported. Please upgrade to a newer version or use a better browser.
+      </p>
+      <p>You are using: <span id="user_agent"></span></p>
+    </div>
     <script>
         var client_hash = '{client_hash}';
+        var got_to_loading = false;
 
         var status_element = document.getElementById('status');
         var status_msg = '';
@@ -113,6 +118,9 @@
         }}
 
         window.onerror = function (messageOrEvent, source, lineno, colno, error){{
+            if (!got_to_loading) {{
+               document.getElementById('badbrowser').style.display = 'block';
+            }}
             errors.push(messageOrEvent);
             update_status();
             var full_error_message = messageOrEvent + '\n' + (error? error.stack: source + ':' + lineno + ':' + colno)
@@ -135,10 +143,17 @@
                 request.send(message);
             }}, 100);
         }}
+
+        document.getElementById('user_agent').innerText = navigator.userAgent;
+        var style = document.createElement("div").style
+        if (style['flex'] === undefined && style['-ms-flex'] === undefined ) {{
+            document.getElementById('badbrowser').style.display = 'block';
+            log_to_server('No flexbox support');
+        }}
     </script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/es5-shim/4.5.9/es5-shim.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/es5-shim/4.5.10/es5-shim.min.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/es6-shim/0.35.3/es6-shim.min.js"></script>
-    <script defer src="{static_urls[/static/es7-shim.min.js]}"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/es7-shim/6.0.0/es7-shim.min.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/fetch/2.0.3/fetch.min.js"></script>
     <script defer src="https://maps.googleapis.com/maps/api/js?v=3&key={api_key}"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/sprintf/1.0.3/sprintf.min.js"></script>

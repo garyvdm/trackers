@@ -1,5 +1,6 @@
 "use strict";
 
+got_to_loading = true;
 var loader_html = '<span class="l1"></span><span class="l2"></span><span class="l3"></span> '
 
 function get(url) {
@@ -172,6 +173,10 @@ function ws_ensure_connect(){
     ws_connection_wanted = true;
     if (ws_connection_wanted && !ws) {
         set_status(loader_html + 'Connecting');
+        if (!window.WebSocket) {
+            document.getElementById('badbrowser').display = 'block';
+            log_to_server('No flexbox support');
+        }
         ws = new WebSocket(location.protocol.replace('http', 'ws') + '//' + location.host + location.pathname + '/websocket');
         ws.onopen = ws_onopen;
         ws.onclose = ws_onclose;
@@ -744,11 +749,11 @@ function update_rider_table(){
                 '<td style="text-align: right">Dist on<br>Route</td>' +
                 '<td style="text-align: right">Finish<br>Time</td>' +
                 '</tr>' + rider_rows.join('') + '</table>';
-            document.getElementById('riders_sizer').style.width = '600px';
+            document.getElementById('riders_options').style.minWidth = '600px';
         } else {
             document.getElementById('riders_actual').innerHTML =
                 '<table>' + rider_rows.join('') + '</table>';
-            document.getElementById('riders_sizer').style.width = '250px';;
+            document.getElementById('riders_options').style.minWidth = '250px';;
         }
         riders_el = document.getElementById('riders_actual').querySelectorAll('.rider');
         Array.prototype.forEach.call(riders_el, function (row){
