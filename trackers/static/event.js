@@ -643,7 +643,7 @@ var riders_detail_el = document.getElementById('riders_detail');
 var riders_el = [];
 function update_rider_table(){
     if (config) {
-        document.getElementById('riders_contain').className = (config.riders.length >= 10? 'big':'small')
+        document.getElementById('riders_options').className = (config.riders.length >= 10? 'big':'small')
         var riders_values_l = riders_values;
         if (predicted_el.checked) {
             riders_values_l = Object.assign({}, riders_values_l);
