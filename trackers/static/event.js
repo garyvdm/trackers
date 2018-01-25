@@ -833,4 +833,40 @@ function rider_onclick(row, rider_name, event) {
 
 load_state();
 
+var my_position_el = document.getElementById('my_position');
+var geolocation_watch_id;
+var my_position_marker;
 
+my_position_el.onclick = function(){
+    if (my_position_el.checked && !geolocation_watch_id) {
+        geolocation_watch_id = navigator.geolocation.watchPosition(geo_location_success, promise_catch, {enableHighAccuracy: true, });
+    }
+
+    if (!my_position_el.checked && geolocation_watch_id) {
+        navigator.geolocation.clearWatch(geolocation_watch_id);
+        geolocation_watch_id = null;
+        if (my_position_marker){
+            my_position_marker.setMap(null);
+            my_position_marker = null;
+        }
+    }
+}
+
+function geo_location_success(position){
+    console.log(position);
+    var map_position = new google.maps.LatLng(position.coords.latitude, position.coords.longitude)
+    if (!my_position_marker){
+        var marker_html = '<div class="rider-marker" style="background: black; color: white;">Me</div>' +
+                          '<div class="rider-marker-pointer" style="border-color: transparent black black transparent;"></div>';
+        my_position_marker = new RichMarker({
+            map: map,
+            position: map_position,
+            flat: true,
+            content: marker_html
+        })
+    } else {
+        my_position_marker.setPosition(map_position);
+    }
+}
+
+my_position_el.onclick();
