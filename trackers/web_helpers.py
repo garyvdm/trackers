@@ -98,7 +98,7 @@ class ProcessedStaticManager(object):
                 except OSError as e:
                     logger.error(e)
                     break
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(1)
                 logger.info('Reprocessing static resources.')
 
     async def process_resources(self, watcher=None):
