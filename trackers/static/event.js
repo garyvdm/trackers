@@ -27,7 +27,9 @@ function save_state(state){
 }
 
 function get_state(){
-    get('/state').then(on_new_state_received_non_ws);
+    get('/state')
+        .then(on_new_state_received_non_ws)
+        .catch(promise_catch);
 }
 
 function on_new_state_received_non_ws(new_state){
@@ -44,7 +46,9 @@ function on_new_state_received_non_ws(new_state){
 }
 
 var state = {}
+var is_live_loaded = new Deferred();
 var config;
+var config_loaded = new Deferred();
 var routes = []
 var all_route_points = [];
 
@@ -75,6 +79,7 @@ function on_new_state_received(new_state) {
     if (new_state.hasOwnProperty('live')) {
         state.live = new_state.live;
         need_save = true;
+        is_live_loaded.resolve();
     }
     if (new_state.hasOwnProperty('config_hash') && state.config_hash != new_state.config_hash) {
         event_markers.forEach(function (marker) { marker.setMap(null) });
@@ -256,21 +261,23 @@ var subscriptions = {};
 var non_live_subscriptions_got = {};
 
 function subscriptions_updated() {
-    if (state.live) {
-        if (ws_connected) send_subscriptions_to_ws();
-    } else {
-        Object.keys(subscriptions).forEach(function (name) {
-            if (subscriptions[name] > 0 && !non_live_subscriptions_got[name]) {
-                non_live_subscriptions_got[name] = true;
-                if (name=='riders_points') {
-                    get('/riders_points').then(function(data) {on_new_state_received({'riders_points': data});}).catch(promise_catch);
+    is_live_loaded.promise.then(function (){
+        if (state.live) {
+            if (ws_connected) send_subscriptions_to_ws();
+        } else {
+            Object.keys(subscriptions).forEach(function (name) {
+                if (subscriptions[name] > 0 && !non_live_subscriptions_got[name]) {
+                    non_live_subscriptions_got[name] = true;
+                    if (name=='riders_points') {
+                        get('/riders_points').then(function(data) {on_new_state_received({'riders_points': data});}).catch(promise_catch);
+                    }
+                    if (name=='riders_off_route') {
+                        get('/riders_off_route').then(function(data) {on_new_state_received({'riders_off_route': data});}).catch(promise_catch);
+                    }
                 }
-                if (name=='riders_off_route') {
-                    get('/riders_off_route').then(function(data) {on_new_state_received({'riders_off_route': data});}).catch(promise_catch);
-                }
-            }
-        });
-    }
+            });
+        }
+    });
 }
 
 function send_subscriptions_to_ws(){
@@ -319,7 +326,6 @@ Array.prototype.forEach.call(desktop_selectors, function (el){
 });
 
 
-var config_loaded = new Deferred();
 var map;
 var route_marker;
 
