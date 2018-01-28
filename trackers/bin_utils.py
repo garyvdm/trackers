@@ -281,11 +281,20 @@ async def update_bounds(app, settings, args):
     event.save('update_bounds: {}'.format(args.event_name), tree_writer=writer)
 
 
-@async_command(partial(event_command_parser, description="Reprocess event routes."), basic=True)
+def process_event_routes_parser(*args, **kwargs):
+    parser = get_base_argparser(*args, **kwargs)
+    parser.add_argument('event_name', action='store')
+    parser.add_argument('--rdp-epsilon', action='store', type=int)
+    return parser
+
+
+@async_command(partial(process_event_routes_parser, description="Reprocess event routes."), basic=True)
 async def process_event_routes(app, settings, args):
     writer = TreeWriter(app['trackers.data_repo'])
     event = await trackers.events.Event.load(app, args.event_name, writer)
     for route in event.routes:
+        if args.rdp_epsilon:
+            route['rdp_epsilon'] = args.rdp_epsilon
         await process_route(settings, route)
     process_secondary_route_details(event.routes)
     event.save('process_event_routes: {}'.format(args.event_name), tree_writer=writer)
