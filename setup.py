@@ -17,6 +17,7 @@ setuptools.setup(
         'dulwich',
         'filemagic',
         'fixtures',
+        'libsass',
         'more-itertools',
         'msgpack-python',
         'nvector',

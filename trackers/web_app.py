@@ -25,6 +25,7 @@ from trackers.web_helpers import (
     etag_response,
     immutable_cache_control,
     ProcessedStaticManager,
+    sass_body_loader,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ async def make_aio_app(settings,
     app['exception_recorder'] = exception_recorder
 
     app['static_manager'] = static_manager = ProcessedStaticManager(app, 'trackers', (on_static_processed, ))
-    static_manager.add_resource('/static/event.css', charset='utf8', content_type='text/css')
+    static_manager.add_resource('/static/event.css', charset='utf8', content_type='text/css', body_loader=sass_body_loader)
     static_manager.add_resource('/static/event.js', charset='utf8', content_type='text/javascript')
     static_manager.add_resource('/static/lib.js', charset='utf8', content_type='text/javascript')
     static_manager.add_resource('/static/individual.js', charset='utf8', content_type='text/javascript')
@@ -203,7 +204,7 @@ def ensure_event_page(app, event):
                 page_body_processor,
                 api_key=app['trackers.settings']['google_api_key'],
                 title=event.config['title'],
-            )
+            ),
         )
 
 
