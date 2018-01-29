@@ -84,6 +84,7 @@ function on_new_state_received(new_state) {
     if (new_state.hasOwnProperty('config_hash') && state.config_hash != new_state.config_hash) {
         event_markers.forEach(function (marker) { marker.setMap(null) });
         event_markers = [];
+        // console.log('clear markers')
         Object.keys(riders_client_items).forEach(function (rider_name){
             var rider_items = riders_client_items[rider_name]
             Object.values(rider_items.paths || {}).forEach(function (paths){
@@ -101,6 +102,7 @@ function on_new_state_received(new_state) {
         riders_predicted = {};
         riders_points = {};
         riders_off_route = {};
+        config_loaded.reject();
         config_loaded = new Deferred();
 
         state.config_hash = new_state.config_hash;
@@ -112,12 +114,14 @@ function on_new_state_received(new_state) {
         need_save = true;
     }
     if (new_state.hasOwnProperty('routes_hash') && state.routes_hash != new_state.routes_hash) {
+        // console.log('clear routes');
         route_paths.forEach(function (path) { path.setMap(null) });
         elevation_chart.series.forEach(function (series) { series.remove(false) });
 
         state.routes_hash = new_state.routes_hash;
         get('/routes?hash=' + state.routes_hash).then(function (new_routes){
             routes = new_routes;
+            // console.log('routes loaded');
             on_new_routes();
         }).catch(promise_catch);
         need_save = true;
@@ -409,8 +413,7 @@ function on_new_config(){
             map.fitBounds(bounds);
         }
 
-        riders_by_name = {};
-        riders_client_items = {}
+        // console.log('set riders_client_items');
         config.riders.forEach(function (rider) {
             riders_by_name[rider.name] = rider
             riders_client_items[rider.name] = {
@@ -434,6 +437,8 @@ var route_marker;
 
 function on_new_routes(){
     config_loaded.promise.then( function () {
+        // console.log('add routes');
+
         route_paths = routes.map(function (route){
             return new google.maps.Polyline({
                 map: map,
@@ -615,6 +620,8 @@ function on_new_rider_values(rider_name){
         if (values.hasOwnProperty('position')) {
             var position = new google.maps.LatLng(values.position[0], values.position[1])
             if (!rider_items.marker) {
+                // console.log('add marker for '+rider_name);
+
                 rider_items.marker = new RichMarker({
                     map: map,
                     position: position,
@@ -859,7 +866,6 @@ my_position_el.onclick = function(){
 }
 
 function geo_location_success(position){
-    console.log(position);
     var map_position = new google.maps.LatLng(position.coords.latitude, position.coords.longitude)
     if (!my_position_marker){
         var marker_html = '<div class="rider-marker" style="background: black; color: white;">Me</div>' +

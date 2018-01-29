@@ -70,6 +70,7 @@ async def load_events(app, ref=b'HEAD', new_event_observable=Observable(logger),
             else:
                 events[name] = event = await Event.load(app, name, tree_reader)
                 await new_event_observable(event)
+        logger.info('Events loaded.')
 
 
 def hash_bytes(b):
