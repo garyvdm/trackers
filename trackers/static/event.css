@@ -2,19 +2,23 @@
     font: 400 13px Roboto, Arial, sans-serif;
 }
 
-html, body {
-    margin: 0px;
-    padding: 0px;
-    height: 100%;
+@mixin display-flex {
+    display: -ms-flexbox; display: flex;
 }
 
-#foo{
+@mixin display-flex-column {
     display: -ms-flexbox; display: flex;
     -ms-flex-direction: column; flex-direction: column;
-    height: 100%;
-    width: 100%;
-    max-height: 100%;
-    max-width: 100%;
+}
+
+body {
+    overflow: hidden;
+}
+
+#foo {
+    @include display-flex-column;
+    position: absolute;
+    top: 0; bottom: 0; left: 0; right: 0;
 }
 
 #badbrowser {
@@ -28,11 +32,11 @@ html, body {
 }
 
 
-#head{
+#head {
     padding: 8px;
     background: #4285F4;
     color: white;
-    display: -ms-flexbox; display: flex;
+    @include display-flex;
     -ms-flex-wrap: wrap; flex-wrap: wrap;
     justify-content: space-between;
 }
@@ -41,12 +45,12 @@ html, body {
     -ms-flex: 1 1 auto;
 }
 
-#title{
+#title {
     font-weight: bold;
     font-size: larger;
 }
 
-#race_time{
+#race_time {
 }
 
 #status {
@@ -54,7 +58,7 @@ html, body {
 }
 
 #map_riders {
-    display: -ms-flexbox; display: flex;
+    @include display-flex;
     -ms-flex: 1 1 80%; flex: 1 1 100px;
     position: relative;
 }
@@ -78,75 +82,32 @@ html, body {
 }
 
 #riders_options {
-    display: flex;
-    -ms-flex-direction: column; flex-direction: column;
-    -ms-flex: 1 1 20%; flex: 1 1 20%;
+    display: none;
     background: white;
     position: relative;
-}
-
-#riders_contain {
-    position: relative;
-    -ms-flex: 1 1 100%; flex: 1 1 100%;
-}
-
-#options {
-    padding: 8px;
-}
-
-#options div {
-    display: block;
-    padding: 8px;
-    width: 200px;
 }
 
 #riders {
     padding: 8px;
-    overflow: auto;
-}
 
-.big #riders_contain #riders {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    max-height: 100%;
-}
+    table {
+        border-collapse: collapse;
+    }
 
-.big #riders_contain {
-    height: 100%;
-}
+    .head>* {
+        font-weight: bold;
+    }
 
-#riders_options.small  {
-    position: absolute;
-    top: 0;
-    box-shadow: 2px 2px 4px -1px rgba(0, 0, 0, 0.5);
-    background: white;
-    border-radius: 2px;
-    z-index: 3;
-    margin: 10px;
-}
-
-
-#riders table{
-    border-collapse: collapse;
-}
-
-#riders .head>*{
-    font-weight: bold;
-}
-
-#riders td{
-    padding: 10px;
+    td {
+        padding: 10px;
+    }
 }
 
 .rider {
     cursor: pointer;
-}
-
-.rider td{
-    cursor: pointer;
+    td{
+        cursor: pointer;
+    }
 }
 
 .rider.selected {
@@ -154,95 +115,152 @@ html, body {
     color: white;
 }
 
+#options {    
+    padding: 8px;
+    
+    div {
+        display: block;
+        padding: 8px;
+        width: 200px;
+    }
+}
 
 .select {
-    display: -ms-flexbox; display: flex;
+    @include display-flex;
     background: #4285F4;
     color: white;
     justify-content: space-around;
-}
 
-.select > * {
-    border-bottom: 4px solid #4285F4;
-    flex-basis: 8em;
-    padding: 10px;
-    text-align: center;
-    font-weight: bold;
-    cursor: pointer;
-}
-.select > .selected {
-    border-bottom: 4px solid white;
-}
+    > * {
+        border-bottom: 4px solid #4285F4;
+        flex-basis: 8em;
+        padding: 10px;
+        text-align: center;
+        font-weight: bold;
+        cursor: pointer;
+    }
 
-
-.desktop_show_riders #options {
-    display: none;
-}
-.desktop_show_riders #riders_contain {
-    display: block;
-}
-.desktop_show_options #options {
-    display: block;
-}
-.desktop_show_options #riders_contain {
-    display: none;
+    > .selected {
+        border-bottom: 4px solid white;
+    }
 }
 
 
-#mobile_select {
-    display: none;
-}
+@media screen and (min-width: 801px) {
 
+    #mobile_select {
+        display: none;
+    }
+
+    #riders_options.big{
+        @include display-flex-column;
+        top: 0; bottom: 0; left: 0; right: 0;
+        -ms-flex: 1 1 20%; flex: 1 1 20%;
+
+        #riders_options_inner {
+            -ms-flex: 1 1 100%; flex: 1 1 100%;
+            position: relative;
+            top: 0; bottom: 0; left: 0; right: 0;
+
+            >* {
+                position: absolute;
+                top: 0; bottom: 0; left: 0; right: 0;
+                overflow: auto;
+            }
+        }
+    }
+
+    #riders_options.small  {
+        @include display-flex-column;
+        position: absolute;
+        top: 0;
+        box-shadow: 2px 2px 4px -1px rgba(0, 0, 0, 0.5);
+        border-radius: 2px;
+        z-index: 3;
+        margin: 10px;
+    }
+
+
+    .desktop_show_riders {
+        #options {
+            display: none;
+        }
+        #riders {
+            display: block;
+        }
+    }
+
+    .desktop_show_options {
+        #options {
+            display: block;
+        }
+        #riders {
+            display: none;
+        }
+    }    
+
+}
 @media screen and (max-width: 800px) {
     #desktop_select {
         display: none;
     }
 
     #mobile_select {
-        display: -ms-flexbox; display: flex;
+        @include display-flex;
     }
 
-    #riders {
+    .show_map {
+        #map_contain, #elevation{
+            display: block;
+        }
+        #riders_options{
+            display: none;
+        }
+    }
+
+    .show_riders {
+        #map_contain, #elevation, #options{
+            display: none;
+        }
+        #riders_options {
+            @include display-flex-column;            
+        }
+        #riders{
+            display: block;
+        }
+
+    }
+    .show_options {
+        #map_contain, #elevation, #riders{
+            display: none;
+        }
+        #riders_options {
+            @include display-flex-column;
+        }
+        #options{
+            display: block;
+        }
+    }
+
+    #riders_options{
+        @include display-flex-column;
         position: absolute;
-        left: 0;
-        right: 0;
-        top: 0;
-        bottom: 0;
-        max-height: 100%;
-    }
-    .show_map #map_contain, .show_map #elevation{
-        display: block;
-    }
-    .show_map #riders_options{
-        display: none;
-    }
-    .show_riders #map_contain, .show_riders #elevation, .show_riders #options{
-        display: none;
-    }
-    .show_riders #riders_options, .show_riders #riders_contain{
-        display: block;
-    }
-    .show_options #map_contain, .show_options #elevation, .show_options #riders_contain{
-        display: none;
-    }
-    .show_options #riders_options, .show_options #options{
-        display: block;
-    }
-    #riders_options, #riders_options.small {
-        position: relative;
-        box-shadow: none;
-        max-width: 100%;
-    }
-    #riders_contain {
-        height: 100%;
-        position: relative;
-    }
-    #riders{
-        position: absolute;
-        max-width: 100%;
         top: 0; bottom: 0; left: 0; right: 0;
-        padding: 8px;
+        min-width: inherit !important;
     }
+
+    #riders_options_inner {
+        -ms-flex: 1 1 100%; flex: 1 1 100%;
+        position: relative;
+        top: 0; bottom: 0; left: 0; right: 0;
+
+        >* {
+            position: absolute;
+            top: 0; bottom: 0; left: 0; right: 0;
+            overflow: auto;
+        }
+    }
+
     #riders>table{
         width: 100%
     }

@@ -61,32 +61,30 @@
         <div show="options">Options</div>
       </div>
       <div id="map_riders">
-        <div id="riders_options" class="big">
+        <div id="riders_options">
           <div id="desktop_select" class="select">
             <div show="riders" class="selected">Riders</div>
             <div show="options">Options</div>
           </div>
-          <div id="riders_contain">
+          <div id="riders_options_inner">
             <div id="riders">
               <label style="padding: 10px; display: block;"><input type="checkbox" id="riders_detail"> Riders Detail</label>
               <div id="riders_actual"></div>
             </div>
-          </div>
-
-          <div id="options">
-            <div>
-              <label style="font-weight: bold;"><input type="checkbox" id="predicted" checked> Predicted Positions</label> <br>
-            </div>
-
-            <div>
-              <span style="font-weight: bold;">Points from riders tracks to show: </span>
-              <label><input type="radio" name="show_routes" id="show_routes_riders_points" value="riders_points"> All Points</label><br>
-              <label><input type="radio" name="show_routes" id="show_routes_riders_off_route" value="riders_off_route" checked> Only Off Route Points</label><br>
-              Note: you can see a full track for a single rider by clicking on their name.
-            </div>
-            <div>
-              <label style="font-weight: bold;"><input type="checkbox" id="my_position"> Show My Position</label> <br>
-              This requires permission to access your devices location, and will only show show on your screen. Useful for spectators who are on route.
+            <div id="options">
+              <div>
+                <label style="font-weight: bold;"><input type="checkbox" id="predicted" checked> Predicted Positions</label> <br>
+              </div>
+              <div>
+                <span style="font-weight: bold;">Points from riders tracks to show: </span>
+                <label><input type="radio" name="show_routes" id="show_routes_riders_points" value="riders_points"> All Points</label><br>
+                <label><input type="radio" name="show_routes" id="show_routes_riders_off_route" value="riders_off_route" checked> Only Off Route Points</label><br>
+                Note: you can see a full track for a single rider by clicking on their name.
+              </div>
+              <div>
+                <label style="font-weight: bold;"><input type="checkbox" id="my_position"> Show My Position</label> <br>
+                This requires permission to access your devices location, and will only show show on your screen. Useful for spectators who are on route.
+              </div>
             </div>
           </div>
         </div>
