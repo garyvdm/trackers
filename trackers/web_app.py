@@ -527,6 +527,8 @@ async def individual_ws(get_key, get_tracker, request):
                 if msg.tp == WSMsgType.error:
                     raise ws.exception()
             return ws
+    except asyncio.CancelledError:
+        pass
     except Exception as e:
         request.app['exception_recorder']()
         ws.send_str(json_dumps({'error': 'Error getting tracker: {}'.format(e)}))
