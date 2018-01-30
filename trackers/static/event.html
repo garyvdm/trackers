@@ -83,7 +83,7 @@
             }}
             errors.push(messageOrEvent);
             update_status();
-            var full_error_message = messageOrEvent + '\n' + (error? error.stack: source + ':' + lineno + ':' + colno)
+            var full_error_message = messageOrEvent + '\n' + (error && error.stack != ""? error.stack: source + ':' + lineno + ':' + colno)
             log_to_server(full_error_message);
             return false;
         }}

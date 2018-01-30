@@ -332,6 +332,7 @@ Array.prototype.forEach.call(desktop_selectors, function (el){
 
 var map;
 var route_marker;
+var point_info_window = new google.maps.InfoWindow();
 
 var elevation_chart = Highcharts.chart('elevation', {
     chart: { type: 'line', height: null },
@@ -418,9 +419,10 @@ function on_new_config(){
             riders_by_name[rider.name] = rider
             riders_client_items[rider.name] = {
                 paths: {
-                    'riders_points': [],
-                    'riders_off_route': [],
+                    riders_points: [],
+                    riders_off_route: [],
                 },
+                point_markers: [],
                 marker: null,
             };
             if (riders_values.hasOwnProperty(rider.name)) {
@@ -584,6 +586,7 @@ function on_new_rider_points(rider_name, list_name, items, new_items, old_items)
             }
         });
 
+        if (rider_name == selected_rider && list_name == 'riders_points') update_selected_rider_point_markers();
     }).catch(promise_catch);
 }
 
@@ -784,6 +787,7 @@ riders_detail_el.onclick = update_rider_table;
 
 var selected_rider = null;
 function rider_onclick(row, rider_name, event) {
+    point_info_window.close();
     if (selected_rider) subscriptions['riders_points.'+selected_rider] = Math.max((subscriptions['rider_points.'+selected_rider] || 0) - 1, 0);
 
     Array.prototype.forEach.call(riders_el, function (el){
@@ -842,6 +846,76 @@ function rider_onclick(row, rider_name, event) {
     }
     if (selected_rider) subscriptions['riders_points.'+selected_rider] = Math.max((subscriptions['rider_points.'+selected_rider] || 0) + 1, 0);
     subscriptions_updated();
+    update_selected_rider_point_markers();
+}
+
+function update_selected_rider_point_markers(){
+    Object.values(riders_client_items).forEach(function (rider_items){
+        rider_items.point_markers.forEach(function (marker) {marker.setMap(null)});
+        rider_items.point_markers = [];
+    });
+    if (selected_rider && riders_points.hasOwnProperty(selected_rider)) {
+        var bounds = map.getBounds();
+        var rider_items = riders_client_items[selected_rider];
+        var rider = riders_by_name[selected_rider];
+        var color = rider.color || 'black';
+
+        rider_items.point_markers = riders_points[selected_rider].map(function (point){
+            var marker = new google.maps.Circle({
+                strokeColor: color,
+                strokeWeight: 3,
+                fillColor: color,
+                fillOpacity: 0.35,
+                map: map,
+                center: new google.maps.LatLng(point.position[0], point.position[1]),
+                radius: point.accuracy | 100
+            });
+            marker.addListener('click', function() {
+                var content = '<table>';
+                if (point.hasOwnProperty('time')) {
+                    // TODO more than a day
+                    var current_time = (new Date().getTime() / 1000) - time_offset;
+                    var seconds = current_time - point.time;
+                    var rel_time;
+                    if (seconds < 60) { rel_time = '< 1 min ago' }
+                    else if (seconds < 60 * 60) { rel_time = sprintf('%i min ago', Math.floor(seconds / 60))}
+                    else { rel_time = sprintf('%i:%02i ago', Math.floor(seconds / 60 / 60), Math.floor(seconds / 60 % 60))}
+                    var time = new Date(point.time * 1000);
+
+                    content += sprintf('<tr><td style="font-weight: bold;">Time:</td><td>%s<br>%s</td></tr>',
+                                       time.toLocaleString(), rel_time);
+                }
+                content += sprintf('<tr><td style="font-weight: bold;">Position:</td><td>%s, %s</td></tr>',
+                                   point.position[0], point.position[1]);
+                if (point.hasOwnProperty('accuracy')) {
+                    content += sprintf('<tr><td style="font-weight: bold;">Accuracy:</td><td>%.1f m</td></tr>',
+                                       point.accuracy);
+                }
+                if (point.position.length == 3) {
+                    content += sprintf('<tr><td style="font-weight: bold;">Elevation:</td><td>%.0f m</td></tr>',
+                                       point.position[2]);
+                }
+                if (point.hasOwnProperty('dist_route')) {
+                    content += sprintf('<tr><td style="font-weight: bold;">Dist on Route:</td><td>%.1f km</td></tr>',
+                                       point.dist_route / 1000);
+                }
+                if (point.hasOwnProperty('dist_from_last')) {
+                    content += sprintf('<tr><td style="font-weight: bold;">Dist from last point:</td><td>%.1f km</td></tr>',
+                                       point.dist_from_last / 1000);
+                }
+                if (point.hasOwnProperty('speed_from_last')) {
+                    content += sprintf('<tr><td style="font-weight: bold;">Speed from last point:</td><td>%.1f km/h</td></tr>',
+                                       point.speed_from_last );
+                }
+                content += '</table>';
+                point_info_window.setContent(content);
+                point_info_window.open(map, marker);
+                point_info_window.setPosition(new google.maps.LatLng(point.position[0], point.position[1]));
+            });
+            return marker;
+        });
+
+    }
 }
 
 load_state();
