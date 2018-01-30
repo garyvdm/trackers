@@ -77,9 +77,16 @@
               </div>
               <div>
                 <span style="font-weight: bold;">Points from riders tracks to show: </span>
-                <label><input type="radio" name="show_routes" id="show_routes_riders_points" value="riders_points"> All Points</label><br>
-                <label><input type="radio" name="show_routes" id="show_routes_riders_off_route" value="riders_off_route" checked> Only Off Route Points</label><br>
+                <label><input type="radio" name="show_routes" value="riders_off_route" checked> Only Off Route Points</label><br>
+                <label><input type="radio" name="show_routes" value="riders_points"> All Points</label><br>
                 Note: you can see a full track for a single rider by clicking on their name.
+              </div>
+              <div>
+                <span style="font-weight: bold;">Markers for individual positions: </span>
+                <label><input type="radio" name="show_position_markers" value="markers" checked> Plain Markers</label><br>
+                <label><input type="radio" name="show_position_markers" value="accuracy_circles"> Accuracy Circles</label><br>
+                <label><input type="radio" name="show_position_markers" value="none"> None</label><br>
+                Note: these only show for a selected rider.
               </div>
               <div>
                 <label style="font-weight: bold;"><input type="checkbox" id="my_position"> Show My Position</label> <br>
