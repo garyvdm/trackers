@@ -140,7 +140,7 @@ class Event(object):
     def save(self, message, author=None, tree_writer=None):
         if tree_writer is None:
             tree_writer = TreeWriter(self.app['trackers.data_repo'])
-        config_text = yaml.dump(self.config, default_flow_style=False)
+        config_text = yaml.dump(self.config, default_flow_style=False, Dumper=YamlEventDumper)
         tree_writer.set_data(self.config_path, config_text.encode())
 
         if self.routes:
@@ -279,3 +279,42 @@ class Event(object):
             except Exception:
                 self.logger.exception('Error in predicted:')
             self.new_points.clear()
+
+
+dict_key_order = {
+    # Event
+    'title': -10,
+    'event_start': -9,
+    'tracker_start': -8,
+    'tracker_end': -7,
+    'live': -6,
+    'analyse': -5,
+    'replay': -4,
+    'riders': 10,
+
+    # Rider
+    'name': -5,
+    'name_short': -4,
+
+    # Tracker
+    'type': -10,
+}
+
+
+def dict_key_order_key(item):
+    key, value = item
+    order = dict_key_order.get(key, 0)
+    return order, key
+
+
+def yaml_represent_dict(self, dict):
+    # Control the order of the key
+    mapping = sorted(dict.items(), key=dict_key_order_key)
+    return self.represent_mapping('tag:yaml.org,2002:map', mapping)
+
+
+class YamlEventDumper(yaml.Dumper):
+    pass
+
+
+YamlEventDumper.add_representer(dict, yaml_represent_dict)

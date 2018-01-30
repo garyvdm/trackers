@@ -26,14 +26,14 @@ class TestConvertToStatic(asynctest.TestCase, TestEventWithMockTracker):
 
         writer.reset()
         self.assertEqual(writer.get('events/test_event/data.yaml').data.decode(), dedent('''
-            analyse: false
             live: false
+            analyse: false
             riders:
             - name: foo
               tracker:
-                format: json
-                name: foo
                 type: static
+                name: foo
+                format: json
             ''').lstrip('\n'))
         self.assertEqual(writer.get('events/test_event/foo').data.decode(), '[]')
 
