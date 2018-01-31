@@ -19,10 +19,23 @@ function load_state(){
 }
 
 function save_state(state){
+    var storage = window.localStorage;
     if (state.live) {
-        window.localStorage.setItem(location.pathname, JSON.stringify(state));
+        try{
+            storage.setItem(location.pathname, JSON.stringify(state));
+        } catch(error) {
+            var keys = [];
+            var key;
+            for (var i=0; i<storage.length; i++) {
+                key = storage.key(i);
+                keys.push(key);
+            }
+            keys.forEach(function (key) { storage.removeItem(key); });
+            log_to_server('Error in save_state. Storage was cleared. Will retry save.\nError: ' + error.toString() + '\nStorage keys: '+keys.toString());
+            storage.setItem(location.pathname, JSON.stringify(state));
+        }
     } else {
-        window.localStorage.removeItem(location.pathname);
+        storage.removeItem(location.pathname);
     }
 }
 
