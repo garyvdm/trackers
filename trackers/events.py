@@ -265,15 +265,15 @@ class Event(object):
     def rider_sort_key_func(self, riders_predicted_points, rider_name):
         rider_values = self.rider_current_values.get(rider_name, {})
         finished = 'finished_time' in rider_values
-        time_to_finish = self.event_start - rider_values['finished_time'] if finished else None
+        time_to_finish =  rider_values['finished_time'] - self.event_start if finished else None
         has_dist_on_route = 'dist_route' in rider_values
         dist_on_route = riders_predicted_points.get(rider_name, {}).get('dist_route') or rider_values.get('dist_route', 0)
-        return finished, time_to_finish, not has_dist_on_route, 0 - dist_on_route
+        return not finished, time_to_finish, not has_dist_on_route, 0 - dist_on_route
 
     async def predicted(self):
         while True:
             with suppress(asyncio.TimeoutError):
-                await asyncio.wait_for(self.new_points.wait(), 5)
+                await asyncio.wait_for(self.new_points.wait(), 10)
 
             try:
                 time = datetime.datetime.now()
@@ -309,12 +309,17 @@ class Event(object):
                                 rider_time = time
                             if rider_dist_route:
                                 i = bisect(leader_points, (rider_dist_route, ))
-                                point1 = leader_points[i - 1]
-                                point2 = leader_points[i]
-                                interpolate = (rider_dist_route - point1[0]) / (point2[0] - point1[0])
-                                interpolated_time = ((point2[1] - point1[1]) * interpolate) + point1[1]
-                                time_diff = rider_time - interpolated_time
-                                rider_predicted_points['leader_time_diff'] = time_diff.total_seconds()
+                                if i < len(leader_points):
+                                    point1 = leader_points[i - 1]
+                                    point2 = leader_points[i]
+                                    try:
+                                        interpolate = (rider_dist_route - point1[0]) / (point2[0] - point1[0])
+                                    except FloatingPointError:
+                                        pass
+                                    else:
+                                        interpolated_time = ((point2[1] - point1[1]) * interpolate) + point1[1]
+                                        time_diff = rider_time - interpolated_time
+                                        rider_predicted_points['leader_time_diff'] = time_diff.total_seconds()
 
                 self.riders_predicted_points = {key: value for key, value in riders_predicted_points.items() if value}
                 await self.rider_predicted_updated_observable(self, self.riders_predicted_points, time)
