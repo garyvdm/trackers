@@ -4,6 +4,7 @@ import datetime
 import hashlib
 import logging
 import os
+from bisect import bisect
 from contextlib import closing, suppress
 from functools import partial
 
@@ -177,7 +178,7 @@ class Event(object):
         self.rider_current_values = {}
         self.rider_off_route_trackers = {}
         self.rider_off_route_blocked_list = {}
-        self.rider_predicted_points = {}
+        self.riders_predicted_points = {}
 
         if analyse:
             self.rider_analyse_trackers = {}
@@ -262,6 +263,14 @@ class Event(object):
             await self.rider_new_points_observable(self, rider_name, tracker, new_points)
         self.new_points.set()
 
+    def rider_sort_key_func(self, riders_predicted_points, rider_name):
+        rider_values = self.rider_current_values.get(rider_name, {})
+        finished = 'finished_time' in rider_values
+        time_to_finish = self.event_start - rider_values['finished_time'] if finished else None
+        has_dist_on_route = 'dist_route' in rider_values
+        dist_on_route = riders_predicted_points.get(rider_name, {}).get('dist_route') or rider_values.get('dist_route', 0)
+        return finished, time_to_finish, not has_dist_on_route, 0 - dist_on_route
+
     async def predicted(self):
         while True:
             with suppress(asyncio.TimeoutError):
@@ -269,11 +278,47 @@ class Event(object):
 
             try:
                 time = datetime.datetime.now()
-                rider_predicted_points = [(rider_name, tracker.get_predicted_position(time))
-                                          for rider_name, tracker in self.rider_analyse_trackers.items()]
-                filtered = [item for item in rider_predicted_points if item[1]]
-                self.rider_predicted_points = dict(filtered)
-                await self.rider_predicted_updated_observable(self, self.rider_predicted_points, time)
+                riders_predicted_points = {rider_name: tracker.get_predicted_position(time) or {}
+                                           for rider_name, tracker in self.rider_analyse_trackers.items()}
+                sort_key_func = partial(self.rider_sort_key_func, riders_predicted_points)
+                rider_names_sorted = list(sorted((rider['name'] for rider in self.config['riders']), key=sort_key_func))
+
+                leader = rider_names_sorted[0]
+                leader_points = []
+                last_point = None
+                for point in self.rider_trackers[leader].points:
+                    if 'dist_route' in point:
+                        going_forward = point['dist_route'] > last_point['dist_route'] if last_point else True
+                        if going_forward:
+                            leader_points.append((point['dist_route'], point['time']))
+                            last_point = point
+                if 'dist_route' in riders_predicted_points[leader]:
+                    leader_points.append((riders_predicted_points[leader]['dist_route'], time))
+
+                if leader_points:
+                    for rider_name in rider_names_sorted[1:]:
+                        rider_predicted_points = riders_predicted_points.get(rider_name)
+                        rider_values = self.rider_current_values.get(rider_name)
+                        if rider_values and rider_values.get('status') == 'Active':
+                            rider_dist_route = None
+                            rider_time = None
+                            if rider_predicted_points and 'dist_route' in rider_predicted_points:
+                                rider_dist_route = rider_predicted_points['dist_route']
+                                rider_time = time
+                            elif rider_values and 'dist_route' in rider_values:
+                                rider_dist_route = rider_values['dist_route']
+                                rider_time = time
+                            if rider_dist_route:
+                                i = bisect(leader_points, (rider_dist_route, ))
+                                point1 = leader_points[i - 1]
+                                point2 = leader_points[i]
+                                interpolate = (rider_dist_route - point1[0]) / (point2[0] - point1[0])
+                                interpolated_time = ((point2[1] - point1[1]) * interpolate) + point1[1]
+                                time_diff = rider_time - interpolated_time
+                                rider_predicted_points['leader_time_diff'] = time_diff.total_seconds()
+
+                self.riders_predicted_points = {key: value for key, value in riders_predicted_points.items() if value}
+                await self.rider_predicted_updated_observable(self, self.riders_predicted_points, time)
             except asyncio.CancelledError:
                 raise
             except Exception:

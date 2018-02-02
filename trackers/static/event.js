@@ -728,6 +728,7 @@ function update_rider_table(){
             var last_position_time;
             var finished_time;
             var speed;
+            var leader_time_diff = '';
             var rider_status = (rider.hasOwnProperty('status') ? rider.status : values.rider_status || '' );
             if (values.finished_time) {
                 if (config && config.hasOwnProperty('event_start')){
@@ -745,6 +746,14 @@ function update_rider_table(){
                 else if (seconds < 60 * 60) { last_position_time = sprintf('%i min ago', Math.floor(seconds / 60))}
                 else { last_position_time = sprintf('%i:%02i ago', Math.floor(seconds / 60 / 60), Math.floor(seconds / 60 % 60))}
             }
+            if (values.hasOwnProperty('leader_time_diff')) {
+                var total_min = Math.round(values.leader_time_diff / 60);
+                var min = total_min % 60;
+                var hours = Math.floor(total_min / 60);
+                // TODO more than a day
+                if (total_min < 60) { leader_time_diff = sprintf(':%02i', min) }
+                else { leader_time_diff = sprintf('%i:%02i', hours, min) }
+            }
             if (show_detail) {
                 return '<tr rider_name="' + rider.name + '" class="rider">' +
                        '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
@@ -754,8 +763,9 @@ function update_rider_table(){
                        '<td style="text-align: right">' +  (last_position_time || '') + '</td>' +
                        '<td style="text-align: right">' +  (values.battery ? sprintf('%i %%', values.battery) : '') + '</td>' +
 //                           '<td style="text-align: right">' + (values.hasOwnProperty('dist_ridden') ? sprintf('%.1f', values.dist_ridden / 1000) : '') + '</td>' +
-                       '<td style="text-align: right">' + (values.status == 'Active' ? values.speed_from_last || '': '') + '</td>' +
+                       '<td style="text-align: right">' + (values.status == 'Active' ? sprintf('%.1f', values.speed_from_last) || '': '') + '</td>' +
                        '<td style="text-align: right">' + (values.hasOwnProperty('dist_route') ? sprintf('%.1f', values.dist_route / 1000) : '') + '</td>' +
+                       '<td style="text-align: right">' + leader_time_diff + '</td>' +
                        '<td style="text-align: right">' + (finished_time || '') + '</td>' +
                        '</tr>';
             } else {
@@ -780,9 +790,10 @@ function update_rider_table(){
 //                    '<td style="text-align: right">Dist<br>Ridden</td>' +
                 '<td style="text-align: right">Current<br>Speed</td>' +
                 '<td style="text-align: right">Dist on<br>Route</td>' +
+                '<td style="text-align: right">Gap to<br>Leader</td>' +
                 '<td style="text-align: right">Finish<br>Time</td>' +
                 '</tr>' + rider_rows.join('') + '</table>';
-            document.getElementById('riders_options').style.minWidth = '600px';
+            document.getElementById('riders_options').style.minWidth = '700px';
         } else {
             document.getElementById('riders_actual').innerHTML =
                 '<table>' + rider_rows.join('') + '</table>';

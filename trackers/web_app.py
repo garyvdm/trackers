@@ -420,7 +420,7 @@ async def event_ws(request):
                                 send({'riders_off_route': {rider_name: list.full for rider_name, list in event.rider_off_route_blocked_list.items()}})
 
                             if 'riders_predicted' in added_subscriptions:
-                                send({'riders_predicted': event.rider_predicted_points})
+                                send({'riders_predicted': event.riders_predicted_points})
 
                     except Exception:
                         logger.exception('Error in receive ws msg:')
