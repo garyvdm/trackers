@@ -774,7 +774,7 @@ function update_rider_table(){
                        '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
                        '<td>' + rider.name + '</td>' +
                        '<td>' + rider_status + '</td>' +
-                       '<td style="text-align: right">' + (values.status == 'Active' ? sprintf('%.1f', values.speed_from_last) || '': '') + '</td>' +
+                       '<td style="text-align: right">' + (values.status == 'Active' && values.speed_from_last ? sprintf('%.1f', values.speed_from_last) || '': '') + '</td>' +
                        '<td style="text-align: right">' + (values.hasOwnProperty('dist_route') ? sprintf('%.1f', values.dist_route / 1000) : '') + '</td>' +
                        '<td style="text-align: right">' + leader_time_diff + '</td>' +
                        '<td style="text-align: right">' + (finished_time || '') + '</td>' +
