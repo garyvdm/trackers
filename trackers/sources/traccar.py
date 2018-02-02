@@ -213,8 +213,12 @@ async def tracker_finish(tracker):
 
 
 def traccar_position_translate(position):
+    if  position['altitude'] :
+        p = [position['latitude'], position['longitude'], position['altitude']]
+    else:
+        p = [position['latitude'], position['longitude']]
     return {
-        'position': [position['latitude'], position['longitude'], position['altitude']],
+        'position': p,
         'accuracy': position['accuracy'],
         'battery': position['attributes'].get('batteryLevel'),
         'time': parse_datetime(position['fixTime']).astimezone().replace(tzinfo=None),
