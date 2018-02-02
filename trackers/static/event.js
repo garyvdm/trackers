@@ -537,15 +537,21 @@ function adjust_elevation_chart_bounds() {
     }
 }
 
+function get_radio_value (name) {
+    var value;
+    var radios = document.getElementsByName(name);
+    Array.prototype.forEach.call(radios, function (radio) {
+        if (radio.checked) value = radio.value;
+    });
+    return value;
+}
+
 
 var show_routes;
 
 function onclick_show_routes() {
     if (show_routes) subscriptions[show_routes] = Math.max((subscriptions[show_routes] || 0) - 1, 0);
-    var radios = document.getElementsByName('show_routes');
-    Array.prototype.forEach.call(radios, function (radio) {
-        if (radio.checked) show_routes = radio.value;
-    });
+    show_routes = get_radio_value('show_routes');
 
     Object.keys(riders_client_items).forEach(update_rider_paths_visible);
 
@@ -874,25 +880,12 @@ function rider_onclick(row, rider_name, event) {
     update_selected_rider_point_markers();
 }
 
-
-var show_position_markers;
-
-function onclick_show_position_markers() {
-    var radios = document.getElementsByName('show_position_markers');
-    Array.prototype.forEach.call(radios, function (radio) {
-        if (radio.checked) show_position_markers = radio.value;
-    });
-    update_selected_rider_point_markers();
-}
-
-onclick_show_position_markers();
-Array.prototype.forEach.call(document.getElementsByName('show_position_markers'), function(radio) { radio.onclick = onclick_show_position_markers; });
-
 function update_selected_rider_point_markers(){
     Object.values(riders_client_items).forEach(function (rider_items){
         rider_items.point_markers.forEach(function (marker) {marker.setMap(null)});
         rider_items.point_markers = [];
     });
+    var show_position_markers = get_radio_value('show_position_markers');
     if (selected_rider && riders_points.hasOwnProperty(selected_rider) && show_position_markers != 'none') {
         var bounds = map.getBounds();
         var rider_items = riders_client_items[selected_rider];
@@ -972,6 +965,8 @@ function update_selected_rider_point_markers(){
 
     }
 }
+
+Array.prototype.forEach.call(document.getElementsByName('show_position_markers'), function(radio) { radio.onclick = update_selected_rider_point_markers; });
 
 load_state();
 
