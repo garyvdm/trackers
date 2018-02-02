@@ -96,6 +96,7 @@ body {
 
     .head>* {
         font-weight: bold;
+        white-space: nowrap;
     }
 
     td {

@@ -27,7 +27,14 @@
           </div>
           <div id="riders_options_inner">
             <div id="riders">
-              <label style="padding: 10px; display: block;"><input type="checkbox" id="riders_detail"> Riders Detail</label>
+              <label style="padding: 10px;">
+                Detail level:
+                <select id="riders_detail_level">
+                  <option value="simple" selected>Simple</option>
+                  <option value="tracker">Tracker Status</option>
+                  <option value="progress">Progress Details</option>
+                </select>
+              </label>
               <div id="riders_actual"></div>
             </div>
             <div id="options">

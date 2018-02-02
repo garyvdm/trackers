@@ -694,7 +694,7 @@ function on_new_rider_values(rider_name){
 }
 
 var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-var riders_detail_el = document.getElementById('riders_detail');
+var riders_detail_level_el = document.getElementById('riders_detail_level');
 var riders_el = [];
 function update_rider_table(){
     if (config) {
@@ -727,7 +727,7 @@ function update_rider_table(){
         });
 
         var current_time = (new Date().getTime() / 1000) - time_offset;
-        var show_detail = riders_detail_el.checked;
+        var detail_level = riders_detail_level_el.value;
         var rider_rows = sorted_riders.map(function (rider){
             var rider_items = riders_client_items[rider.name] || {};
             var values = riders_values_l[rider.name] || {};
@@ -760,21 +760,27 @@ function update_rider_table(){
                 if (total_min < 60) { leader_time_diff = sprintf(':%02i', min) }
                 else { leader_time_diff = sprintf('%i:%02i', hours, min) }
             }
-            if (show_detail) {
+            if (detail_level == 'tracker') {
+                return '<tr rider_name="' + rider.name + '" class="rider">' +
+                       '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
+                       '<td>' + rider.name + '</td>' +
+                       '<td>' + (values.status || '') + '</td>' +
+                       '<td style="text-align: right">' +  (last_position_time || '') + '</td>' +
+                       '<td style="text-align: right">' +  (values.battery ? sprintf('%i %%', values.battery) : '') + '</td>' +
+                       '</tr>';
+            }
+            if (detail_level == 'progress') {
                 return '<tr rider_name="' + rider.name + '" class="rider">' +
                        '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
                        '<td>' + rider.name + '</td>' +
                        '<td>' + rider_status + '</td>' +
-                       '<td>' + (values.status || '') + '</td>' +
-                       '<td style="text-align: right">' +  (last_position_time || '') + '</td>' +
-                       '<td style="text-align: right">' +  (values.battery ? sprintf('%i %%', values.battery) : '') + '</td>' +
-//                           '<td style="text-align: right">' + (values.hasOwnProperty('dist_ridden') ? sprintf('%.1f', values.dist_ridden / 1000) : '') + '</td>' +
                        '<td style="text-align: right">' + (values.status == 'Active' ? sprintf('%.1f', values.speed_from_last) || '': '') + '</td>' +
                        '<td style="text-align: right">' + (values.hasOwnProperty('dist_route') ? sprintf('%.1f', values.dist_route / 1000) : '') + '</td>' +
                        '<td style="text-align: right">' + leader_time_diff + '</td>' +
                        '<td style="text-align: right">' + (finished_time || '') + '</td>' +
                        '</tr>';
-            } else {
+            }
+            if (detail_level == 'simple') {
                 return '<tr rider_name="' + rider.name + '" class="rider">' +
                        '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
                        '<td>' + rider.name + '</td>' +
@@ -784,23 +790,31 @@ function update_rider_table(){
                        '</tr>';
             }
         });
-        if (show_detail) {
+        if (detail_level == 'tracker') {
+            document.getElementById('riders_actual').innerHTML =
+                '<table><tr class="head">' +
+                '<td></td>' +
+                '<td>Name</td>' +
+                '<td>Tracker<br>Status</td>' +
+                '<td style="text-align: right">Last<br>Position</td>' +
+                '<td>Tracker<br>Battery</td>' +
+                '</tr>' + rider_rows.join('') + '</table>';
+            document.getElementById('riders_options').style.minWidth = '470px';
+        }
+        if (detail_level == 'progress') {
             document.getElementById('riders_actual').innerHTML =
                 '<table><tr class="head">' +
                 '<td></td>' +
                 '<td>Name</td>' +
                 '<td>Rider<br>Status</td>' +
-                '<td>Tracker<br>Status</td>' +
-                '<td style="text-align: right">Last<br>Position</td>' +
-                '<td>Tracker<br>Battery</td>' +
-//                    '<td style="text-align: right">Dist<br>Ridden</td>' +
                 '<td style="text-align: right">Current<br>Speed</td>' +
                 '<td style="text-align: right">Dist on<br>Route</td>' +
                 '<td style="text-align: right">Gap to<br>Leader</td>' +
                 '<td style="text-align: right">Finish<br>Time</td>' +
                 '</tr>' + rider_rows.join('') + '</table>';
-            document.getElementById('riders_options').style.minWidth = '700px';
-        } else {
+            document.getElementById('riders_options').style.minWidth = '500px';
+        }
+        if (detail_level == 'simple') {
             document.getElementById('riders_actual').innerHTML =
                 '<table>' + rider_rows.join('') + '</table>';
             document.getElementById('riders_options').style.minWidth = '250px';;
@@ -814,7 +828,7 @@ function update_rider_table(){
     }
 }
 setInterval(update_rider_table());
-riders_detail_el.onclick = update_rider_table;
+riders_detail_level_el.onclick = update_rider_table;
 
 var selected_rider = null;
 function rider_onclick(row, rider_name, event) {
