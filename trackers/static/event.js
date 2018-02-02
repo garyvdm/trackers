@@ -828,7 +828,7 @@ function update_rider_table(){
     }
 }
 setInterval(update_rider_table());
-riders_detail_level_el.onclick = update_rider_table;
+riders_detail_level_el.onchange = update_rider_table;
 
 var selected_rider = null;
 function rider_onclick(row, rider_name, event) {
