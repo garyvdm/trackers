@@ -151,7 +151,6 @@ class Event(object):
             if tree_writer.exists(self.routes_path):
                 tree_writer.remove(self.routes_path)
         tree_writer.commit(message, author=author)
-        _, self.git_hash = tree_writer.lookup(self.path)
 
     async def start_trackers(self):
         if self.starting_fut:

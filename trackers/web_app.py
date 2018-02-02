@@ -452,17 +452,12 @@ def message_to_multiple_wss(app, wss, msg, log_level=logging.DEBUG, filter_ws=No
                 logger.exception('Error sending msg to ws:')
 
 
-async def event_set_start(request):
-    event_name = request.match_info['event']
-    event_data = request.app['trackers.events_data'].get(event_name)
-    event_data['event_start'] = datetime.datetime.now()
-    trackers.events.save_event(request.app, request.app['trackers.settings'], event_name)
-
-    for send in request.app['trackers.events_ws_sessions'][event_name]:
-        send({'sending': 'event data'})
-        send({'event_data': event_data, 'server_version': server_version})
-
-    return web.Response(text='Start time set to {}'.format(event_data['event_start']))
+@say_error_handler
+@event_handler
+async def event_set_start(request, event):
+    event.config['event_start'] = datetime.datetime.now()
+    event.save("Set event start")
+    return web.Response(text='Start time set to {}'.format( event.config['event_start']))
 
 
 async def individual_page(request):
