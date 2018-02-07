@@ -1,8 +1,10 @@
 import asyncio
 import base64
 import contextlib
+import csv
 import datetime
 import hashlib
+import io
 import json
 import logging
 import re
@@ -94,7 +96,7 @@ async def make_aio_app(settings,
                          handler=partial(blocked_lists, blocked_list_attr_name='rider_trackers_blocked_list'))
     app.router.add_route('GET', '/{event}/riders_off_route', name='riders_off_route',
                          handler=partial(blocked_lists, blocked_list_attr_name='rider_off_route_blocked_list'))
-
+    app.router.add_route('GET', '/{event}/riders_csv', name='riders_csv', handler=riders_csv)
     app.router.add_route('GET', '/{event}/set_start', handler=event_set_start, name='event_set_start')
 
     app.router.add_route('POST', '/client_error', handler=client_error_handler, name='client_error')
@@ -291,6 +293,23 @@ async def blocked_lists(request, event, blocked_list_attr_name):
                              cache_control=immutable_cache_control)
 
 
+@say_error_handler
+@event_handler
+async def riders_csv(request, event):
+    rider_name = request.query.get('name')
+    tracker = event.rider_trackers[rider_name]
+
+    out_file = io.StringIO()
+    writer = csv.writer(out_file)
+
+    writer.writerow(['latitude', 'longitude', 'time'])
+    for point in tracker.points:
+        if 'position' in point:
+            writer.writerow((point['position'][0], point['position'][1], point['time'].isoformat()))
+    return etag_response(request, web.Response(text=out_file.getvalue(), content_type='text/csv'),
+                         etag=tracker.points[-1]['hash'])
+
+
 async def on_static_processed(static_manager):
     app = static_manager.app
     for event in app.get('trackers.events', {}).values():
@@ -457,7 +476,7 @@ def message_to_multiple_wss(app, wss, msg, log_level=logging.DEBUG, filter_ws=No
 async def event_set_start(request, event):
     event.config['event_start'] = datetime.datetime.now()
     event.save("Set event start")
-    return web.Response(text='Start time set to {}'.format( event.config['event_start']))
+    return web.Response(text='Start time set to {}'.format(event.config['event_start']))
 
 
 async def individual_page(request):
