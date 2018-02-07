@@ -244,7 +244,7 @@ class AnalyseTracker(Tracker):
                         await self.new_points(new_new_points)
                         new_new_points = []
                     if new_off_route_points:
-                        await self.off_route_tracker(new_off_route_points)
+                        await self.off_route_tracker.new_points(new_off_route_points)
                         new_off_route_points = []
 
             if self.finished:
