@@ -909,7 +909,7 @@ function update_selected_rider_point_markers(){
         rider_items.point_markers = riders_points[selected_rider].filter(function (point) {return point.hasOwnProperty('position');}).map(function (point){
             var position = new google.maps.LatLng(point.position[0], point.position[1]);
             var marker;
-            if (show_position_markers == 'accuracy_circles'){
+            if (show_position_markers == 'accuracy_circles' && point.accuracy){
                 marker = new google.maps.Circle({
                     strokeColor: color,
                     strokeWeight: 3,
@@ -919,8 +919,7 @@ function update_selected_rider_point_markers(){
                     center: position,
                     radius: point.accuracy | 100
                 });
-            }
-            if (show_position_markers == 'markers'){
+            } else if (show_position_markers != 'none'){
                 marker = new google.maps.Marker({
                     icon: {
                         path: google.maps.SymbolPath.CIRCLE,
