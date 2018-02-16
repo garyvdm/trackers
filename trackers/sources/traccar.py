@@ -213,7 +213,7 @@ async def tracker_finish(tracker):
 
 
 def traccar_position_translate(position):
-    if  position['altitude'] :
+    if position['altitude']:
         p = [position['latitude'], position['longitude'], position['altitude']]
     else:
         p = [position['latitude'], position['longitude']]

@@ -265,7 +265,7 @@ class Event(object):
     def rider_sort_key_func(self, riders_predicted_points, rider_name):
         rider_values = self.rider_current_values.get(rider_name, {})
         finished = 'finished_time' in rider_values
-        time_to_finish =  rider_values['finished_time'] - self.event_start if finished else None
+        time_to_finish = rider_values['finished_time'] - self.event_start if finished else None
         has_dist_on_route = 'dist_route' in rider_values
         dist_on_route = riders_predicted_points.get(rider_name, {}).get('dist_route') or rider_values.get('dist_route', 0)
         return not finished, time_to_finish, not has_dist_on_route, 0 - dist_on_route
