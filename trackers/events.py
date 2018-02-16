@@ -66,11 +66,16 @@ async def load_events(app, ref=b'HEAD', new_event_observable=Observable(logger),
             await events[name].stop_and_complete_trackers()
             await removed_event_observable(events.pop(name))
         for name in names:
-            if name in events:
-                await events[name].reload(tree_reader)
-            else:
-                events[name] = event = await Event.load(app, name, tree_reader)
-                await new_event_observable(event)
+            try:
+                if name in events:
+                    await events[name].reload(tree_reader)
+                else:
+                    events[name] = event = await Event.load(app, name, tree_reader)
+                    await new_event_observable(event)
+            except yaml.YAMLError as e:
+                logger.error(f'Error loading {name!r}: {e}')
+            except Exception:
+                logger.exception(f'Error loading {name!r}: ')
         logger.info('Events loaded.')
 
 
