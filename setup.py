@@ -6,7 +6,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     include_package_data=True,
     install_requires=[
-        'aiohttp>=2.0',
+        'aiohttp<3.0',
         'aionotify',
         'aniso8601',
         'arsenic',
