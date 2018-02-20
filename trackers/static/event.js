@@ -746,11 +746,7 @@ function update_rider_table(){
 
             }
             if (values.hasOwnProperty('time')) {
-                // TODO more than a day
-                var seconds = current_time - values.time;
-                if (seconds < 60) { last_position_time = '< 1 min ago' }
-                else if (seconds < 60 * 60) { last_position_time = sprintf('%i min ago', Math.floor(seconds / 60))}
-                else { last_position_time = sprintf('%i:%02i ago', Math.floor(seconds / 60 / 60), Math.floor(seconds / 60 % 60))}
+                last_position_time = format_time_delta_ago(current_time - values.time);
             }
             if (values.hasOwnProperty('leader_time_diff')) {
                 var total_min = Math.round(values.leader_time_diff / 60);
@@ -936,15 +932,14 @@ function update_selected_rider_point_markers(){
                 if (point.hasOwnProperty('time')) {
                     // TODO more than a day
                     var current_time = (new Date().getTime() / 1000) - time_offset;
-                    var seconds = current_time - point.time;
-                    var rel_time;
-                    if (seconds < 60) { rel_time = '< 1 min ago' }
-                    else if (seconds < 60 * 60) { rel_time = sprintf('%i min ago', Math.floor(seconds / 60))}
-                    else { rel_time = sprintf('%i:%02i ago', Math.floor(seconds / 60 / 60), Math.floor(seconds / 60 % 60))}
                     var time = new Date(point.time * 1000);
-
+                    var rel_time = format_time_delta_ago(current_time - point.time);
                     content += sprintf('<tr><td style="font-weight: bold;">Time:</td><td>%s<br>%s</td></tr>',
                                        time.toLocaleString(), rel_time);
+                    if (config.hasOwnProperty('event_start')){
+                        var race_time = format_time_delta(point.time - config.event_start);
+                        content += sprintf('<tr><td style="font-weight: bold;">Race Time:</td><td>%s</td></tr>', race_time);
+                    }
                 }
                 content += sprintf('<tr><td style="font-weight: bold;">Position:</td><td>%s, %s</td></tr>',
                                    point.position[0], point.position[1]);

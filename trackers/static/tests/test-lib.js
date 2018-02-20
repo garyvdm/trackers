@@ -42,3 +42,24 @@ QUnit.test( 'format_time_delta show_days', function( assert ) {
 });
 
 
+QUnit.test( 'format_time_delta_ago lt 1 min', function( assert ) {
+    assert.equal(
+        format_time_delta_ago(45),
+        '< 1 min ago'
+    );
+});
+
+
+QUnit.test( 'format_time_delta_ago 2 min', function( assert ) {
+    assert.equal(
+        format_time_delta_ago(125),
+        '2 min ago'
+    );
+});
+
+QUnit.test( 'format_time_delta_ago gt 1 hour', function( assert ) {
+    assert.equal(
+        format_time_delta_ago(3660),
+        '1:01 ago'
+    );
+});

@@ -18,6 +18,14 @@ function format_time_delta(seconds, show_days) {
 }
 
 
+function format_time_delta_ago(seconds){
+    // TODO more than a day
+    if (seconds < 60) { return '< 1 min ago' }
+    else if (seconds < 60 * 60) { return sprintf('%i min ago', Math.floor(seconds / 60))}
+    else { return sprintf('%i:%02i ago', Math.floor(seconds / 60 / 60), Math.floor(seconds / 60 % 60))}
+}
+
+
 function process_update_list(fetch_block, old_list, update){
     return new Promise(function (resolve, reject) {
         if (update.hasOwnProperty('blocks') || update.hasOwnProperty('partial_block')) {
