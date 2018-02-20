@@ -17,6 +17,7 @@ setuptools.setup(
         'dulwich',
         'filemagic',
         'fixtures',
+        'jsonpointer',
         'libsass',
         'more-itertools',
         'msgpack-python',

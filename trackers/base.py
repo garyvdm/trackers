@@ -86,7 +86,7 @@ def print_tracker(tracker):
     async def print_callback(callback, source, data):
         print('{} {}: \n{}'.format(source.name, callback, pprint.pformat(data)))
 
-    tracker.new_points_callbacks.append(functools.partial(print_callback, 'new_points'))
+    tracker.new_points_observable.subscribe(functools.partial(print_callback, 'new_points'))
 
     for point in tracker.points:
         print('{} {}: \n{}'.format(tracker.name, None, pprint.pformat(point)))
