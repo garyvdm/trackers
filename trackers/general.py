@@ -65,10 +65,10 @@ async def replay(replay_tracker, org_tracker, event_start_time, replay_start, of
         await asyncio.sleep((new_time - now).total_seconds())
 
 
-async def cropped_tracker_start_event(app, event, rider_name, tracker_data):
+async def wrapped_tracker_start_event(start_wraped, app, event, rider_name, tracker_data):
     start_tracker = app['start_event_trackers'][tracker_data['tracker']['type']]
     org_tracker = await start_tracker(app, event, rider_name, tracker_data['tracker'])
-    return await cropped_tracker_start(org_tracker, tracker_data)
+    return await start_wraped(org_tracker, tracker_data)
 
 
 async def cropped_tracker_start(org_tracker, tracker_data):
@@ -113,3 +113,25 @@ def index_and_hash_list(points, start, hasher):
 
 async def index_and_hash_tracker_newpoints(ih_tracker, org_tracker, new_points):
     await ih_tracker.new_points(index_and_hash_list(new_points, len(ih_tracker.points), ih_tracker.hasher))
+
+
+async def filter_inaccurate_tracker_start(org_tracker, tracker_data):
+    filtered_tracker = Tracker('filter_inaccurate.{}'.format(org_tracker.name), org_tracker.completed)
+    filtered_tracker.stop = org_tracker.stop
+    filtered_tracker.org_tracker = org_tracker
+
+    await filter_inaccurate_tracker_newpoints(filtered_tracker, org_tracker, org_tracker.points)
+    org_tracker.new_points_observable.subscribe(
+        functools.partial(filter_inaccurate_tracker_newpoints, filtered_tracker))
+    return filtered_tracker
+
+
+async def filter_inaccurate_tracker_newpoints(filtered_tracker, org_tracker, new_points):
+    points = []
+    for point in new_points:
+        if point.get('accuracy', 0) >= 500:
+            point = copy(point)
+            del point['position']
+        points.append(point)
+    if points:
+        await filtered_tracker.new_points(points)

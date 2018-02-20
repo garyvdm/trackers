@@ -1,3 +1,5 @@
+from functools import partial
+
 from trackers.async_exit_stack import AsyncExitStack
 
 
@@ -20,6 +22,7 @@ async def config_modules(app, settings):
         'mapmytracks': trackers.sources.map_my_tracks.start_event_tracker,
         'traccar': trackers.sources.traccar.start_event_tracker,
         'static': trackers.general.static_start_event_tracker,
-        'cropped': trackers.general.cropped_tracker_start_event,
+        'cropped': partial(trackers.general.wrapped_tracker_start_event, trackers.general.cropped_tracker_start),
+        'filter_inaccurate': partial(trackers.general.wrapped_tracker_start_event, trackers.general.filter_inaccurate_tracker_start),
     }
     return exit_stack
