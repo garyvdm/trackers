@@ -23,6 +23,7 @@ from trackers.analyse import AnalyseTracker
 from trackers.base import cancel_and_wait_task, list_register, Observable
 from trackers.general import json_dumps
 from trackers.web_helpers import (
+    coro_partial,
     etag_query_hash_response,
     etag_response,
     immutable_cache_control,
@@ -93,9 +94,9 @@ async def make_aio_app(settings,
     app.router.add_route('GET', '/{event}/config', handler=event_config, name='event_config')
     app.router.add_route('GET', '/{event}/routes', handler=event_routes, name='event_routes')
     app.router.add_route('GET', '/{event}/riders_points', name='riders_points',
-                         handler=partial(blocked_lists, blocked_list_attr_name='rider_trackers_blocked_list'))
+                         handler=coro_partial(blocked_lists, blocked_list_attr_name='rider_trackers_blocked_list'))
     app.router.add_route('GET', '/{event}/riders_off_route', name='riders_off_route',
-                         handler=partial(blocked_lists, blocked_list_attr_name='rider_off_route_blocked_list'))
+                         handler=coro_partial(blocked_lists, blocked_list_attr_name='rider_off_route_blocked_list'))
     app.router.add_route('GET', '/{event}/riders_csv', name='riders_csv', handler=riders_csv)
     app.router.add_route('GET', '/{event}/set_start', handler=event_set_start, name='event_set_start')
 
@@ -318,7 +319,7 @@ async def on_static_processed(static_manager):
         event_wss = event.app['trackers.event_ws_sessions'][event.name]
         if event_wss:
             ensure_event_page(app, event)
-            message_to_multiple_wss(
+            await message_to_multiple_wss(
                 event.app,
                 event_wss,
                 {'client_hash': event.page[1]}
@@ -341,7 +342,7 @@ async def on_removed_event(event):
 
 
 async def on_event_config_routes_change(event):
-    message_to_multiple_wss(
+    await message_to_multiple_wss(
         event.app,
         event.app['trackers.event_ws_sessions'][event.name],
         {
@@ -355,7 +356,7 @@ async def on_event_config_routes_change(event):
 
 
 async def on_event_rider_new_points(event, rider_name, tracker, new_points):
-    message_to_multiple_wss(
+    await message_to_multiple_wss(
         event.app,
         event.app['trackers.event_ws_sessions'][event.name],
         {'riders_values': {rider_name: event.rider_current_values[rider_name]}}
@@ -364,7 +365,7 @@ async def on_event_rider_new_points(event, rider_name, tracker, new_points):
 
 async def on_event_rider_blocked_list_update(event, rider_name, blocked_list, update):
     event_wss = event.app['trackers.event_ws_sessions'][event.name]
-    message_to_multiple_wss(
+    await message_to_multiple_wss(
         event.app,
         event_wss,
         {'riders_points': {rider_name: update}},
@@ -373,7 +374,7 @@ async def on_event_rider_blocked_list_update(event, rider_name, blocked_list, up
 
 
 async def on_event_rider_off_route_blocked_list_update(event, rider_name, blocked_list, update):
-    message_to_multiple_wss(
+    await message_to_multiple_wss(
         event.app,
         event.app['trackers.event_ws_sessions'][event.name],
         {'riders_off_route': {rider_name: update}},
@@ -382,7 +383,7 @@ async def on_event_rider_off_route_blocked_list_update(event, rider_name, blocke
 
 
 async def on_event_rider_predicted_updated(event, predicted, time):
-    message_to_multiple_wss(
+    await message_to_multiple_wss(
         event.app,
         event.app['trackers.event_ws_sessions'][event.name],
         {'riders_predicted': predicted, },
@@ -399,7 +400,7 @@ async def event_ws(request):
             exit_stack.enter_context(list_register(request.app['trackers.ws_sessions'], ws))
 
             send = partial(message_to_multiple_wss, request.app, (ws, ))
-            send({})
+            await send({})
 
             event_name = request.match_info['event']
             event = request.app['trackers.events'].get(event_name)
@@ -408,17 +409,17 @@ async def event_ws(request):
                 return ws
 
             if not event.config.get('live', False):
-                send({'live': False})
+                await send({'live': False})
                 ws.close(message='Event not live. Use rest api')
                 return ws
 
             await event.start_trackers()
 
-            send(get_event_state(request.app, event))
+            await send(get_event_state(request.app, event))
             exit_stack.enter_context(list_register(request.app['trackers.event_ws_sessions'][event_name], ws))
 
             async for msg in ws:
-                if msg.tp == WSMsgType.text:
+                if msg.type == WSMsgType.text:
                     try:
                         logger.debug('receive: {}'.format(msg.data))
                         data = json.loads(msg.data)
@@ -427,26 +428,26 @@ async def event_ws(request):
                             ws.subscriptions = set(data['subscriptions'])
                             added_subscriptions = ws.subscriptions - old_subscriptions
                             if 'riders_points' in added_subscriptions:
-                                send({'riders_points': {rider_name: list.full for rider_name, list in event.rider_trackers_blocked_list.items()}})
+                                await send({'riders_points': {rider_name: list.full for rider_name, list in event.rider_trackers_blocked_list.items()}})
                             else:
                                 selected_rider_points = {rider_name: list.full
                                                          for rider_name, list in event.rider_trackers_blocked_list.items()
                                                          if f'riders_points.{rider_name}' in added_subscriptions}
                                 if selected_rider_points:
-                                    send({'riders_points': selected_rider_points})
+                                    await send({'riders_points': selected_rider_points})
 
                             if 'riders_off_route' in added_subscriptions:
-                                send({'riders_off_route': {rider_name: list.full for rider_name, list in event.rider_off_route_blocked_list.items()}})
+                                await send({'riders_off_route': {rider_name: list.full for rider_name, list in event.rider_off_route_blocked_list.items()}})
 
                             if 'riders_predicted' in added_subscriptions:
-                                send({'riders_predicted': event.riders_predicted_points})
+                                await send({'riders_predicted': event.riders_predicted_points})
 
                     except Exception:
                         logger.exception('Error in receive ws msg:')
 
-                if msg.tp == WSMsgType.close:
+                if msg.type == WSMsgType.close:
                     await ws.close()
-                if msg.tp == WSMsgType.error:
+                if msg.type == WSMsgType.error:
                     raise ws.exception()
         except asyncio.CancelledError:
             pass
@@ -458,17 +459,22 @@ async def event_ws(request):
             return ws
 
 
-def message_to_multiple_wss(app, wss, msg, log_level=logging.DEBUG, filter_ws=None):
+async def message_to_multiple_wss(app, wss, msg, log_level=logging.DEBUG, filter_ws=None):
+
+    def on_send_done_callback(fut):
+        try:
+            fut.result()
+        except Exception:
+            app['exception_recorder']()
+            logger.exception('Error sending msg to ws:')
+
     msg = json_dumps(msg)
     logger.log(log_level, 'send: {}'.format(msg[:1000]))
+
     for ws in wss:
         send = filter_ws(ws) if filter_ws else True
         if send:
-            try:
-                ws.send_str(msg)
-            except Exception:
-                app['exception_recorder']()
-                logger.exception('Error sending msg to ws:')
+            asyncio.ensure_future(ws.send_str(msg)).add_done_callback(on_send_done_callback)
 
 
 @say_error_handler
@@ -488,11 +494,13 @@ async def individual_ws(get_key, get_tracker, request):
     await ws.prepare(request)
     try:
         with contextlib.ExitStack() as exit_stack:
-            def send(msg):
+            async def send(msg):
                 logger.debug('send: {}'.format(str(msg)[:1000]))
-                ws.send_str(json_dumps(msg))
-            send({'client_hash': request.app['static_manager'].processed_resources['individual_page'].hash,
-                  'server_time': datetime.datetime.now()})
+                await ws.send_str(json_dumps(msg))
+            await send({
+                'client_hash': request.app['static_manager'].processed_resources['individual_page'].hash,
+                'server_time': datetime.datetime.now()
+            })
 
             tracker_key = get_key(request)
             tracker_info = request.app['trackers.individual_trackers'].get(tracker_key)
@@ -518,7 +526,7 @@ async def individual_ws(get_key, get_tracker, request):
             exit_stack.enter_context(list_register(tracker_info['ws_sessions'], ws))
 
             async for msg in ws:
-                if msg.tp == WSMsgType.text:
+                if msg.type == WSMsgType.text:
                     data = json.loads(msg.data)
                     logger.debug('receive: {}'.format(data))
                     resend = False
@@ -536,16 +544,16 @@ async def individual_ws(get_key, get_tracker, request):
                         exit_stack.enter_context(list_register(tracker.new_points_observable.callbacks,
                                                                partial(individual_tracker_new_points_to_ws, request.app, send)))
 
-                if msg.tp == WSMsgType.close:
+                if msg.type == WSMsgType.close:
                     await ws.close()
-                if msg.tp == WSMsgType.error:
+                if msg.type == WSMsgType.error:
                     raise ws.exception()
             return ws
     except asyncio.CancelledError:
         pass
     except Exception as e:
         request.app['exception_recorder']()
-        ws.send_str(json_dumps({'error': 'Error getting tracker: {}'.format(e)}))
+        await ws.send_str(json_dumps({'error': 'Error getting tracker: {}'.format(e)}))
         logger.exception('')
         await ws.close(message='Server Error')
     return ws
@@ -573,12 +581,12 @@ async def individual_tracker_new_points_to_ws(app, ws_send, tracker, new_points)
     try:
         for points in chunked(new_points, 100):
             if len(points) > 50:
-                ws_send({'sending': 'Points'})
+                await ws_send({'sending': 'Points'})
             compressed_points = [
                 {point_keys.get(key, key): value for key, value in point.items()}
                 for point in points
             ]
-            ws_send({'points': compressed_points})
+            await ws_send({'points': compressed_points})
 
     except Exception:
         app['exception_recorder']()

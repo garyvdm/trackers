@@ -35,6 +35,7 @@ def get_test_app_and_settings(repo):
     app = {}
     app['trackers.settings'] = settings
     app['trackers.data_repo'] = repo
+    app['trackers.events'] = {}
     return app, settings
 
 

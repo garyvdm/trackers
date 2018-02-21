@@ -46,6 +46,14 @@ def etag_query_hash_response(request, response, etag):
         return etag_response(request, response, etag, cache_control=cache_control)
 
 
+def coro_partial(func, *args, **keywords):
+    """ Creates partial that pretends to be a coroutine if the func is a coroutine. """
+    p = partial(func, *args, **keywords)
+    if asyncio.iscoroutinefunction(func):
+        p._is_coroutine = asyncio.coroutines._is_coroutine
+    return p
+
+
 class ProcessedStaticManager(object):
 
     Resource = namedtuple('Resource', ['resource_name', 'route_name', 'resources_key', 'urls_key', 'url_for_kwargs',
@@ -73,7 +81,7 @@ class ProcessedStaticManager(object):
             route_name = slugify(resource_name)
         self.resources.append(self.Resource(resource_name, route_name, route_name, urls_key, {}, body_processor,
                                             body_loader, use_hased_url, cache_control, response_kwarg))
-        self.app.router.add_route('GET', route, partial(self.resource_handler, route_name), name=route_name)
+        self.app.router.add_route('GET', route, coro_partial(self.resource_handler, route_name), name=route_name)
 
     def add_resource_dir(self, resource_name, route=None, route_name=None, use_hased_url=True,
                          cache_control=None, **response_kwarg):
@@ -82,7 +90,7 @@ class ProcessedStaticManager(object):
         if route_name is None:
             route_name = slugify(resource_name)
         self.resources.append(self.ResourceDir(resource_name, route_name, use_hased_url, cache_control, response_kwarg))
-        self.app.router.add_route('GET', route, partial(self.resource_handler, route_name), name=route_name)
+        self.app.router.add_route('GET', route, coro_partial(self.resource_handler, route_name), name=route_name)
 
     def start_monitor_and_process_resources(self):
         self.monitor_task = asyncio.ensure_future(self.monitor_and_process_resources())

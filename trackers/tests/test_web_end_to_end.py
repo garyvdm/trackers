@@ -49,6 +49,7 @@ async def tracker_web_server_fixture(loop, port=None):
         async def mock_app_setup(app, settings):
             app['trackers.settings'] = settings
             app['trackers.data_repo'] = repo
+            app['trackers.events'] = {}
             app['start_event_trackers'] = {
                 'mock': None,
             }

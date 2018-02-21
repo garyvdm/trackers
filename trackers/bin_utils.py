@@ -130,6 +130,7 @@ async def app_setup_basic(app, settings):
 
     app['trackers.settings'] = settings
     app['trackers.data_repo'] = await stack.enter_context(dulwich.repo.Repo(settings['data_path']))
+    app['trackers.events'] = {}
 
     return stack
 

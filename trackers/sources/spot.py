@@ -31,7 +31,7 @@ async def config(app, settings):
     try:
         yield
     finally:
-        session.close()
+        await session.close()
 
 
 def get_individual_key(request):

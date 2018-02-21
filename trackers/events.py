@@ -55,7 +55,7 @@ async def load_events_with_watcher(app, ref=b'HEAD', **kwargs):
 
 
 async def load_events(app, ref=b'HEAD', new_event_observable=Observable(logger), removed_event_observable=Observable(logger)):
-    events = app.setdefault('trackers.events', {})
+    events = app['trackers.events']
     try:
         tree_reader = TreeReader(app['trackers.data_repo'], treeish=ref)
     except KeyError:
