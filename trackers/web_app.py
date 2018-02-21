@@ -593,8 +593,8 @@ async def individual_tracker_new_points_to_ws(app, ws_send, tracker, new_points)
         logger.exception('Error in individual_tracker_new_points_to_ws:')
 
 
-client_url_re = re.compile('https?://.*?/static/(?P<path>.*?)(\?hash=.*?)?(?P<term>[:\s])')
+client_url_re = re.compile(r'https?://.*?/static/(?P<path>.*?)(\?hash=.*?)?(?P<term>[:\s])')
 
 
 def convert_client_urls_to_paths(static_path, s):
-    return client_url_re.sub(f'\n{static_path}/\g<path>\g<term>', s)
+    return client_url_re.sub(rf'\n{static_path}/\g<path>\g<term>', s)
