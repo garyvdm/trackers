@@ -27,7 +27,7 @@ async def static_start_event_tracker(app, event, rider_name, tracker_data):
     data = TreeReader(app['trackers.data_repo']).get(path).data
     points = {
         'json': lambda data: json.loads(data.decode()),
-        'msgpack': lambda data: msgpack.loads(data, encoding='utf-8')
+        'msgpack': lambda data: msgpack.loads(data, raw=False)
     }[tracker_data.get('format', 'json')](data)
     for point in points:
         point['time'] = datetime.fromtimestamp(point['time'])

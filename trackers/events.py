@@ -135,7 +135,7 @@ class Event(object):
 
         if tree_reader.exists(self.routes_path):
             routes_bytes = tree_reader.get(self.routes_path).data
-            self.routes = msgpack.loads(routes_bytes, encoding='utf8')
+            self.routes = msgpack.loads(routes_bytes, raw=False)
             self.routes_hash = hash_bytes(routes_bytes)
         else:
             self.routes = []

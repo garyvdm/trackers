@@ -88,7 +88,7 @@ class TestAddGpxToEventRoutes(asynctest.TestCase, TestEventWithMockTracker):
                                      split_at_dist=[], split_point_range=1000, rdp_epsilon=2))
 
         writer.reset()
-        routes = msgpack.loads(writer.get('/events/test_event/routes').data, encoding='utf8')
+        routes = msgpack.loads(writer.get('/events/test_event/routes').data, raw=False)
         self.assertEqual(routes, [
             {
                 'original_points': [[-26.09321, 27.9813], [-26.0933, 27.98154], [-26.09341, 27.98186]],
