@@ -3,10 +3,11 @@ import logging.config
 import os
 import shutil
 import signal
-import socket
 import sys
 
 import uvloop
+from aiohttp.web import AppRunner, TCPSite, UnixSite
+from yarl import URL
 
 import trackers.bin_utils
 import trackers.web_app
@@ -63,20 +64,12 @@ def main():
 async def serve(loop, settings):
 
     app = await trackers.web_app.make_aio_app(settings)
-
-    if settings['debugtoolbar']:
-        try:
-            import aiohttp_debugtoolbar
-        except ImportError:
-            logging.error('aiohttp_debugtoolbar is enabled, but not installed.')
-        else:
-            aiohttp_debugtoolbar.setup(app, **settings.get('debugtoolbar_settings', {}))
-
-    handler = app.make_handler(debug=settings.get('aioserver_debug', False),
-                               access_log_format='%l %u %t "%r" %s %b "%{Referrer}i" "%{User-Agent}i"')
+    runner = AppRunner(app, debug=settings.get('aioserver_debug', False),
+                       access_log_format='%l %u %t "%r" %s %b "%{Referrer}i" "%{User-Agent}i"')
+    await runner.setup()
 
     if settings['server_type'] == 'inet':
-        srv = await loop.create_server(handler, settings['inet_host'], settings['inet_port'])
+        site = TCPSiteSocketName(runner, settings['inet_host'], settings['inet_port'])
     elif settings['server_type'] == 'unix':
         unix_path = settings['unix_path']
         if os.path.exists(unix_path):
@@ -84,18 +77,15 @@ async def serve(loop, settings):
                 os.unlink(unix_path)
             except OSError:
                 logging.exception("Could not unlink socket '{}'".format(unix_path))
-        srv = await loop.create_unix_server(handler, unix_path)
+        site = UnixSite(runner, unix_path)
         if 'unix_chown' in settings:
             os.chmod(unix_path, settings['unix_chmod'])
         if 'unix_chown' in settings:
             shutil.chown(unix_path, **settings['unix_chown'])
 
-    for sock in srv.sockets:
-        if sock.family in (socket.AF_INET, socket.AF_INET6):
-            print('Serving on http://{}:{}'.format(*sock.getsockname()))
-            app.setdefault('host_urls', []).append('http://{}:{}'.format(*sock.getsockname()))
-        else:
-            print('Serving on {!r}'.format(sock))
+    await site.start()
+
+    logging.info(f'Serving on {site.name}')
 
     try:
         # Run forever (or we get interupt)
@@ -108,8 +98,14 @@ async def serve(loop, settings):
             for signame in ('SIGINT', 'SIGTERM'):
                 loop.remove_signal_handler(getattr(signal, signame))
     finally:
-        srv.close()
-        await srv.wait_closed()
-        await app.shutdown()
-        await handler.shutdown(10)
-        await app.cleanup()
+        await site.stop()
+        await runner.cleanup()
+
+
+class TCPSiteSocketName(TCPSite):
+
+    @property
+    def name(self):
+        scheme = 'https' if self._ssl_context else 'http'
+        socks = [sock.getsockname() for sock in self._server.sockets]
+        return [str(URL.build(scheme=scheme, host=sock[0], port=sock[1])) for sock in socks]
