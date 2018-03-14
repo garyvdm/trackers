@@ -135,7 +135,7 @@ def get_individual_key(request):
 async def start_individual_tracker(app, settings, request):
     unique_id = request.match_info['unique_id']
     server_name = 'local'
-    start = datetime.datetime.now() - datetime.timedelta(days=7)
+    start = datetime.datetime.now() - datetime.timedelta(days=1)
     return await start_tracker(app, unique_id,
                                server_name, unique_id,
                                start, None)
