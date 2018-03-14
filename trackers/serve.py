@@ -78,12 +78,14 @@ async def serve(loop, settings):
             except OSError:
                 logging.exception("Could not unlink socket '{}'".format(unix_path))
         site = UnixSite(runner, unix_path)
-        if 'unix_chown' in settings:
+
+    await site.start()
+
+    if settings['server_type'] == 'unix':
+        if 'unix_chmod' in settings:
             os.chmod(unix_path, settings['unix_chmod'])
         if 'unix_chown' in settings:
             shutil.chown(unix_path, **settings['unix_chown'])
-
-    await site.start()
 
     logging.info(f'Serving on {site.name}')
 
