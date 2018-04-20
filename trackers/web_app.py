@@ -74,7 +74,7 @@ async def make_aio_app(settings,
     static_manager.add_resource('/static/highcharts.js.map', charset='utf8', content_type='text/javascript')
     static_manager.add_resource('/static/highcharts.src.js', charset='utf8', content_type='text/javascript')
 
-    static_manager.add_resource('/static/traccar_testing.html', '/testing', charset='utf8', content_type='text/html')
+    static_manager.add_resource('/static/instructions.html', '/instructions', charset='utf8', content_type='text/html')
     static_manager.add_resource('/static/event.html')  # This is just here so that we reload on change.
     static_manager.add_resource('/static/individual.html', route_name='individual_page',
                                 charset='utf8', content_type='text/html',
