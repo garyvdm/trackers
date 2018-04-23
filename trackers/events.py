@@ -175,7 +175,7 @@ class Event(object):
         analyse = self.config.get('analyse', False)
         replay = self.config.get('replay', False)
         is_live = self.config.get('live', False)
-        event_start = self.config.get('event_start')
+        self.event_start = self.config.get('event_start')
 
         self.rider_trackers = {}
         self.rider_trackers_blocked_list = {}
@@ -204,7 +204,7 @@ class Event(object):
                 'speed_multiply': replay_config.get('speed_multiply', 50),
                 'offset': datetime.timedelta(**replay_config.get('offset', {})),
             }
-            self.config['event_start'] = replay_kwargs['replay_start'] + replay_kwargs['offset']  # How do we make sure this is not saved?
+            self.event_start = replay_kwargs['replay_start'] + replay_kwargs['offset']
             self.config_hash = hash_bytes(yaml.dump(self.config).encode())
 
         for rider in self.config['riders']:
@@ -212,9 +212,9 @@ class Event(object):
                 start_tracker = self.app['start_event_trackers'][rider['tracker']['type']]
                 tracker = await start_tracker(self.app, self, rider['name'], rider['tracker'])
                 if replay:
-                    tracker = await start_replay_tracker(tracker, event_start, **replay_kwargs)
+                    tracker = await start_replay_tracker(tracker, self.event_start, **replay_kwargs)
                 if analyse:
-                    tracker = await AnalyseTracker.start(tracker, event_start, analyse_routes, find_closest_cache=find_closest_cache)
+                    tracker = await AnalyseTracker.start(tracker, self.event_start, analyse_routes, find_closest_cache=find_closest_cache)
                     self.rider_analyse_trackers[rider['name']] = tracker
                     self.rider_off_route_trackers[rider['name']] = off_route_tracker = await index_and_hash_tracker(tracker.off_route_tracker)
                     self.rider_off_route_blocked_list[rider['name']] = BlockedList.from_tracker(
