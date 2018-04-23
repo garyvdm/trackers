@@ -79,7 +79,7 @@ async def tracker_web_server_fixture(loop, port=None):
             yield app, url, client_errors, server_errors
 
 
-def wait_condition(condition, *args, delay=0.1, timeout=1, **kwargs):
+def wait_condition(condition, *args, delay=0.1, timeout=2, **kwargs):
     async def wait_condition_inner():
         while True:
             result = await condition(*args, **kwargs)
