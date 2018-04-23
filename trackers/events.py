@@ -276,6 +276,8 @@ class Event(object):
         return not finished, time_to_finish, not has_dist_on_route, 0 - dist_on_route
 
     async def predicted(self):
+        if not self.rider_analyse_trackers:
+            return
         while True:
             with suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(self.new_points.wait(), 10)
@@ -285,7 +287,7 @@ class Event(object):
                 riders_predicted_points = {rider_name: tracker.get_predicted_position(time) or {}
                                            for rider_name, tracker in self.rider_analyse_trackers.items()}
                 sort_key_func = partial(self.rider_sort_key_func, riders_predicted_points)
-                rider_names_sorted = list(sorted((rider['name'] for rider in self.config['riders']), key=sort_key_func))
+                rider_names_sorted = list(sorted(riders_predicted_points.keys(), key=sort_key_func))
 
                 leader = rider_names_sorted[0]
                 leader_points = []
