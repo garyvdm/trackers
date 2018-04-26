@@ -116,7 +116,7 @@ function on_new_state_received(new_state) {
         riders_predicted = {};
         riders_points = {};
         riders_off_route = {};
-        config_loaded.reject();
+        if (config_loaded.promise.PromiseStatus == 'pending') config_loaded.reject();
         config_loaded = new Deferred();
 
         state.config_hash = new_state.config_hash;
