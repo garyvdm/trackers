@@ -410,7 +410,7 @@ async def event_ws(request):
 
             if not event.config.get('live', False):
                 await send({'live': False})
-                ws.close(message='Event not live. Use rest api')
+                await ws.close(message='Event not live. Use rest api')
                 return ws
 
             await event.start_trackers()
@@ -460,21 +460,19 @@ async def event_ws(request):
 
 
 async def message_to_multiple_wss(app, wss, msg, log_level=logging.DEBUG, filter_ws=None):
-
-    def on_send_done_callback(fut):
-        try:
-            fut.result()
-        except Exception:
-            app['exception_recorder']()
-            logger.exception('Error sending msg to ws:')
-
     msg = json_dumps(msg)
     logger.log(log_level, 'send: {}'.format(msg[:1000]))
 
-    for ws in wss:
-        send = filter_ws(ws) if filter_ws else True
-        if send:
-            asyncio.ensure_future(ws.send_str(msg)).add_done_callback(on_send_done_callback)
+    filtered_wss = [ws for ws in wss if (filter_ws(ws) if filter_ws else True)]
+    if filtered_wss:
+        futures = [asyncio.ensure_future(ws.send_str(msg)) for ws in filtered_wss]
+        await asyncio.wait(futures)
+        for fut in futures:
+            try:
+                fut.result()
+            except Exception:
+                app['exception_recorder']()
+                logger.exception('Error sending msg to ws:')
 
 
 @say_error_handler
