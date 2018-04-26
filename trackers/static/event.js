@@ -761,8 +761,9 @@ function update_rider_table(){
                        '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
                        '<td>' + rider.name + '</td>' +
                        '<td>' + (values.status || '') + '</td>' +
-                       '<td style="text-align: right">' +  (last_position_time || '') + '</td>' +
-                       '<td style="text-align: right">' +  (values.battery ? sprintf('%i %%', values.battery) : '') + '</td>' +
+                       '<td style="text-align: right">' + (last_position_time || '') + '</td>' +
+                       '<td style="text-align: right">' + (values.battery ? sprintf('%i %%', values.battery) : '') +
+                                                          (values.battery_voltage ? ' ' + values.battery_voltage + 'v' : '') + '</td>' +
                        '</tr>';
             }
             if (detail_level == 'progress') {

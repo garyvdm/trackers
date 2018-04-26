@@ -161,8 +161,8 @@ async def start_tracker(app, tracker_name, server_name, device_unique_id, start,
     except ValueError:
         device_id = (await (await session.post(f'{server_url}/api/devices',
                                                json={'uniqueId': device_unique_id, 'name': tracker_name})).json())['id']
-    await (await session.post(f'{server_url}/api/permissions/devices',
-                              json={'userId': server['user_id'], 'deviceId': device_id})).json()
+    await session.post(f'{server_url}/api/permissions',
+                       json={'userId': server['user_id'], 'deviceId': device_id})
 
     tracker = Tracker('traccar.{}.{}-{}'.format(server_name, device_unique_id, tracker_name))
     tracker.server = server
@@ -217,16 +217,21 @@ def traccar_position_translate(position):
         p = [position['latitude'], position['longitude'], position['altitude']]
     else:
         p = [position['latitude'], position['longitude']]
-    return {
+
+    point = {
         'position': p,
         'accuracy': position['accuracy'],
-        'battery': position['attributes'].get('batteryLevel'),
         'time': parse_datetime(position['fixTime']).astimezone().replace(tzinfo=None),
         # server_time is null in websocket positions :-( Need to log an issue, and fix it.
         'server_time': (
             parse_datetime(position['serverTime']).astimezone().replace(tzinfo=None)
             if position['serverTime'] else datetime.datetime.now()),
     }
+    if 'batteryLevel' in position['attributes']:
+        point['battery'] = position['attributes'].get('batteryLevel')
+    if 'battery' in position['attributes']:
+        point['battery_voltage'] = position['attributes'].get('battery')
+    return point
 
 
 async def main():
@@ -235,7 +240,7 @@ async def main():
         'traccar_servers': {
             'trackrace_tk':
                 {
-                    'url': 'https://traccar.trackrace.tk',
+                    'url': 'http://traccar.trackrace.tk:8082',
                     'auth': ['admin', ''],
                 }
         }
@@ -243,7 +248,7 @@ async def main():
     import signal
     async with config(app, settings):
         tracker = await start_tracker(
-            app, settings, 'gary', 'trackrace_tk', '510586', datetime.datetime(2017, 6, 9), datetime.datetime(2017, 7, 30))
+            app, 'gary', 'trackrace_tk', '864768011193999', datetime.datetime(2018, 4, 25), datetime.datetime(2018, 4, 26))
         # await tracker.finish()
         run_fut = asyncio.Future()
         for signame in ('SIGINT', 'SIGTERM'):
