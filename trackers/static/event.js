@@ -763,7 +763,7 @@ function update_rider_table(){
                        '<td>' + (values.status || '') + '</td>' +
                        '<td style="text-align: right">' + (last_position_time || '') + '</td>' +
                        '<td style="text-align: right">' + (values.battery ? sprintf('%i %%', values.battery) : '') +
-                                                          (values.battery_voltage ? ' ' + values.battery_voltage + 'v' : '') + '</td>' +
+                                                          (values.battery_voltage ? ' ' + sprintf('%.2f v', values.battery_voltage) : '') + '</td>' +
                        '</tr>';
             }
             if (detail_level == 'progress') {
