@@ -6,16 +6,21 @@
     <link rel="stylesheet" type="text/css" href="{static_urls[/static/event.css]}">
   </head>
   <body>
-    <div id="foo" class="show_map desktop_show_riders">
+    <div id="foo" class="show_map desktop_show_riders desktop_show_map">
       <div id="head">
         <div id="title_contain">
           <div id="title">{title}</div>
           <div id="race_time">&nbsp;</div>
         </div>
+        <div id="desktop_main_select" class="select" style="width: 15em;">
+          <div show="map" class="selected">Map</div>
+          <div show="graphs">Graphs</div>
+        </div>
         <div id="status">Loading</div>
       </div>
       <div id="mobile_select" class="select">
         <div show="map">Map</div>
+        <div show="graphs">Graphs</div>
         <div show="riders">Riders</div>
         <div show="options">Options</div>
       </div>
@@ -66,6 +71,19 @@
         </div>
       </div>
       <div id="elevation"></div>
+      <div id="graphs">
+        <label style="padding: 10px;">
+          Graph:
+          <select id="graph_select">
+            <option value="dist_speed_time" selected>Distance & Speed / Time</option>
+            <option value="elevation_speed_distance">Elevation & Speed / Distance</option>
+            <option value="battery">Tracker Battery Levels / Time</option>
+          </select>
+        </label>
+        <div id="graph_contain">
+          <div id="graph"></div>
+        </div>
+      </div>
     </div>
     <div id="badbrowser" style="display: none;">
       <p>

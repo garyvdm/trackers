@@ -34,6 +34,7 @@ body {
 
 #head {
     padding: 8px;
+    padding-bottom: 0;
     background: #4285F4;
     color: white;
     @include display-flex;
@@ -146,6 +147,18 @@ body {
     }
 }
 
+#graphs {
+    -ms-flex: 1 1 100%; flex: 1 1 100%;
+}
+
+#graph_contain {
+    -ms-flex: 1 1 100%; flex: 1 1 100%;
+    position: relative;
+}
+
+#graph {
+    height: 100%;
+}
 
 @media screen and (min-width: 801px) {
 
@@ -200,9 +213,26 @@ body {
         }
     }    
 
+    .desktop_show_map {
+        #map_riders, #elevation{
+            @include display-flex;
+        }
+        #graphs{
+            display: none;
+        }
+    }
+
+    .desktop_show_graphs {
+        #map_riders, #elevation{
+            display: none;
+        }
+        #graphs{
+            @include display-flex-column;
+        }
+    }
 }
 @media screen and (max-width: 800px) {
-    #desktop_select {
+    #desktop_select, #desktop_main_select {
         display: none;
     }
 
@@ -214,13 +244,22 @@ body {
         #map_contain, #elevation{
             display: block;
         }
-        #riders_options{
+        #riders_options, #graphs{
             display: none;
         }
     }
 
+    .show_graphs {
+        #map_riders, #elevation, {
+            display: none;
+        }
+        #graphs{
+            @include display-flex-column;
+        }
+    }
+
     .show_riders {
-        #map_contain, #elevation, #options{
+        #map_contain, #elevation, #options, #graphs{
             display: none;
         }
         #riders_options {
@@ -232,7 +271,7 @@ body {
 
     }
     .show_options {
-        #map_contain, #elevation, #riders{
+        #map_contain, #elevation, #riders, #graphs{
             display: none;
         }
         #riders_options {
