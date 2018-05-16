@@ -756,6 +756,7 @@ function update_rider_table(){
             var rider_items = riders_client_items[rider.name] || {};
             var values = riders_values_l[rider.name] || {};
             var last_position_time;
+            var last_server_time;
             var finished_time;
             var speed;
             var leader_time_diff = '';
@@ -769,8 +770,11 @@ function update_rider_table(){
                 }
 
             }
-            if (values.hasOwnProperty('time')) {
-                last_position_time = format_time_delta_ago(current_time - values.time);
+            if (values.hasOwnProperty('position_time')) {
+                last_position_time = format_time_delta_ago(current_time - values.position_time);
+            }
+            if (values.hasOwnProperty('server_time')) {
+                last_server_time = format_time_delta_ago(current_time - values.server_time);
             }
             if (values.hasOwnProperty('leader_time_diff')) {
                 var total_min = Math.round(values.leader_time_diff / 60);
@@ -784,8 +788,8 @@ function update_rider_table(){
                 return '<tr rider_name="' + rider.name + '" class="rider">' +
                        '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
                        '<td>' + rider.name + '</td>' +
-                       '<td>' + (values.status || '') + '</td>' +
                        '<td style="text-align: right">' + (last_position_time || '') + '</td>' +
+                       '<td style="text-align: right">' + (last_server_time || '') + '</td>' +
                        '<td style="text-align: right">' + (values.battery ? sprintf('%i %%', values.battery) : '') +
                                                           (values.battery_voltage ? ' ' + sprintf('%.2f v', values.battery_voltage) : '') + '</td>' +
                        '</tr>';
@@ -794,8 +798,9 @@ function update_rider_table(){
                 return '<tr rider_name="' + rider.name + '" class="rider">' +
                        '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
                        '<td>' + rider.name + '</td>' +
+                       '<td style="text-align: right">' + (last_position_time || '') + '</td>' +
                        '<td>' + rider_status + '</td>' +
-                       '<td style="text-align: right">' + (values.status == 'Active' && values.speed_from_last ? sprintf('%.1f', values.speed_from_last) || '': '') + '</td>' +
+                       '<td style="text-align: right">' + (current_time - values.position_time < 15 * 60 && values.speed_from_last ? sprintf('%.1f', values.speed_from_last) || '': '') + '</td>' +
                        '<td style="text-align: right">' + (values.hasOwnProperty('dist_route') ? sprintf('%.1f', values.dist_route / 1000) : '') + '</td>' +
                        '<td style="text-align: right">' + leader_time_diff + '</td>' +
                        '<td style="text-align: right">' + (finished_time || '') + '</td>' +
@@ -807,7 +812,7 @@ function update_rider_table(){
                        '<td>' + rider.name + '</td>' +
                        '<td style="text-align: right">' +
                             (finished_time || (values.hasOwnProperty('dist_route') ? sprintf('%.1f km', values.dist_route / 1000) : ''))
-                            + ' ' + (rider_status || values.status || '') +'</td>' +
+                            + '<br>' + (rider_status || last_position_time || '') +'</td>' +
                        '</tr>';
             }
         });
@@ -816,24 +821,25 @@ function update_rider_table(){
                 '<table><tr class="head">' +
                 '<td></td>' +
                 '<td>Name</td>' +
-                '<td>Tracker<br>Status</td>' +
                 '<td style="text-align: right">Last<br>Position</td>' +
+                '<td style="text-align: right">Last<br>Connection</td>' +
                 '<td>Tracker<br>Battery</td>' +
                 '</tr>' + rider_rows.join('') + '</table>';
-            document.getElementById('riders_options').style.minWidth = '470px';
+            document.getElementById('riders_options').style.minWidth = '400px';
         }
         if (detail_level == 'progress') {
             document.getElementById('riders_actual').innerHTML =
                 '<table><tr class="head">' +
                 '<td></td>' +
                 '<td>Name</td>' +
-                '<td>Rider<br>Status</td>' +
+                '<td>Last Position</td>' +
+                '<td>Status</td>' +
                 '<td style="text-align: right">Current<br>Speed</td>' +
                 '<td style="text-align: right">Dist on<br>Route</td>' +
                 '<td style="text-align: right">Gap to<br>Leader</td>' +
                 '<td style="text-align: right">Finish<br>Time</td>' +
                 '</tr>' + rider_rows.join('') + '</table>';
-            document.getElementById('riders_options').style.minWidth = '500px';
+            document.getElementById('riders_options').style.minWidth = '600px';
         }
         if (detail_level == 'simple') {
             document.getElementById('riders_actual').innerHTML =

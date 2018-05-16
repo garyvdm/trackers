@@ -176,7 +176,6 @@ class Event(object):
         replay = self.config.get('replay', False)
         is_live = self.config.get('live', False)
         self.event_start = self.config.get('event_start')
-        print(self.event_start)
 
         self.rider_trackers = {}
         self.rider_trackers_blocked_list = {}
@@ -266,6 +265,8 @@ class Event(object):
             values = self.rider_current_values[rider_name]
             for point in new_points:
                 values.update(point)
+                if 'position' in point:
+                    values['position_time'] = point['time']
             await self.rider_new_points_observable(self, rider_name, tracker, new_points)
         self.new_points.set()
 
@@ -278,6 +279,7 @@ class Event(object):
         return not finished, time_to_finish, not has_dist_on_route, 0 - dist_on_route
 
     async def predicted(self):
+        inactive_time = datetime.timedelta(minutes=15)
         if not self.rider_analyse_trackers:
             return
         while True:
@@ -307,7 +309,7 @@ class Event(object):
                     for rider_name in rider_names_sorted[1:]:
                         rider_predicted_points = riders_predicted_points.get(rider_name)
                         rider_values = self.rider_current_values.get(rider_name)
-                        if rider_values and rider_values.get('status') == 'Active':
+                        if rider_values and time - rider_values.get('position_time') < inactive_time:
                             rider_dist_route = None
                             rider_time = None
                             if rider_predicted_points and 'dist_route' in rider_predicted_points:

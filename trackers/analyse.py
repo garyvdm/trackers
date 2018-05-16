@@ -67,7 +67,7 @@ seterr(all='raise')
 class AnalyseTracker(Tracker):
 
     @classmethod
-    async def start(cls, org_tracker, analyse_start_time, routes, track_break_time=datetime.timedelta(minutes=11),
+    async def start(cls, org_tracker, analyse_start_time, routes, track_break_time=datetime.timedelta(minutes=15),
                     track_break_dist=10000, find_closest_cache=None):
         self = cls('analysed.{}'.format(org_tracker.name))
         self.org_tracker = org_tracker
@@ -84,12 +84,10 @@ class AnalyseTracker(Tracker):
         else:
             self.find_closest = find_closest_point_pair_routes
 
-        self.make_inactive_fut = None
         self.prev_point_with_position = None
         self.prev_point_with_position_point = None
         self.prev_unit_vector = None
         self.current_track_id = 0
-        self.status = None
         self.prev_closest_route_point = None
         self.prev_route_dist = 0
         self.prev_route_dist_time = None
@@ -109,24 +107,15 @@ class AnalyseTracker(Tracker):
 
     def stop(self):
         self.org_tracker.stop()
-        if self.make_inactive_fut:
-            self.make_inactive_fut.cancel()
 
     async def _completed(self):
         await self.org_tracker.complete()
-        if self.make_inactive_fut:
-            try:
-                await self.make_inactive_fut
-            except asyncio.CancelledError:
-                pass
-            self.make_inactive_fut = None
 
     async def on_new_points(self, tracker, new_points):
         self.logger.debug('analyse_tracker_new_points ({} points)'.format(len(new_points)))
 
         new_new_points = []
         new_off_route_points = []
-        prev_point_with_position = None
         log_time = datetime.datetime.now()
         log_i = 0
         last_route_point = self.routes[0]['points'][-1] if self.routes else None
@@ -136,15 +125,10 @@ class AnalyseTracker(Tracker):
 
         for i, point in enumerate(new_points):
             point = copy.deepcopy(point)
+            point.pop('status', None)
+            point.pop('dist_route', None)
+            point.pop('track_id', None)
             if 'position' in point:
-                if self.make_inactive_fut:
-                    self.make_inactive_fut.cancel()
-                    try:
-                        await self.make_inactive_fut
-                    except asyncio.CancelledError:
-                        pass
-                    self.make_inactive_fut = None
-
                 point_point = Point(*point['position'][:2])
 
                 if not self.finished and self.analyse_start_time and self.analyse_start_time <= point['time']:
@@ -191,9 +175,6 @@ class AnalyseTracker(Tracker):
                         time = point['time'] - prev_point['time']
                         if time > self.track_break_time and dist > self.track_break_dist:
                             self.current_track_id += 1
-                            self.apply_status_to_point(
-                                {'time': prev_point['time'] + self.track_break_time},
-                                'Inactive', new_new_points.append)
                         if not dist_from_last_set:
                             point['dist_from_last'] = round(dist)
                             seconds = time.total_seconds()
@@ -221,13 +202,9 @@ class AnalyseTracker(Tracker):
                     self.prev_closest_route_point = None
                     self.going_forward = None
 
-                # TODO what about status from source tracker?
-                self.apply_status_to_point(point, 'Active')
-
-                self.prev_point_with_position = prev_point_with_position = point
+                self.prev_point_with_position = point
                 self.prev_point_with_position_point = point_point
                 point['track_id'] = self.current_track_id
-
             new_new_points.append(point)
 
             is_last_point = i == last_point_i
@@ -255,60 +232,38 @@ class AnalyseTracker(Tracker):
         if new_off_route_points:
             await self.off_route_tracker.new_points(new_off_route_points)
 
-        if prev_point_with_position:
-            self.make_inactive_fut = asyncio.ensure_future(
-                self.make_inactive(prev_point_with_position, self.track_break_time))
-
-    async def make_inactive(self, prev_point_with_position, track_break_time):
-        delay = (prev_point_with_position['time'] - datetime.datetime.now() + track_break_time).total_seconds()
-        if delay > 0:
-            await asyncio.sleep(delay)
-        if prev_point_with_position == self.prev_point_with_position:
-            new_new_points = []
-            self.apply_status_to_point(
-                {'time': prev_point_with_position['time'] + track_break_time},
-                'Inactive', new_new_points.append)
-            await asyncio.shield(self.new_points(new_new_points))
-
-    def apply_status_to_point(self, point, status, append_to=None):
-        if status != self.status:
-            point['status'] = status
-            self.status = status
-            if append_to:
-                append_to(point)
-
     def get_predicted_position(self, time):
-        # TODO if time > a position received - then interpolate beteen thoes positions.
-        if self.prev_point_with_position:
-            if self.status != 'Inactive' and not self.finished and self.prev_point_with_position.get('speed_from_last', 0) > 1:
-                closest = self.prev_closest_route_point
-                time_from_last = (time - self.prev_point_with_position['time']).total_seconds()
-                dist_moved_from_last = self.prev_point_with_position['speed_from_last'] / 3.6 * time_from_last
-                if closest and self.going_forward and closest.dist < 500:
-                    # Predicted to follow route if they are on the route and going forward.
-                    dist_route = self.prev_point_with_position['dist_route'] + dist_moved_from_last
-                    proceeding_route = list(chain(
-                        (closest.point, ),
-                        closest.route['points'][closest.point_pair[1].index:],
-                    ))
-                    # TODO continue main route
-                    point_point = move_along_route(proceeding_route, dist_moved_from_last)
-                    point = {
-                        'position': [point_point.lat, point_point.lng],
-                        'dist_route': round(dist_route),
-                    }
-                    if 'elevation' in closest.route:
-                        point['route_elevation'] = round(route_elevation(closest.route, dist_route))
+        # TODO if time > a position received - then interpolate between those positions.
+        pp = self.prev_point_with_position
+        if pp and not self.finished and time - pp['time'] < self.track_break_time and pp.get('speed_from_last', 0) > 2:
+            closest = self.prev_closest_route_point
+            time_from_last = (time - pp['time']).total_seconds()
+            dist_moved_from_last = pp['speed_from_last'] / 3.6 * time_from_last
+            if closest and self.going_forward and closest.dist < 500:
+                # Predicted to follow route if they are on the route and going forward.
+                dist_route = pp['dist_route'] + dist_moved_from_last
+                proceeding_route = list(chain(
+                    (closest.point, ),
+                    closest.route['points'][closest.point_pair[1].index:],
+                ))
+                # TODO continue main route
+                point_point = move_along_route(proceeding_route, dist_moved_from_last)
+                point = {
+                    'position': [point_point.lat, point_point.lng],
+                    'dist_route': round(dist_route),
+                }
+                if 'elevation' in closest.route:
+                    point['route_elevation'] = round(route_elevation(closest.route, dist_route))
 
-                    return point
-                elif self.prev_unit_vector is not None:
-                    # Just keep going in the direction that they were going on.
-                    pv = (self.prev_unit_vector * dist_moved_from_last) + self.prev_point_with_position_point.pv
-                    nv = p_EB_E2n_EB_E(pv)
-                    new_point = Point.from_nv(nv[0])
-                    return {
-                        'position': [new_point.lat, new_point.lng] + self.prev_point_with_position['position'][2:],
-                    }
+                return point
+            elif self.prev_unit_vector is not None:
+                # Just keep going in the direction that they were going on.
+                pv = (self.prev_unit_vector * dist_moved_from_last) + self.prev_point_with_position_point.pv
+                nv = p_EB_E2n_EB_E(pv)
+                new_point = Point.from_nv(nv[0])
+                return {
+                    'position': [new_point.lat, new_point.lng] + pp['position'][2:],
+                }
 
 
 @attr.s(slots=True)

@@ -341,7 +341,7 @@ async def process_route(settings, route):
 
     logging.info(f"Original point count: {len(route['original_points'])}, point count: {len(points)}, simplified point count: {len(simplified_points)}")
 
-    if not route['no_elevation']:
+    if not route.get('no_elevation', False):
         elevation_points = list(get_equal_spaced_points(points, 500))
         elevations = await get_elevation_for_points(settings, [point for point, distance in elevation_points])
         route['elevation'] = [(round(point.lat, 6), round(point.lng, 6), elevation, dist) for elevation, (point, dist) in zip(elevations, elevation_points)]
