@@ -23,6 +23,7 @@ from trackers.analyse import (
     find_closest_point_pair_route,
     get_analyse_route,
     get_equal_spaced_points,
+    IndexedPoint,
     Point,
     ramer_douglas_peucker,
     ramer_douglas_peucker_sections,
@@ -48,7 +49,7 @@ defaults_yaml = """
 
         formatters:
             generic:
-                format: '%(levelname)-5.5s [%(name)s] %(message)s'
+                format: '%(asctime)s %(levelname)-5.5s [%(name)s] %(message)s'
         root:
             level: INFO
             handlers: [console, ]
@@ -175,7 +176,7 @@ async def convert_to_static(app, settings, args):
     tree_writer = TreeWriter(app['trackers.data_repo'])
 
     event = await trackers.events.Event.load(app, args.event_name, tree_writer)
-    await event.start_trackers()
+    await event.start_trackers(analyse=False)
 
     for rider in event.config['riders']:
         rider_name = rider['name']
@@ -323,20 +324,25 @@ def process_secondary_route_details(routes):
 async def process_route(settings, route):
     original_points = route['original_points']
     filtered_points = (point for last_point, point in zip([None] + original_points[:-1], original_points) if point != last_point)
-    if not route['split_at_dist']:
+    if not route.get('split_at_dist'):
         point_points = [Point(*point) for point in filtered_points]
-        simplified_points = ramer_douglas_peucker(point_points, route['rdp_epsilon'])
+        points = ramer_douglas_peucker(point_points, route['rdp_epsilon'])
     else:
         point_points = route_with_distance_and_index(filtered_points)
-        simplified_points = ramer_douglas_peucker_sections(point_points, route['rdp_epsilon'],
-                                                           route['split_at_dist'], route['split_point_range'])
+        points = ramer_douglas_peucker_sections(point_points, route['rdp_epsilon'], route['split_at_dist'], route['split_point_range'])
+    route['points'] = [(point.lat, point.lng) for point in points]
 
-    route['points'] = [(point.lat, point.lng) for point in simplified_points]
-    logging.info('Original point count: {}, simplified point count: {}'.format(
-        len(route['original_points']), len(route['points'])))
+    indexed_points = [IndexedPoint(point.lat, point.lng, index=i) for i, point in enumerate(points)]
+    if not route.get('split_at_dist'):
+        simplified_points = ramer_douglas_peucker(indexed_points, 500)
+    else:
+        simplified_points = ramer_douglas_peucker_sections(indexed_points, 500, route['split_at_dist'], route['split_point_range'])
+    route['simplified_points_indexes'] = [point.index for point in simplified_points]
+
+    logging.info(f"Original point count: {len(route['original_points'])}, point count: {len(points)}, simplified point count: {len(simplified_points)}")
 
     if not route['no_elevation']:
-        elevation_points = list(get_equal_spaced_points(simplified_points, 500))
+        elevation_points = list(get_equal_spaced_points(points, 500))
         elevations = await get_elevation_for_points(settings, [point for point, distance in elevation_points])
         route['elevation'] = [(round(point.lat, 6), round(point.lng, 6), elevation, dist) for elevation, (point, dist) in zip(elevations, elevation_points)]
 

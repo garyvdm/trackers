@@ -1,5 +1,6 @@
 import asyncio
 import sys
+import tempfile
 import traceback
 
 import arsenic
@@ -40,10 +41,13 @@ class WebDriverService(testresources.TestResourceManager):
 @async_contextmanager
 async def tracker_web_server_fixture(loop, port=None):
 
-    with temp_repo() as repo:
+    async with AsyncExitStack() as stack:
+        repo = await stack.enter_context(temp_repo())
+        cache_path = await stack.enter_context(tempfile.TemporaryDirectory())
         settings = {
             'data_path': repo.path,
             'google_api_key': TEST_GOOGLE_API_KEY,
+            'cache_path': cache_path,
         }
 
         async def mock_app_setup(app, settings):
@@ -75,8 +79,8 @@ async def tracker_web_server_fixture(loop, port=None):
 
         app = await make_aio_app(settings, app_setup=mock_app_setup, client_error_handler=client_error,
                                  exception_recorder=exception_recorder)
-        async with web_server_fixture(loop, app, port) as url:
-            yield app, url, client_errors, server_errors
+        url = await stack.enter_context(web_server_fixture(loop, app, port))
+        yield app, url, client_errors, server_errors
 
 
 def wait_condition(condition, *args, delay=0.1, timeout=2, **kwargs):

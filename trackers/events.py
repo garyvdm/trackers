@@ -157,22 +157,22 @@ class Event(object):
                 tree_writer.remove(self.routes_path)
         tree_writer.commit(message, author=author)
 
-    async def start_trackers(self):
+    async def start_trackers(self, analyse=True):
         if self.starting_fut:
             await self.starting_fut
 
         if not self.trackers_started:
-            self.starting_fut = asyncio.ensure_future(self._start_trackers())
+            self.starting_fut = asyncio.ensure_future(self._start_trackers(analyse))
             try:
                 await self.starting_fut
             finally:
                 self.starting_fut = None
 
-    async def _start_trackers(self):
+    async def _start_trackers(self, analyse):
         await asyncio.sleep(1)
         self.logger.info('Starting {}'.format(self.name))
 
-        analyse = self.config.get('analyse', False)
+        # analyse = self.config.get('analyse', False)
         replay = self.config.get('replay', False)
         is_live = self.config.get('live', False)
         self.event_start = self.config.get('event_start')
@@ -230,7 +230,7 @@ class Event(object):
                 self.rider_trackers_blocked_list[rider['name']] = BlockedList.from_tracker(
                     tracker, entire_block=not is_live,
                     new_update_callbacks=(partial(self.rider_blocked_list_update_observable, self, rider['name']), ))
-        if analyse:
+        if analyse and is_live:
             self.predicted_task = asyncio.ensure_future(self.predicted())
         self.trackers_started = True
 

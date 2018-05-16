@@ -359,10 +359,14 @@ def get_analyse_route(org_route):
     route['points'] = route_points = route_with_distance_and_index(org_route['points'])
     route['point_pairs'] = [get_point_pair_precalc(*point_pair) for point_pair in pairs(route_points)]
 
-    if not route.get('split_at_dist'):
-        simplified_points = ramer_douglas_peucker(route_points, 500)
+    if route.get('simplified_points_indexes'):
+        simplified_points = [route_points[i] for i in route['simplified_points_indexes']]
     else:
-        simplified_points = ramer_douglas_peucker_sections(route_points, 500, route['split_at_dist'], route['split_point_range'])
+        logging.info('No pre-calculated simplified_points. Please run process_event_routes on event for faster start up.')
+        if not route.get('split_at_dist'):
+            simplified_points = ramer_douglas_peucker(route_points, 500)
+        else:
+            simplified_points = ramer_douglas_peucker_sections(route_points, 500, route['split_at_dist'], route['split_point_range'])
 
     route['simplfied_point_pairs'] = [get_point_pair_precalc(*point_pair) for point_pair in pairs(simplified_points)]
     logger.debug('Route points: {}, simplified points: {}, distance: {}'.format(len(route_points), len(route['simplfied_point_pairs']), route_points[-1].distance))

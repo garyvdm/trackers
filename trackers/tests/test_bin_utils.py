@@ -98,5 +98,6 @@ class TestAddGpxToEventRoutes(asynctest.TestCase, TestEventWithMockTracker):
                 'split_point_range': 1000,
                 'rdp_epsilon': 2,
                 'no_elevation': True,
+                'simplified_points_indexes': [0, 1],
             }
         ])
