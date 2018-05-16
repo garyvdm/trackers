@@ -176,6 +176,7 @@ class Event(object):
         replay = self.config.get('replay', False)
         is_live = self.config.get('live', False)
         self.event_start = self.config.get('event_start')
+        print(self.event_start)
 
         self.rider_trackers = {}
         self.rider_trackers_blocked_list = {}
@@ -203,6 +204,7 @@ class Event(object):
                 'replay_start': datetime.datetime.now(),
                 'speed_multiply': replay_config.get('speed_multiply', 50),
                 'offset': datetime.timedelta(**replay_config.get('offset', {})),
+                'event_start_time': self.event_start,
             }
             self.event_start = replay_kwargs['replay_start'] + replay_kwargs['offset']
             self.config_hash = hash_bytes(yaml.dump(self.config).encode())
@@ -212,7 +214,7 @@ class Event(object):
                 start_tracker = self.app['start_event_trackers'][rider['tracker']['type']]
                 tracker = await start_tracker(self.app, self, rider['name'], rider['tracker'])
                 if replay:
-                    tracker = await start_replay_tracker(tracker, self.event_start, **replay_kwargs)
+                    tracker = await start_replay_tracker(tracker, **replay_kwargs)
                 if analyse:
                     tracker = await AnalyseTracker.start(tracker, self.event_start, analyse_routes, find_closest_cache=find_closest_cache)
                     self.rider_analyse_trackers[rider['name']] = tracker
