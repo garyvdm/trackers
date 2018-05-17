@@ -172,6 +172,7 @@ class TestAnalyseTracker(asynctest.TestCase):
                 ],
                 'split_at_dist': [35000, 115000],
                 'split_point_range': 10000,
+                'circular_range': 50000,
             },
         ]
         event_routes = get_analyse_routes(routes)

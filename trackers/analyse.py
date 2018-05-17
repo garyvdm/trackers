@@ -450,10 +450,11 @@ def find_closest_point_pair(route, point_pairs, to_point, prev_dist):
     with_c_points = [find_closest_point_pair_result(point_pair[:2], *find_c_point_from_precalc(to_point, *point_pair))
                      for point_pair in point_pairs]
 
-    if prev_dist is not None:
+    circular_range = route.get('circular_range')
+    if prev_dist is not None and circular_range:
         def min_key(closest):
             move_distance = abs(route_distance(route, closest) - prev_dist)
-            move_distnace_adj = pow(2, (move_distance - 50000) / 1000)  # TODO make this configurable.
+            move_distnace_adj = pow(2, (move_distance - circular_range) / 1000)
             rank = closest.dist + move_distnace_adj
             # print(move_distance, n, move_distnace_adj, closest.dist, rank)
             return rank

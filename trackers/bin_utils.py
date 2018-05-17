@@ -217,9 +217,12 @@ def add_gpx_to_event_routes_parser():
     parser.add_argument('event_name', action='store')
     parser.add_argument('gpx_file', action='store')
     parser.add_argument('--no-elevation', action='store_true')
-    parser.add_argument('--split-at-dist', action='store', type=int, nargs='*')
+    parser.add_argument('--split-at-dist', action='store', type=int, nargs='*',
+                        help="Distances to split route at when performing RDP simplification")
     parser.add_argument('--split-point-range', action='store', type=int, default=500)
     parser.add_argument('--rdp-epsilon', action='store', type=int, default=2)
+    parser.add_argument('--circular-range', action='store', type=int, default=500,
+                        help="Set to about 1/2 of distance (m) of circular route. To help with find closest point.")
 
     return parser
 
@@ -244,7 +247,7 @@ async def add_gpx_to_event_routes(app, settings, args):
     writer = TreeWriter(app['trackers.data_repo'])
     event = await trackers.events.Event.load(app, args.event_name, writer)
     route = {'original_points': points}
-    for key in ('no_elevation', 'split_at_dist', 'split_point_range', 'rdp_epsilon'):
+    for key in ('no_elevation', 'split_at_dist', 'split_point_range', 'rdp_epsilon', 'circular_range'):
         route[key] = getattr(args, key)
 
     await process_route(settings, route)
