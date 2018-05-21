@@ -6,7 +6,9 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     include_package_data=True,
     install_requires=[
+        'aioauth-client',
         'aiohttp',
+        'aiohttp_session[secure]',
         'aiomsgpack',
         'aionotify',
         'aniso8601',
@@ -46,6 +48,8 @@ setuptools.setup(
             'load_riders_from_csv=trackers.bin_utils:load_riders_from_csv',
 
             'run_qunit_tests=trackers.client_test_tools:qunit_runner',
+            'gen_key=trackers.auth:gen_key',
+
         ],
     },
     test_suite='trackers.tests.suite',

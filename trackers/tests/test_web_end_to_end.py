@@ -54,6 +54,9 @@ async def tracker_web_server_fixture(loop, port=None):
         settings = {
             'google_api_key': TEST_GOOGLE_API_KEY,
             'cache_path': cache_path,
+            'oauth_providers': [],
+            'app_url': '',
+            'aiosession_encryption_key': 'kOKJegsEmRHdOSKsIEW9IiQdB3B6ZaKCx_F6rGfdY2g=',
         }
 
         async def mock_app_setup(app, settings):

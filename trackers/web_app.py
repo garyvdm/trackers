@@ -19,9 +19,11 @@ from aiohttp import web, WSCloseCode, WSMsgType
 from htmlwrite import Markup, Tag, Writer
 from more_itertools import chunked
 
+import trackers.auth
 import trackers.bin_utils
 import trackers.events
 from trackers.analyse import AnalyseTracker
+from trackers.auth import ensure_authorized, get_git_author, show_identity
 from trackers.base import cancel_and_wait_task, list_register, Observable
 from trackers.general import json_dumps
 from trackers.web_helpers import (
@@ -89,6 +91,7 @@ async def make_aio_app(settings,
     static_manager.add_resource_dir('/static/logos')
 
     static_manager.start_monitor_and_process_resources()
+    await trackers.auth.config_aio_app(app, settings)
 
     app.router.add_route('GET', '/{event}', handler=event_page, name='event_page')
     app.router.add_route('GET', '/{event}/websocket', handler=event_ws, name='event_ws')
@@ -101,9 +104,11 @@ async def make_aio_app(settings,
                          handler=coro_partial(blocked_lists, list_attr_name='off_route_blocked_list'))
     app.router.add_route('GET', '/{event}/riders_csv', name='riders_csv', handler=riders_csv)
 
-    app.router.add_route('GET', '/{event}/admin', handler=event_admin, name='event_admin')
-    app.router.add_route('POST', '/{event}/set_start', handler=event_set_start, name='event_set_start')
-    app.router.add_route('POST', '/{event}/add_rider_point', handler=event_add_rider_point, name='event_add_rider_point')
+    admin_users = {'garyvdm@gmail.com'}
+
+    app.router.add_route('GET', '/{event}/admin', handler=ensure_authorized(event_admin, admin_users), name='event_admin')
+    app.router.add_route('POST', '/{event}/set_start', handler=ensure_authorized(event_set_start, admin_users), name='event_set_start')
+    app.router.add_route('POST', '/{event}/add_rider_point', handler=ensure_authorized(event_add_rider_point, admin_users), name='event_add_rider_point')
 
     app.router.add_route('POST', '/client_error', handler=client_error_handler, name='client_error')
 
@@ -502,7 +507,8 @@ async def message_to_multiple_wss(app, wss, msg, log_level=logging.DEBUG, filter
 @event_handler
 async def event_set_start(request, event):
     event.config['event_start'] = datetime.datetime.now().replace(microsecond=0)
-    event.save("Set event start")
+    author = await get_git_author(request)
+    event.save(f"{event.name}: Set event start", author=author)
     return web.Response(text='Start time set to {}'.format(event.config['event_start']))
 
 
@@ -636,6 +642,7 @@ async def event_admin(request, event):
             w(Tag('title'), ('Admin', event.name))
         with c(Tag('body')):
             w(Tag('h1'), ('Admin - ', event.config['title']))
+            await show_identity(request, writer)
 
             w(Tag('h2'), 'Add Rider Points')
 
@@ -692,6 +699,7 @@ async def event_add_rider_point(request, event):
     await rider_objects.data_tracker.add_points([point])
 
     status = point.get('rider_status', '')
-    event.save(f'{event.name}: add point to {rider_name} - {status}')
+    author = await get_git_author(request)
+    event.save(f'{event.name}: add point to {rider_name} - {status}', author=author)
 
     return web.Response(text=f'Added point to {rider_name}: {point}')
