@@ -26,7 +26,7 @@ async def config_modules(app, settings):
         'mapmytracks': trackers.sources.map_my_tracks.start_event_tracker,
         'traccar': trackers.sources.traccar.start_event_tracker,
         'spot': trackers.sources.spot.start_event_tracker,
-        'tkstorage': trackers.sources.spot.start_event_tracker,
+        'tkstorage': trackers.sources.tkstorage.start_event_tracker,
         'static': trackers.general.static_start_event_tracker,
         'cropped': partial(trackers.general.wrapped_tracker_start_event, trackers.general.cropped_tracker_start),
         'filter_inaccurate': partial(trackers.general.wrapped_tracker_start_event, trackers.general.filter_inaccurate_tracker_start),
