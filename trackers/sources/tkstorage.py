@@ -66,7 +66,7 @@ async def connection(app, settings, all_points, position_received_observables, s
                                     point = None
                                 all_points.append((item, point))
 
-                                if point and point.get('id'):
+                                if point and point.get('tk_id'):
                                     observable = position_received_observables.get(point['tk_id'])
                                     if observable:
                                         await observable(point)
@@ -112,38 +112,36 @@ def msg_item_to_point(msg_item):
     if not id:
         return
 
-    id = id.decode()
-    server_time = datetime.datetime.fromtimestamp(server_time)
-    point = {
-        'server_time': server_time,
-        'tk_id': id,
-    }
-    if data:
+    if type == MESSAGE_RECEIVED and data:
+        id = id.decode()
+        server_time = datetime.datetime.fromtimestamp(server_time)
+        point = {
+            'server_time': server_time,
+            'tk_id': id,
+        }
         data = data.decode('latin1')
         assert data[0] == '('
         assert data[-1] == ')'
         data = data_split(data[1:-1])
-        if type == MESSAGE_RECEIVED:
-            msg_code = data[1]
-            # if msg_code == 'ZC20':
-            #     point['time'] = parse_date_time(data[2], data[3])
-            if msg_code[:3] == 'DW3':
-                assert data[3] == 'A'
-                lat = parse_coordinate(data[4], 'S')
-                lng = parse_coordinate(data[5], 'W')
-                alt = float(data[9])
-                point['time'] = parse_date_time(data[2], data[7])
-                point['position'] = (lat, lng, alt)
-                point['num_sat'] = int(data[10])
-            if msg_code == 'ZC03':
-                point['time'] = parse_date_time(data[2], data[3])
-                msg = data[4]
-                # print(msg)
-                status_battery_match = status_battery_re.search(msg)
-                if status_battery_match:
-                    point['battery'] = int(status_battery_match.group(1))
-                    point['tk_status'] = msg
-    return point
+        msg_code = data[1]
+        # if msg_code == 'ZC20':
+        #     point['time'] = parse_date_time(data[2], data[3])
+        if msg_code[:3] == 'DW3' and data[3] == 'A':
+            lat = parse_coordinate(data[4], 'S')
+            lng = parse_coordinate(data[5], 'W')
+            alt = float(data[9])
+            point['time'] = parse_date_time(data[2], data[7])
+            point['position'] = (lat, lng, alt)
+            point['num_sat'] = int(data[10])
+        if msg_code == 'ZC03':
+            point['time'] = parse_date_time(data[2], data[3])
+            msg = data[4]
+            # print(msg)
+            status_battery_match = status_battery_re.search(msg)
+            if status_battery_match:
+                point['battery'] = int(status_battery_match.group(1))
+                point['tk_status'] = msg
+        return point
 
 
 def data_split(data):
@@ -212,7 +210,7 @@ async def start_tracker(app, tracker_name, id, start, end):
     tracker.completed.add_done_callback(partial(tracker_on_completed, tracker))
 
     all_points = app['tkstorage.all_points']
-    filtered_points = [point for _, point in all_points if point and (point['tk_id'] == id and time_between(point.get('time'), tracker.start, tracker.end) or time_between(point.get('server_time'), tracker.start, tracker.end))]
+    filtered_points = [point for _, point in all_points if point and point['tk_id'] == id and (time_between(point.get('time'), tracker.start, tracker.end) or time_between(point.get('server_time'), tracker.start, tracker.end))]
     await tracker.new_points(filtered_points)
     tracker.position_recived = partial(tracker_point_received, tracker)
     tracker.position_received_observables = app['tkstorage.position_received_observables'][id]
@@ -240,11 +238,11 @@ async def main():
 
     app = {}
     settings = {
-        'tkstorage_path': os.path.expanduser('tkstorage_watcher'),
+        'tkstorage_path': os.path.expanduser('~/dev/trackers/tkstorage_watcher'),
     }
     async with config(app, settings):
         tracker = await start_tracker(
-            app, 'gary', 'TK01', datetime.datetime(2018, 4, 25), None)
+            app, 'gary', 'TK02', datetime.datetime(2018, 6, 4), None)
         # await tracker.finish()
         print_tracker(tracker)
         run_fut = asyncio.Future()
