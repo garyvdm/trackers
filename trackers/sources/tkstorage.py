@@ -37,13 +37,7 @@ async def config(app, settings):
         yield
     finally:
         logger.debug('Shutdown.')
-        connection_task.cancel()
-        try:
-            await connection_task
-        except asyncio.CancelledError:
-            pass
-        except Exception:
-            logger.exception('Error in connection_task: ')
+        await cancel_and_wait_task(connection_task)
 
 
 async def connection(app, settings, all_points, position_received_observables, send_queue):
@@ -80,15 +74,17 @@ async def connection(app, settings, all_points, position_received_observables, s
                         await cancel_and_wait_task(write_fut)
                 finally:
                     proto.close()
+            except asyncio.CancelledError:
+                raise
             except ConnectionRefusedError as e:
                 logger.error(f'Error in connection task: {e}')
-            except asyncio.CancelledError:
-                break
             except Exception:
                 logger.exception('Error in connection task: ')
             logger.debug('Reconnecting in {} sec'.format(reconnect_sleep_time))
             await asyncio.sleep(reconnect_sleep_time)
             reconnect_sleep_time = min((reconnect_sleep_time * 2, 30))
+    except asyncio.CancelledError:
+        raise
     except Exception:
         logger.exception('Error in connection task: ')
 

@@ -7,3 +7,4 @@ trackers/static/coverage/
 node_modules/
 package-lock.json
 .sass-cache
+tkstorage_watcher
