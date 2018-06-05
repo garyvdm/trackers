@@ -4,6 +4,7 @@ import logging
 import re
 from collections import defaultdict
 from functools import partial
+from itertools import groupby
 
 import aiomsgpack
 import more_itertools
@@ -40,6 +41,9 @@ async def config(app, settings):
         await cancel_and_wait_task(connection_task)
 
 
+tk_id_key = lambda point: point['tk_id']
+
+
 async def connection(app, settings, all_points, position_received_observables, send_queue):
     try:
         reconnect_sleep_time = 5
@@ -58,6 +62,7 @@ async def connection(app, settings, all_points, position_received_observables, s
                     write_fut = asyncio.ensure_future(write(app, proto, send_queue))
                     try:
                         async for msg in proto:
+                            new_points = []
                             for item in msg:
                                 try:
                                     point = msg_item_to_point(item)
@@ -67,9 +72,13 @@ async def connection(app, settings, all_points, position_received_observables, s
                                 all_points.append((item, point))
 
                                 if point and point.get('tk_id'):
-                                    observable = position_received_observables.get(point['tk_id'])
-                                    if observable:
-                                        await observable(point)
+                                    new_points.append(point)
+
+                            for tk_id, points in groupby(sorted(new_points, key=tk_id_key), key=tk_id_key):
+                                observable = position_received_observables.get(tk_id)
+                                if observable:
+                                    await observable(list(points))
+
                     finally:
                         await cancel_and_wait_task(write_fut)
                 finally:
@@ -212,16 +221,16 @@ async def start_tracker(app, tracker_name, id, start, end):
     all_points = app['tkstorage.all_points']
     filtered_points = [point for _, point in all_points if point and point['tk_id'] == id and (time_between(point.get('time'), tracker.start, tracker.end) or time_between(point.get('server_time'), tracker.start, tracker.end))]
     await tracker.new_points(filtered_points)
-    tracker.position_recived = partial(tracker_point_received, tracker)
+    tracker.position_received = partial(tracker_points_received, tracker)
     tracker.position_received_observables = app['tkstorage.position_received_observables'][id]
-    tracker.position_received_observables.subscribe(tracker.position_recived)
+    tracker.position_received_observables.subscribe(tracker.position_received)
 
     return tracker
 
 
-async def tracker_point_received(tracker, point):
-    if time_between(point.get('time'), tracker.start, tracker.end) or time_between(point.get('server_time'), tracker.start, tracker.end):
-        await tracker.new_points([point])
+async def tracker_points_received(tracker, points):
+    points = [point for point in points if time_between(point.get('time'), tracker.start, tracker.end) or time_between(point.get('server_time'), tracker.start, tracker.end)]
+    await tracker.new_points(points)
 
 
 def tracker_stop(tracker):
@@ -242,7 +251,7 @@ async def main():
     }
     async with config(app, settings):
         tracker = await start_tracker(
-            app, 'gary', 'TK02', datetime.datetime(2018, 6, 4), None)
+            app, 'gary', 'TK03', datetime.datetime(2018, 6, 5), None)
         # await tracker.finish()
         print_tracker(tracker)
         run_fut = asyncio.Future()
