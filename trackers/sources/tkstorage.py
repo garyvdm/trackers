@@ -3,6 +3,7 @@ import datetime
 import logging
 import re
 from collections import defaultdict
+from copy import copy
 from functools import partial
 from itertools import groupby
 
@@ -109,11 +110,8 @@ MESSAGE_SENT = 1
 DISCONNECT = 2
 CANCELED = 3
 
-status_battery_re = re.compile('Power: (\d*)%')
-
 
 def msg_item_to_point(msg_item):
-
     correct_len = more_itertools.first(more_itertools.windowed(msg_item, 5))
     connection_id, server_time, type, data, id = correct_len
     # print(msg_item)
@@ -146,11 +144,67 @@ def msg_item_to_point(msg_item):
             point['time'] = parse_date_time(data[2], data[3])
             msg = data[4]
             # print(msg)
-            status_battery_match = status_battery_re.search(msg)
-            if status_battery_match:
-                point['battery'] = int(status_battery_match.group(1))
-                point['tk_status'] = msg
+            point.update(ZC03_parse(msg))
+
         return point
+
+
+status_battery_re = re.compile('Power: (\d*)%')
+check_re = re.compile('Check interval is set to (\d*) minute\(s\).')
+routetrack_re = re.compile('Routetrack (data is uploading|is on), Period is set to (\d*)')
+routetrack_time_re = re.compile('Notice: System has entered routetrack function for (\d*) hour\(s\).')
+rsampling_re = re.compile('Notice: Track sampling interval is (\d*) second\(s\).')
+rupload_re = re.compile('Notice: Upload time interval is set to (\d*) second\(s\)')
+check_on_re = re.compile('Notice: Check interval is set to (\d*) minute\(s\).')
+
+
+def ZC03_parse(msg):
+    status_battery_match = status_battery_re.search(msg)
+
+    if status_battery_match:
+        yield 'battery', int(status_battery_match.group(1))
+        yield 'tk_status', msg
+        check_match = check_re.search(msg)
+        if check_match:
+            yield 'tk_check', int(check_match.group(1))
+        else:
+            yield 'tk_check', False
+
+        routetrack_match = routetrack_re.search(msg)
+        if routetrack_match:
+            routetrack = int(routetrack_match.group(2))
+            if routetrack == 99:
+                routetrack = True
+            yield 'tk_routetrack', routetrack
+        else:
+            yield 'tk_routetrack', False
+    else:
+        if msg == 'Notice: System has ended routetrack function.':
+            yield 'tk_routetrack', False
+            return
+        if msg == 'Notice: Routetrack function is set to always on':
+            yield 'tk_routetrack', True
+            return
+        if msg == 'Notice: System has ended check function.':
+            yield 'tk_check', False
+            return
+
+        routetrack_time_match = routetrack_time_re.match(msg)
+        if routetrack_time_match:
+            yield 'tk_routetrack', int(routetrack_time_match.group(1))
+            return
+        rsampling_match = rsampling_re.match(msg)
+        if rsampling_match:
+            yield 'tk_rsampling', int(rsampling_match.group(1))
+            return
+        rupload_match = rupload_re.match(msg)
+        if rupload_match:
+            yield 'tk_rupload', int(rupload_match.group(1))
+            return
+        check_on_match = check_on_re.match(msg)
+        if check_on_match:
+            yield 'tk_check', int(check_on_match.group(1))
+            return
 
 
 def data_split(data):
@@ -190,7 +244,10 @@ def parse_coordinate(raw, neg):
 async def start_event_tracker(app, event, rider_name, tracker_data):
     return await TKStorageTracker.start(
         app, rider_name, tracker_data['id'],
-        event.config['tracker_start'], event.config['tracker_end'])
+        tracker_data.get('start') or event.config['tracker_start'],
+        tracker_data.get('end') or event.config['tracker_end'],
+        tracker_data.get('config') or event.config.get('tk_config'),
+    )
 
 
 def time_between(time, start, end):
@@ -210,13 +267,13 @@ async def start_individual_tracker(app, settings, request):
 class TKStorageTracker(Tracker):
 
     @classmethod
-    async def start(cls, app, tracker_name, id, start, end):
+    async def start(cls, app, tracker_name, id, start, end, config=None):
         tracker = cls(f'tkstorage.{id}-{tracker_name}')
         tracker.app = app
         tracker.id = id
         tracker.start = start
         tracker.end = end
-        tracker.config = {}
+        tracker.current_config = {}
         tracker.send_queue = app['tkstorage.send_queue']
 
         tracker.finished = asyncio.Event()
@@ -229,10 +286,45 @@ class TKStorageTracker(Tracker):
         tracker.completed.add_done_callback(tracker.on_completed)
         await tracker.new_points(filtered_points)
 
+        if config:
+            now = datetime.datetime.now()
+            if start < now:
+                asyncio.call_later((start - now).total_seconds(), tracker.set_config, config)
+            else:
+                await tracker.set_config(config)
+
         return tracker
 
+    config_keys = {'tk_routetrack', 'tk_rupload', 'tk_rsampling', 'tk_check', }
+
+    def consume_config_from_point(self, point):
+        config_items = [(key[3:], value) for key, value in point.items() if key in self.config_keys]
+        if config_items:
+            c = self.current_config
+            c.update(config_items)
+            # Do we want to rm the config keys
+            point = copy(point)
+            config_texts = []
+            routetrack = c.get('routetrack')
+            if routetrack:
+                t = 'on' if routetrack == True else f'on for {routetrack} hrs'  # NOQA
+                if 'rupload' in c and 'rsampling' in c:
+                    if c["rupload"] == c["rsampling"]:
+                        config_texts.append(f'Routetrack {t}, upload: {c["rupload"]} sec')
+                    else:
+                        config_texts.append(f'Routetrack {t}, upload: {c["rupload"]} sec, sampling: {c["rsampling"]} sec')
+                else:
+                    config_texts.append(f'Routetrack {t}')
+            if c.get('check'):
+                config_texts.append(f'Check on, upload: {c["check"]} min')
+            if not config_texts:
+                config_texts.append(f'Tracker Off')
+            point['tk_config'] = '\n'.join(config_texts)
+            # print(repr(point['tk_config']))
+        return point
+
     async def points_received(self, points):
-        points = [point for point in points if time_between(point.get('time'), self.start, self.end) or time_between(point.get('server_time'), self.start, self.end)]
+        points = [self.consume_config_from_point(point) for point in points if time_between(point.get('time'), self.start, self.end) or time_between(point.get('server_time'), self.start, self.end)]
         await self.new_points(points)
 
     def stop(self):
@@ -240,6 +332,29 @@ class TKStorageTracker(Tracker):
 
     def on_completed(self, fut):
         self.position_received_observables.unsubscribe(self.position_received)
+
+    async def set_config(self, config, urgent=False):
+        commands = []
+        if 'routetrack' in config:
+            routetrack = config['routetrack']
+            if routetrack == True:  # NOQA
+                routetrack = 99
+            if routetrack:
+                commands.extend((
+                    f'*rupload*{config["rupload"]}*',
+                    f'*rsampling*{config["rsampling"]}*',
+                    f'*routetrack*{routetrack}*',
+                ))
+            else:
+                commands.append('*routetrackoff*')
+        if 'check' in config:
+            check = config['check']
+            if check:
+                commands.append(f'*checkm*{check}*')
+            else:
+                commands.append(f'*checkoff*')
+
+        await self.send_queue.put({'id': self.id, 'commands': commands, 'urgent': urgent})
 
 
 async def main():
@@ -251,8 +366,14 @@ async def main():
     }
     async with config(app, settings):
         tracker = await TKStorageTracker.start(
-            app, 'gary', 'TK03', datetime.datetime(2018, 4, 25), None)
+            app, 'gary', 'TK03', datetime.datetime(2018, 6, 5, 17), None)
         print_tracker(tracker)
+        # await tracker.set_config({'check': 5})
+        # await tracker.set_config({'routetrack': False, 'check': False})
+        # await tracker.set_config({'routetrack': True, 'rupload': 60, 'rsampling': 60})
+        # await tracker.set_config({'routetrack': 10, 'rupload': 60, 'rsampling': 60})
+        # await asyncio.sleep(2)
+
         import signal
         run_fut = asyncio.Future()
         for signame in ('SIGINT', 'SIGTERM'):

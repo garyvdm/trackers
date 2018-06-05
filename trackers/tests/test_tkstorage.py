@@ -1,7 +1,8 @@
 import datetime
 import unittest
+import unittest.mock
 
-from trackers.sources.tkstorage import data_split, msg_item_to_point
+from trackers.sources.tkstorage import data_split, msg_item_to_point, ZC03_parse
 
 
 class TestDataSplit(unittest.TestCase):
@@ -48,19 +49,79 @@ class TestToPoint(unittest.TestCase):
             },
         )
 
-    def test_status_msg(self):
+    def test_ZC03_msg(self):
+
+        def stub_ZC03_parse(msg):
+            yield 'foo', 'bar'
+
+        with unittest.mock.patch('trackers.sources.tkstorage.ZC03_parse', stub_ZC03_parse):
+            self.assertEqual(
+                msg_item_to_point([0, 1526394226, 1, b'(864768011193965,ZC03,150518,142343,$stuff$)', b'TK01']),
+                {'server_time': datetime.datetime(2018, 5, 15, 16, 23, 46),
+                 'tk_id': 'TK01',
+                 'time': datetime.datetime(2018, 5, 15, 16, 23, 43),
+                 'foo': 'bar',
+                 },
+            )
+
+
+class TestZC03Parse(unittest.TestCase):
+
+    def test_status(self):
         self.assertEqual(
-            msg_item_to_point([0, 1526394226, 1, b'(864768011193965,ZC03,150518,142343,$1 .GPS is positioning,0 Satellite\r\n2 .Sensor sensitivity: 1\r\n3 .Alert status: CALL\r\n4 .Check interval is set to 300 minute(s).\r\n5 .Routetrack data is uploading, Period is set to 99\r\n6 . Power: 100%$)', b'TK01']),
-            {'server_time': datetime.datetime(2018, 5, 15, 16, 23, 46),
-             'tk_id': 'TK01',
-             'time': datetime.datetime(2018, 5, 15, 16, 23, 43),
-             'battery': 100,
-             'tk_status':
-                 '1 .GPS is positioning,0 Satellite\r\n'
-                 '2 .Sensor sensitivity: 1\r\n'
-                 '3 .Alert status: CALL\r\n'
-                 '4 .Check interval is set to 300 minute(s).\r\n'
-                 '5 .Routetrack data is uploading, Period is set to 99\r\n'
-                 '6 . Power: 100%'
-             },
+            dict(ZC03_parse('1 .GPS is positioning,0 Satellite\r\n2 .Sensor sensitivity: 1\r\n3 .Alert status: CALL\r\n4 .Check interval is set to 5 minute(s).\r\n5 .Routetrack data is uploading, Period is set to 99\r\n6 . Power: 98%')),
+            {
+                'battery': 98,
+                'tk_check': 5,
+                'tk_routetrack': True,
+                'tk_status':
+                    '1 .GPS is positioning,0 Satellite\r\n'
+                    '2 .Sensor sensitivity: 1\r\n'
+                    '3 .Alert status: CALL\r\n'
+                    '4 .Check interval is set to 5 minute(s).\r\n'
+                    '5 .Routetrack data is uploading, Period is set to 99\r\n'
+                    '6 . Power: 98%'
+            }
+        )
+
+    def test_routetrackoff(self):
+        self.assertEqual(
+            dict(ZC03_parse('Notice: System has ended routetrack function.')),
+            {'tk_routetrack': False, },
+        )
+
+    def test_routetrackon(self):
+        self.assertEqual(
+            dict(ZC03_parse('Notice: Routetrack function is set to always on')),
+            {'tk_routetrack': True, },
+        )
+
+    def test_routetrack_time(self):
+        self.assertEqual(
+            dict(ZC03_parse('Notice: System has entered routetrack function for 10 hour(s).')),
+            {'tk_routetrack': 10, },
+        )
+
+    def test_rsampling(self):
+        self.assertEqual(
+            dict(ZC03_parse('Notice: Track sampling interval is 60 second(s).')),
+            {'tk_rsampling': 60, },
+        )
+
+    def test_rupload(self):
+        self.assertEqual(
+            dict(ZC03_parse('Notice: Upload time interval is set to 60 second(s)')),
+            {'tk_rupload': 60, },
+        )
+
+    def test_checkoff(self):
+        self.assertEqual(
+            dict(ZC03_parse('Notice: System has ended check function.')),
+            {'tk_check': False, },
+        )
+
+    def test_checkon(self):
+        self.assertEqual(
+            dict(ZC03_parse('Notice: Check interval is set to 5 minute(s).')),
+            {'tk_check': 5, },
         )
