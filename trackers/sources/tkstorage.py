@@ -188,8 +188,9 @@ def parse_coordinate(raw, neg):
 
 
 async def start_event_tracker(app, event, rider_name, tracker_data):
-    return await start_tracker(app, rider_name, tracker_data['id'],
-                               event.config['tracker_start'], event.config['tracker_end'])
+    return await TKStorageTracker.start(
+        app, rider_name, tracker_data['id'],
+        event.config['tracker_start'], event.config['tracker_end'])
 
 
 def time_between(time, start, end):
@@ -203,46 +204,45 @@ def get_individual_key(request):
 async def start_individual_tracker(app, settings, request):
     id = request.match_info['id']
     start = datetime.datetime.now() - datetime.timedelta(days=2)
-    print(start)
-    return await start_tracker(app, id, id, start, None)
+    return await TKStorageTracker.start(app, id, id, start, None)
 
 
-async def start_tracker(app, tracker_name, id, start, end):
-    tracker = Tracker(f'tkstorage.{id}-{tracker_name}')
-    tracker.id = id
-    tracker.start = start
-    tracker.end = end
+class TKStorageTracker(Tracker):
 
-    tracker.finished = asyncio.Event()
-    tracker.stop = partial(tracker_stop, tracker)
-    tracker.completed = asyncio.ensure_future(tracker.finished.wait())
-    tracker.completed.add_done_callback(partial(tracker_on_completed, tracker))
+    @classmethod
+    async def start(cls, app, tracker_name, id, start, end):
+        tracker = cls(f'tkstorage.{id}-{tracker_name}')
+        tracker.app = app
+        tracker.id = id
+        tracker.start = start
+        tracker.end = end
+        tracker.config = {}
+        tracker.send_queue = app['tkstorage.send_queue']
 
-    all_points = app['tkstorage.all_points']
-    filtered_points = [point for _, point in all_points if point and point['tk_id'] == id and (time_between(point.get('time'), tracker.start, tracker.end) or time_between(point.get('server_time'), tracker.start, tracker.end))]
-    await tracker.new_points(filtered_points)
-    tracker.position_received = partial(tracker_points_received, tracker)
-    tracker.position_received_observables = app['tkstorage.position_received_observables'][id]
-    tracker.position_received_observables.subscribe(tracker.position_received)
+        tracker.finished = asyncio.Event()
+        tracker.completed = asyncio.ensure_future(tracker.finished.wait())
 
-    return tracker
+        all_points = app['tkstorage.all_points']
+        filtered_points = [point for _, point in all_points if point and point['tk_id'] == id and (time_between(point.get('time'), tracker.start, tracker.end) or time_between(point.get('server_time'), tracker.start, tracker.end))]
+        tracker.position_received_observables = app['tkstorage.position_received_observables'][id]
+        tracker.position_received_observables.subscribe(tracker.points_received)
+        tracker.completed.add_done_callback(tracker.on_completed)
+        await tracker.new_points(filtered_points)
 
+        return tracker
 
-async def tracker_points_received(tracker, points):
-    points = [point for point in points if time_between(point.get('time'), tracker.start, tracker.end) or time_between(point.get('server_time'), tracker.start, tracker.end)]
-    await tracker.new_points(points)
+    async def points_received(self, points):
+        points = [point for point in points if time_between(point.get('time'), self.start, self.end) or time_between(point.get('server_time'), self.start, self.end)]
+        await self.new_points(points)
 
+    def stop(self):
+        self.finished.set()
 
-def tracker_stop(tracker):
-    tracker.finished.set()
-
-
-def tracker_on_completed(tracker, fut):
-    tracker.position_received_observables.unsubscribe(tracker.position_recived)
+    def on_completed(self, fut):
+        self.position_received_observables.unsubscribe(self.position_received)
 
 
 async def main():
-    import signal
     import os.path
 
     app = {}
@@ -250,10 +250,10 @@ async def main():
         'tkstorage_path': os.path.expanduser('~/dev/trackers/tkstorage_watcher'),
     }
     async with config(app, settings):
-        tracker = await start_tracker(
-            app, 'gary', 'TK03', datetime.datetime(2018, 6, 5), None)
-        # await tracker.finish()
+        tracker = await TKStorageTracker.start(
+            app, 'gary', 'TK03', datetime.datetime(2018, 4, 25), None)
         print_tracker(tracker)
+        import signal
         run_fut = asyncio.Future()
         for signame in ('SIGINT', 'SIGTERM'):
             loop.add_signal_handler(getattr(signal, signame), run_fut.set_result, None)
