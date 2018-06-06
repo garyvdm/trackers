@@ -286,12 +286,15 @@ class TKStorageTracker(Tracker):
         tracker.completed.add_done_callback(tracker.on_completed)
         await tracker.new_points(filtered_points)
 
+        tracker.initial_config_handle = None
         if config:
             now = datetime.datetime.now()
-            if start < now:
-                asyncio.call_later((start - now).total_seconds(), tracker.set_config, config)
-            else:
-                await tracker.set_config(config)
+            if now < start:
+                tracker.initial_config_handle = asyncio.get_event_loop().call_later(
+                    (start - now).total_seconds(),
+                    tracker.set_config_sync, config, True)
+            # else:
+            #     await tracker.set_config(config)
 
         return tracker
 
@@ -329,6 +332,8 @@ class TKStorageTracker(Tracker):
 
     def stop(self):
         self.finished.set()
+        if self.initial_config_handle:
+            self.initial_config_handle.cancel()
 
     def on_completed(self, fut):
         self.points_received_observables.unsubscribe(self.points_received)
