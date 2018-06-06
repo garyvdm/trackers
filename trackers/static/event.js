@@ -201,7 +201,7 @@ function ws_ensure_connect(){
         set_status(loader_html + 'Connecting');
         if (!window.WebSocket) {
             document.getElementById('badbrowser').display = 'block';
-            log_to_server('No flexbox support');
+            log_to_server('No WebSocket support');
         }
         ws = new WebSocket(location.protocol.replace('http', 'ws') + '//' + location.host + location.pathname + '/websocket');
         ws.onopen = ws_onopen;
