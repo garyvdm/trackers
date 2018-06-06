@@ -20,10 +20,10 @@ logger = logging.getLogger(__name__)
 
 @async_contextmanager
 async def config(app, settings):
-    app['tkstorage.position_received_observables'] = position_received_observables = defaultdict(partial(Observable, logger))
+    app['tkstorage.points_received_observables'] = points_received_observables = defaultdict(partial(Observable, logger))
     app['tkstorage.send_queue'] = send_queue = asyncio.Queue()
     app['tkstorage.all_points'] = all_points = []
-    connection_task = asyncio.ensure_future(connection(app, settings, all_points, position_received_observables, send_queue))
+    connection_task = asyncio.ensure_future(connection(app, settings, all_points, points_received_observables, send_queue))
 
     if isinstance(app, WebApplication):
         import trackers.web_app
@@ -45,7 +45,7 @@ async def config(app, settings):
 tk_id_key = lambda point: point['tk_id']
 
 
-async def connection(app, settings, all_points, position_received_observables, send_queue):
+async def connection(app, settings, all_points, points_received_observables, send_queue):
     try:
         reconnect_sleep_time = 5
         path = settings['tkstorage_path']
@@ -76,7 +76,7 @@ async def connection(app, settings, all_points, position_received_observables, s
                                     new_points.append(point)
 
                             for tk_id, points in groupby(sorted(new_points, key=tk_id_key), key=tk_id_key):
-                                observable = position_received_observables.get(tk_id)
+                                observable = points_received_observables.get(tk_id)
                                 if observable:
                                     await observable(list(points))
 
@@ -281,8 +281,8 @@ class TKStorageTracker(Tracker):
 
         all_points = app['tkstorage.all_points']
         filtered_points = [point for _, point in all_points if point and point['tk_id'] == id and (time_between(point.get('time'), tracker.start, tracker.end) or time_between(point.get('server_time'), tracker.start, tracker.end))]
-        tracker.position_received_observables = app['tkstorage.position_received_observables'][id]
-        tracker.position_received_observables.subscribe(tracker.points_received)
+        tracker.points_received_observables = app['tkstorage.points_received_observables'][id]
+        tracker.points_received_observables.subscribe(tracker.points_received)
         tracker.completed.add_done_callback(tracker.on_completed)
         await tracker.new_points(filtered_points)
 
@@ -331,7 +331,11 @@ class TKStorageTracker(Tracker):
         self.finished.set()
 
     def on_completed(self, fut):
-        self.position_received_observables.unsubscribe(self.position_received)
+        self.points_received_observables.unsubscribe(self.points_received)
+
+    def set_config_sync(self, config, urgent):
+        loop = asyncio.get_event_loop()
+        loop.create_task(self.set_config(config, urgent=urgent))
 
     async def set_config(self, config, urgent=False):
         commands = []
