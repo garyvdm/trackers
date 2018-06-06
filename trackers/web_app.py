@@ -463,7 +463,7 @@ async def message_to_multiple_wss(app, wss, msg, log_level=logging.DEBUG, filter
     msg = json_dumps(msg)
     logger.log(log_level, 'send: {}'.format(msg[:1000]))
 
-    filtered_wss = [ws for ws in wss if (filter_ws(ws) if filter_ws else True)]
+    filtered_wss = [ws for ws in wss if (filter_ws(ws) if filter_ws else True) and not ws.closed]
     if filtered_wss:
         futures = [asyncio.ensure_future(ws.send_str(msg)) for ws in filtered_wss]
         await asyncio.wait(futures)
