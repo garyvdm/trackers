@@ -4,8 +4,21 @@ got_to_loading = true;
 var loader_html = '<span class="l1"></span><span class="l2"></span><span class="l3"></span> '
 
 function get(url) {
-    return fetch(location.pathname + url).catch(promise_catch)
-        .then( function(response) { return response.json() }).catch(promise_catch);
+    return fetch(location.pathname + url)
+        .catch(promise_catch)
+        .then( function(response) {
+            if (response.ok) {
+                return response.json();
+            } else {
+                console.log('error');
+                response.text().then(function (error) {
+                    console.log(error);
+                    errors.push(error);
+                    update_status();
+                });
+            }
+        })
+        .catch(promise_catch);
 }
 
 function load_state(){

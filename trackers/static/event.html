@@ -100,7 +100,7 @@
         var errors = [];
 
         function update_status(){{
-            var text = errors.slice(-1).concat([status_msg]).join('<br>');
+            var text = errors.slice(-3).concat([status_msg]).join('<br>');
             status_element.innerHTML = text;
         }}
 
