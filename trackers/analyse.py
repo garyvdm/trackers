@@ -189,7 +189,7 @@ class AnalyseTracker(Tracker):
                     else:
                         self.prev_unit_vector = None
 
-                    # self.logger.info((not closest, closest.dist > 500 if closest else None, not self.going_forward))
+                    # self.logger.info((not closest, closest.dist > 500 if closest else None, not self.going_forward and point.get('dist_from_last', 0)))
                     if not closest or closest.dist > 500 or (not self.going_forward and point.get('dist_from_last', 0) > 500):
                         # self.logger.info('offcorse')
                         if not self.is_off_route and self.prev_point_with_position:

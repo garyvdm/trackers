@@ -221,7 +221,7 @@ def add_gpx_to_event_routes_parser():
                         help="Distances to split route at when performing RDP simplification")
     parser.add_argument('--split-point-range', action='store', type=int, default=500)
     parser.add_argument('--rdp-epsilon', action='store', type=int, default=2)
-    parser.add_argument('--circular-range', action='store', type=int, default=500,
+    parser.add_argument('--circular-range', action='store', type=int,
                         help="Set to about 1/2 of distance (m) of circular route. To help with find closest point.")
 
     return parser
