@@ -10,7 +10,6 @@ function get(url) {
             if (response.ok) {
                 return response.json();
             } else {
-                console.log('error');
                 response.text().then(function (error) {
                     console.log(error);
                     errors.push(error);
@@ -119,7 +118,7 @@ function on_new_state_received(new_state) {
             if (rider_items.marker) rider_items.marker.setMap(null);
             var series = elevation_chart.get(rider_name);
             if (series) series.remove();
-            rider_items.point_markers.forEach(function (marker) {marker.setMap(null)});
+            Object.values(rider_items.point_markers).forEach(function (marker) {marker.setMap(null)});
         });
 
         riders_by_name = {};
@@ -430,7 +429,7 @@ function on_new_config(){
                     bounds_changed_timeout_id = null;
                     adjust_elevation_chart_bounds();
                 }, 200);
-
+                update_selected_rider_point_markers();
             });
             map.addListener('click', function(e) {
                 console.log(e.latLng.toUrlValue())
@@ -472,7 +471,7 @@ function on_new_config(){
                     riders_points: [],
                     riders_off_route: [],
                 },
-                point_markers: [],
+                point_markers: {},
                 marker: null,
             };
             if (riders_values.hasOwnProperty(rider.name)) {
@@ -621,6 +620,8 @@ function on_new_rider_points(rider_name, list_name, items, new_items, old_items)
         if (old_items.length) {
             Object.values(paths).forEach(function (path){ path.setMap(null) });
             rider_items.paths[list_name] = paths = [];
+            Object.values(rider_items.point_markers).forEach(function (marker) {marker.setMap(null)});
+            rider_items.point_markers = {};
             new_items = items;
         }
 
@@ -935,109 +936,107 @@ function rider_onclick(row, rider_name, event) {
 }
 
 function update_selected_rider_point_markers(){
-    Object.values(riders_client_items).forEach(function (rider_items){
-        rider_items.point_markers.forEach(function (marker) {marker.setMap(null)});
-        rider_items.point_markers = [];
+    Object.keys(riders_client_items).forEach(function (rider_name){
+        if (rider_name != selected_rider) {
+            rider_items = riders_client_items[rider_name];
+            Object.values(rider_items.point_markers).forEach(function (marker) {marker.setVisible(false)});
+        }
     });
-    var show_position_markers = get_radio_value('show_position_markers');
-    if (selected_rider && riders_points.hasOwnProperty(selected_rider) && show_position_markers != 'none') {
+
+    if (selected_rider && riders_points.hasOwnProperty(selected_rider)) {
         var bounds = map.getBounds();
         var rider_items = riders_client_items[selected_rider];
         var rider = riders_by_name[selected_rider];
         var color = rider.color || 'black';
 
-        rider_items.point_markers = riders_points[selected_rider].filter(function (point) {return point.hasOwnProperty('position');}).map(function (point){
-            var position = new google.maps.LatLng(point.position[0], point.position[1]);
-            var marker;
-            if (show_position_markers == 'accuracy_circles' && point.accuracy){
-                marker = new google.maps.Circle({
-                    strokeColor: color,
-                    strokeWeight: 3,
-                    fillColor: color,
-                    fillOpacity: 0.35,
-                    map: map,
-                    center: position,
-                    radius: point.accuracy | 100
-                });
-            } else if (show_position_markers != 'none'){
-                marker = new google.maps.Marker({
-                    icon: {
-                        path: google.maps.SymbolPath.CIRCLE,
-                        scale: 3,
-                        strokeColor: color,
-                    },
-                    draggable: false,
-                    map: map,
-                    position: position
-                });
-            }
-            marker.addListener('click', function() {
-                var content = '<table>';
-                var current_time = (new Date().getTime() / 1000) - time_offset;
-                if (point.hasOwnProperty('time')) {
-                    // TODO more than a day
-                    var time = new Date(point.time * 1000);
-                    var rel_time = format_time_delta_ago(current_time - point.time);
-                    content += sprintf('<tr><td style="font-weight: bold;">Time:</td><td>%s<br>%s</td></tr>',
-                                       time.toLocaleString(), rel_time);
-                    if (config.hasOwnProperty('event_start')){
-                        var race_time = format_time_delta(point.time - config.event_start);
-                        content += sprintf('<tr><td style="font-weight: bold;">Race Time:</td><td>%s</td></tr>', race_time);
-                    }
-                }
-                content += sprintf('<tr><td style="font-weight: bold;">Position:</td><td>%.6f, %.6f</td></tr>',
-                                   point.position[0], point.position[1]);
-                if (point.hasOwnProperty('accuracy')) {
-                    content += sprintf('<tr><td style="font-weight: bold;">Accuracy:</td><td>%.1f m</td></tr>',
-                                       point.accuracy);
-                }
-                if (point.position.length == 3) {
-                    content += sprintf('<tr><td style="font-weight: bold;">Elevation:</td><td>%.0f m</td></tr>',
-                                       point.position[2]);
-                }
-                if (point.hasOwnProperty('dist_route')) {
-                    content += sprintf('<tr><td style="font-weight: bold;">Dist on Route:</td><td>%.1f km</td></tr>',
-                                       point.dist_route / 1000);
-                }
-                if (point.hasOwnProperty('dist_from_last')) {
-                    content += sprintf('<tr><td style="font-weight: bold;">Dist from last point:</td><td>%.1f km</td></tr>',
-                                       point.dist_from_last / 1000);
-                }
-                if (point.hasOwnProperty('speed_from_last')) {
-                    content += sprintf('<tr><td style="font-weight: bold;">Speed from last point:</td><td>%.1f km/h</td></tr>',
-                                       point.speed_from_last );
-                }
-                if (point.hasOwnProperty('time_from_last')) {
-                    content += sprintf('<tr><td style="font-weight: bold;">Time from last point:</td><td>%s</td></tr>',
-                                       format_time_delta(point.time_from_last));
-                }
-                if (point.hasOwnProperty('server_time')) {
-                    // TODO more than a day
-                    var time = new Date(point.server_time * 1000);
-                    var rel_time = format_time_delta_ago(current_time - point.server_time);
-                    content += sprintf('<tr><td style="font-weight: bold;">Server Time:</td><td>%s<br>%s</td></tr>',
-                                       time.toLocaleString(), rel_time);
-                    if (point.hasOwnProperty('time')){
-                        var delay = format_time_delta(point.server_time - point.time);
-                        content += sprintf('<tr><td style="font-weight: bold;">Delay to server:</td><td>%s</td></tr>', delay);
-                    }
-                }
-                if (point.hasOwnProperty('server_time_from_last')) {
-                    content += sprintf('<tr><td style="font-weight: bold;">Server Time from last point:</td><td>%s</td></tr>',
-                                       format_time_delta(point.server_time_from_last));
-                }
-                content += '</table>';
-                point_info_window.setContent(content);
-                point_info_window.open(map, marker);
-                point_info_window.setPosition(new google.maps.LatLng(point.position[0], point.position[1]));
-            });
-            return marker;
-        });
+        if (map.getZoom() >= 14) {
+            Object.values(rider_items.point_markers).forEach(function (marker) {marker.setVisible(true)});
+            riders_points[selected_rider].forEach(function (point){
+                if (!rider_items.point_markers.hasOwnProperty(point.index) && point.hasOwnProperty('position')) {
+                    var position = new google.maps.LatLng(point.position[0], point.position[1]);
+                    if (bounds.contains(position)){
+                        var marker = new google.maps.Marker({
+                            icon: {
+                                path: google.maps.SymbolPath.CIRCLE,
+                                scale: 3,
+                                strokeColor: color,
+                            },
+                            draggable: false,
+                            map: map,
+                            position: position,
+                        });
 
+                        marker.addListener('click', point_marker_onclick.bind(null, marker, point));
+                        rider_items.point_markers[point.index] = marker;
+                    }
+                }
+            });
+        } else {
+            Object.values(rider_items.point_markers).forEach(function (marker) {marker.setVisible(false)});
+        }
     }
 }
 
-Array.prototype.forEach.call(document.getElementsByName('show_position_markers'), function(radio) { radio.onclick = update_selected_rider_point_markers; });
+function point_marker_onclick(marker, point) {
+    var content = '<table>';
+    var current_time = (new Date().getTime() / 1000) - time_offset;
+    if (point.hasOwnProperty('time')) {
+        // TODO more than a day
+        var time = new Date(point.time * 1000);
+        var rel_time = format_time_delta_ago(current_time - point.time);
+        content += sprintf('<tr><td style="font-weight: bold;">Time:</td><td>%s<br>%s</td></tr>',
+                           time.toLocaleString(), rel_time);
+        if (config.hasOwnProperty('event_start')){
+            var race_time = format_time_delta(point.time - config.event_start);
+            content += sprintf('<tr><td style="font-weight: bold;">Race Time:</td><td>%s</td></tr>', race_time);
+        }
+    }
+    content += sprintf('<tr><td style="font-weight: bold;">Position:</td><td>%.6f, %.6f</td></tr>',
+                       point.position[0], point.position[1]);
+    if (point.hasOwnProperty('accuracy')) {
+        content += sprintf('<tr><td style="font-weight: bold;">Accuracy:</td><td>%.1f m</td></tr>',
+                           point.accuracy);
+    }
+    if (point.position.length == 3) {
+        content += sprintf('<tr><td style="font-weight: bold;">Elevation:</td><td>%.0f m</td></tr>',
+                           point.position[2]);
+    }
+    if (point.hasOwnProperty('dist_route')) {
+        content += sprintf('<tr><td style="font-weight: bold;">Dist on Route:</td><td>%.1f km</td></tr>',
+                           point.dist_route / 1000);
+    }
+    if (point.hasOwnProperty('dist_from_last')) {
+        content += sprintf('<tr><td style="font-weight: bold;">Dist from last point:</td><td>%.1f km</td></tr>',
+                           point.dist_from_last / 1000);
+    }
+    if (point.hasOwnProperty('speed_from_last')) {
+        content += sprintf('<tr><td style="font-weight: bold;">Speed from last point:</td><td>%.1f km/h</td></tr>',
+                           point.speed_from_last );
+    }
+    if (point.hasOwnProperty('time_from_last')) {
+        content += sprintf('<tr><td style="font-weight: bold;">Time from last point:</td><td>%s</td></tr>',
+                           format_time_delta(point.time_from_last));
+    }
+    if (point.hasOwnProperty('server_time')) {
+        // TODO more than a day
+        var time = new Date(point.server_time * 1000);
+        var rel_time = format_time_delta_ago(current_time - point.server_time);
+        content += sprintf('<tr><td style="font-weight: bold;">Server Time:</td><td>%s<br>%s</td></tr>',
+                           time.toLocaleString(), rel_time);
+        if (point.hasOwnProperty('time')){
+            var delay = format_time_delta(point.server_time - point.time);
+            content += sprintf('<tr><td style="font-weight: bold;">Delay to server:</td><td>%s</td></tr>', delay);
+        }
+    }
+    if (point.hasOwnProperty('server_time_from_last')) {
+        content += sprintf('<tr><td style="font-weight: bold;">Server Time from last point:</td><td>%s</td></tr>',
+                           format_time_delta(point.server_time_from_last));
+    }
+    content += '</table>';
+    point_info_window.setContent(content);
+    point_info_window.open(map, marker);
+    point_info_window.setPosition(marker.position);
+}
 
 load_state();
 
