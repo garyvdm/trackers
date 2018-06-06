@@ -172,7 +172,9 @@ class AnalyseTracker(Tracker):
                     if self.prev_point_with_position_point:
                         prev_point = self.prev_point_with_position
                         dist = distance(point_point, self.prev_point_with_position_point)
-                        time = point['time'] - prev_point['time']
+                        point['time_from_last'] = time = point['time'] - prev_point['time']
+                        if 'server_time' in point and 'server_time' in prev_point:
+                            point['server_time_from_last'] = point['server_time'] - prev_point['server_time']
                         if time > self.track_break_time and dist > self.track_break_dist:
                             self.current_track_id += 1
                         if not dist_from_last_set:

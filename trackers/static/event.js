@@ -973,9 +973,9 @@ function update_selected_rider_point_markers(){
             }
             marker.addListener('click', function() {
                 var content = '<table>';
+                var current_time = (new Date().getTime() / 1000) - time_offset;
                 if (point.hasOwnProperty('time')) {
                     // TODO more than a day
-                    var current_time = (new Date().getTime() / 1000) - time_offset;
                     var time = new Date(point.time * 1000);
                     var rel_time = format_time_delta_ago(current_time - point.time);
                     content += sprintf('<tr><td style="font-weight: bold;">Time:</td><td>%s<br>%s</td></tr>',
@@ -985,7 +985,7 @@ function update_selected_rider_point_markers(){
                         content += sprintf('<tr><td style="font-weight: bold;">Race Time:</td><td>%s</td></tr>', race_time);
                     }
                 }
-                content += sprintf('<tr><td style="font-weight: bold;">Position:</td><td>%s, %s</td></tr>',
+                content += sprintf('<tr><td style="font-weight: bold;">Position:</td><td>%.6f, %.6f</td></tr>',
                                    point.position[0], point.position[1]);
                 if (point.hasOwnProperty('accuracy')) {
                     content += sprintf('<tr><td style="font-weight: bold;">Accuracy:</td><td>%.1f m</td></tr>',
@@ -1006,6 +1006,25 @@ function update_selected_rider_point_markers(){
                 if (point.hasOwnProperty('speed_from_last')) {
                     content += sprintf('<tr><td style="font-weight: bold;">Speed from last point:</td><td>%.1f km/h</td></tr>',
                                        point.speed_from_last );
+                }
+                if (point.hasOwnProperty('time_from_last')) {
+                    content += sprintf('<tr><td style="font-weight: bold;">Time from last point:</td><td>%s</td></tr>',
+                                       format_time_delta(point.time_from_last));
+                }
+                if (point.hasOwnProperty('server_time')) {
+                    // TODO more than a day
+                    var time = new Date(point.server_time * 1000);
+                    var rel_time = format_time_delta_ago(current_time - point.server_time);
+                    content += sprintf('<tr><td style="font-weight: bold;">Server Time:</td><td>%s<br>%s</td></tr>',
+                                       time.toLocaleString(), rel_time);
+                    if (point.hasOwnProperty('time')){
+                        var delay = format_time_delta(point.server_time - point.time);
+                        content += sprintf('<tr><td style="font-weight: bold;">Delay to server:</td><td>%s</td></tr>', delay);
+                    }
+                }
+                if (point.hasOwnProperty('server_time_from_last')) {
+                    content += sprintf('<tr><td style="font-weight: bold;">Server Time from last point:</td><td>%s</td></tr>',
+                                       format_time_delta(point.server_time_from_last));
                 }
                 content += '</table>';
                 point_info_window.setContent(content);

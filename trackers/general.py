@@ -16,6 +16,8 @@ from trackers.dulwich_helpers import TreeReader
 def json_encode(obj):
     if isinstance(obj, datetime):
         return obj.timestamp()
+    if isinstance(obj, timedelta):
+        return obj.total_seconds()
 
 
 json_dumps = functools.partial(json.dumps, default=json_encode, sort_keys=True)
