@@ -806,6 +806,7 @@ function update_rider_table(){
                        '<td style="text-align: right">' + (last_server_time || '') + '</td>' +
                        '<td style="text-align: right">' + (values.battery ? sprintf('%i %%', values.battery) : '') +
                                                           (values.battery_voltage ? ' ' + sprintf('%.2f v', values.battery_voltage) : '') + '</td>' +
+                       '<td>' + (values.hasOwnProperty('tk_config')? values.tk_config : '') + '</td>' +
                        '</tr>';
             }
             if (detail_level == 'progress') {
@@ -837,7 +838,8 @@ function update_rider_table(){
                 '<td>Name</td>' +
                 '<td style="text-align: right">Last<br>Position</td>' +
                 '<td style="text-align: right">Last<br>Connection</td>' +
-                '<td>Tracker<br>Battery</td>' +
+                '<td>Battery</td>' +
+                '<td>Config</td>' +
                 '</tr>' + rider_rows.join('') + '</table>';
             document.getElementById('riders_options').style.minWidth = '400px';
         }

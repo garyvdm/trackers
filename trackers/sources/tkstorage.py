@@ -273,6 +273,7 @@ class TKStorageTracker(Tracker):
         tracker.id = id
         tracker.start = start
         tracker.end = end
+        tracker.config_read_start = start - datetime.timedelta(days=1)
         tracker.current_config = {}
         tracker.send_queue = app['tkstorage.send_queue']
 
@@ -280,11 +281,11 @@ class TKStorageTracker(Tracker):
         tracker.completed = asyncio.ensure_future(tracker.finished.wait())
 
         all_points = app['tkstorage.all_points']
-        filtered_points = [point for _, point in all_points if point and point['tk_id'] == id and (time_between(point.get('time'), tracker.start, tracker.end) or time_between(point.get('server_time'), tracker.start, tracker.end))]
+        filtered_points = [point for _, point in all_points if point and point['tk_id'] == id]
         tracker.points_received_observables = app['tkstorage.points_received_observables'][id]
         tracker.points_received_observables.subscribe(tracker.points_received)
         tracker.completed.add_done_callback(tracker.on_completed)
-        await tracker.new_points(filtered_points)
+        await tracker.points_received(filtered_points)
 
         tracker.initial_config_handle = None
         if config:
@@ -313,21 +314,31 @@ class TKStorageTracker(Tracker):
                 t = 'on' if routetrack == True else f'on for {routetrack} hrs'  # NOQA
                 if 'rupload' in c and 'rsampling' in c:
                     if c["rupload"] == c["rsampling"]:
-                        config_texts.append(f'Routetrack {t}, upload: {c["rupload"]} sec')
+                        config_texts.append(f'Routetrack {t} {c["rupload"]} sec upload')
                     else:
-                        config_texts.append(f'Routetrack {t}, upload: {c["rupload"]} sec, sampling: {c["rsampling"]} sec')
+                        config_texts.append(f'Routetrack {t} {c["rupload"]} sec upload, {c["rsampling"]} sec sample')
                 else:
                     config_texts.append(f'Routetrack {t}')
             if c.get('check'):
-                config_texts.append(f'Check on, upload: {c["check"]} min')
+                config_texts.append(f'Check on {c["check"]} min upload')
             if not config_texts:
-                config_texts.append(f'Tracker Off')
+                config_texts.append(f'Off')
             point['tk_config'] = '\n'.join(config_texts)
             # print(repr(point['tk_config']))
         return point
 
+    def use_point(self, point):
+        time = point.get('time')
+        server_time = point.get('server_time')
+        if time_between(time, self.start, self.end) or time_between(server_time, self.start, self.end):
+            return True
+        if time_between(time, self.config_read_start, self.end) or time_between(server_time, self.config_read_start, self.end):
+            if any((key in point for key in self.config_keys)):
+                return True
+        return False
+
     async def points_received(self, points):
-        points = [self.consume_config_from_point(point) for point in points if time_between(point.get('time'), self.start, self.end) or time_between(point.get('server_time'), self.start, self.end)]
+        points = [self.consume_config_from_point(point) for point in points if self.use_point(point)]
         await self.new_points(points)
 
     def stop(self):
