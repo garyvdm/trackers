@@ -32,7 +32,11 @@ async def static_start_event_tracker(app, event, rider_name, tracker_data):
         'msgpack': lambda data: msgpack.loads(data, raw=False)
     }[tracker_data.get('format', 'json')](data)
     for point in points:
-        point['time'] = datetime.fromtimestamp(point['time'])
+        if 'time' in point:
+            point['time'] = datetime.fromtimestamp(point['time'])
+        if 'server_time' in point:
+            point['server_time'] = datetime.fromtimestamp(point['server_time'])
+
     await tracker.new_points(points)
     tracker.completed.set_result(None)
     return tracker

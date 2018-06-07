@@ -23,7 +23,8 @@ async def config(app, settings):
     app['tkstorage.points_received_observables'] = points_received_observables = defaultdict(partial(Observable, logger))
     app['tkstorage.send_queue'] = send_queue = asyncio.Queue()
     app['tkstorage.all_points'] = all_points = []
-    connection_task = asyncio.ensure_future(connection(app, settings, all_points, points_received_observables, send_queue))
+    app['tkstorage.initial_download'] = initial_download_done = asyncio.Event()
+    connection_task = asyncio.ensure_future(connection(app, settings, all_points, points_received_observables, send_queue, initial_download_done))
 
     if isinstance(app, WebApplication):
         import trackers.web_app
@@ -45,7 +46,7 @@ async def config(app, settings):
 tk_id_key = lambda point: point['tk_id']
 
 
-async def connection(app, settings, all_points, points_received_observables, send_queue):
+async def connection(app, settings, all_points, points_received_observables, send_queue, initial_download_done):
     try:
         reconnect_sleep_time = 5
         path = settings['tkstorage_path']
@@ -79,6 +80,7 @@ async def connection(app, settings, all_points, points_received_observables, sen
                                 observable = points_received_observables.get(tk_id)
                                 if observable:
                                     await observable(list(points))
+                            initial_download_done.set()
 
                     finally:
                         await cancel_and_wait_task(write_fut)
@@ -280,6 +282,7 @@ class TKStorageTracker(Tracker):
         tracker.finished = asyncio.Event()
         tracker.completed = asyncio.ensure_future(tracker.finished.wait())
 
+        await app['tkstorage.initial_download'].wait()
         all_points = app['tkstorage.all_points']
         filtered_points = [point for _, point in all_points if point and point['tk_id'] == id]
         tracker.points_received_observables = app['tkstorage.points_received_observables'][id]
@@ -287,15 +290,18 @@ class TKStorageTracker(Tracker):
         tracker.completed.add_done_callback(tracker.on_completed)
         await tracker.points_received(filtered_points)
 
+        now = datetime.datetime.now()
         tracker.initial_config_handle = None
         if config:
-            now = datetime.datetime.now()
             if now < start:
                 tracker.initial_config_handle = asyncio.get_event_loop().call_later(
                     (start - now).total_seconds(),
                     tracker.set_config_sync, config, True)
             # else:
             #     await tracker.set_config(config)
+
+        if end:
+            asyncio.get_event_loop().call_later((start - now).total_seconds(), tracker.finished.set)
 
         return tracker
 
