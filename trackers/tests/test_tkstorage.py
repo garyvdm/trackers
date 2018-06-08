@@ -49,6 +49,18 @@ class TestToPoint(unittest.TestCase):
             },
         )
 
+    def test_pos2(self):
+        self.assertEqual(
+            msg_item_to_point([0, 1526394347, 1, b'(864768011468102,DW30,080618,A,2752.87996S,02755.19665E,1.910,202919,000.0,1538.20,12,0)', b'TK01']),
+            {
+                'tk_id': 'TK01',
+                'num_sat': 12,
+                'position': (-27.881332666666665, 27.919944166666667, 1538.2),
+                'server_time': datetime.datetime(2018, 5, 15, 16, 25, 47),
+                'time': datetime.datetime(2018, 6, 8, 22, 29, 19),
+            },
+        )
+
     def test_ZC03_msg(self):
 
         def stub_ZC03_parse(msg):

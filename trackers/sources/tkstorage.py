@@ -237,8 +237,9 @@ def parse_date_time(date_raw, time_raw):
 
 
 def parse_coordinate(raw, neg):
-    deg = int(raw[0:-8])
-    min = float(raw[-8:-1])
+    split_index = raw.index('.') - 2
+    deg = int(raw[0:split_index])
+    min = float(raw[split_index:-1])
     hem = -1 if raw[-1] == neg else 1
     return (deg + min / 60) * hem
 
