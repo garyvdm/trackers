@@ -263,8 +263,9 @@ class AnalyseTracker(Tracker):
                 pv = (self.prev_unit_vector * dist_moved_from_last) + self.prev_point_with_position_point.pv
                 nv = p_EB_E2n_EB_E(pv)
                 new_point = Point.from_nv(nv[0])
+                new_position = (new_point.lat, new_point.lng, pp['position'][2]) if len(pp['position']) == 3 else (new_point.lat, new_point.lng)
                 return {
-                    'position': [new_point.lat, new_point.lng] + pp['position'][2:],
+                    'position': new_position,
                 }
 
 
