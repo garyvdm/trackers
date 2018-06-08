@@ -24,7 +24,6 @@ from trackers.analyse import (
     get_analyse_route,
     get_equal_spaced_points,
     IndexedPoint,
-    Point,
     ramer_douglas_peucker,
     ramer_douglas_peucker_sections,
     route_with_distance_and_index,
@@ -327,15 +326,14 @@ def process_secondary_route_details(routes):
 async def process_route(settings, route):
     original_points = route['original_points']
     filtered_points = (point for last_point, point in zip([None] + original_points[:-1], original_points) if point != last_point)
+    point_points = route_with_distance_and_index(filtered_points)
     if not route.get('split_at_dist'):
-        point_points = [Point(*point) for point in filtered_points]
         points = ramer_douglas_peucker(point_points, route['rdp_epsilon'])
     else:
-        point_points = route_with_distance_and_index(filtered_points)
         points = ramer_douglas_peucker_sections(point_points, route['rdp_epsilon'], route['split_at_dist'], route['split_point_range'])
     route['points'] = [(point.lat, point.lng) for point in points]
 
-    indexed_points = [IndexedPoint(point.lat, point.lng, index=i) for i, point in enumerate(points)]
+    indexed_points = [IndexedPoint(point.lat, point.lng, index=i, distance=point.distance) for i, point in enumerate(points)]
     if not route.get('split_at_dist'):
         simplified_points = ramer_douglas_peucker(indexed_points, 500)
     else:
