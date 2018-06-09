@@ -76,11 +76,12 @@ async def connection(app, settings, all_points, points_received_observables, sen
                                 if point and point.get('tk_id'):
                                     new_points.append(point)
 
+                            initial_download_done.set()
+
                             for tk_id, points in groupby(sorted(new_points, key=tk_id_key), key=tk_id_key):
                                 observable = points_received_observables.get(tk_id)
                                 if observable:
                                     await observable(list(points))
-                            initial_download_done.set()
 
                     finally:
                         await cancel_and_wait_task(write_fut)
@@ -283,7 +284,7 @@ class TKStorageTracker(Tracker):
         tracker.finished = asyncio.Event()
         tracker.completed = asyncio.ensure_future(tracker.finished.wait())
 
-        await app['tkstorage.initial_download'].wait()
+        await asyncio.wait_for(app['tkstorage.initial_download'].wait(), timeout=2)
         all_points = app['tkstorage.all_points']
         filtered_points = [point for _, point in all_points if point and point['tk_id'] == id]
         tracker.points_received_observables = app['tkstorage.points_received_observables'][id]
