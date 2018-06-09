@@ -64,6 +64,7 @@ async def connection(app, settings, all_points, points_received_observables, sen
                     write_fut = asyncio.ensure_future(write(app, proto, send_queue))
                     try:
                         async for msg in proto:
+                            logging.debug(f'Downloaded {len(msg)} points.')
                             new_points = []
                             for item in msg:
                                 try:
@@ -76,12 +77,12 @@ async def connection(app, settings, all_points, points_received_observables, sen
                                 if point and point.get('tk_id'):
                                     new_points.append(point)
 
-                            initial_download_done.set()
-
                             for tk_id, points in groupby(sorted(new_points, key=tk_id_key), key=tk_id_key):
                                 observable = points_received_observables.get(tk_id)
                                 if observable:
                                     await observable(list(points))
+                            initial_download_done.set()
+
 
                     finally:
                         await cancel_and_wait_task(write_fut)
@@ -284,7 +285,12 @@ class TKStorageTracker(Tracker):
         tracker.finished = asyncio.Event()
         tracker.completed = asyncio.ensure_future(tracker.finished.wait())
 
-        await asyncio.wait_for(app['tkstorage.initial_download'].wait(), timeout=2)
+        # await app['tkstorage.initial_download'].wait()
+        try:
+            await asyncio.wait_for(app['tkstorage.initial_download'].wait(), timeout=5)
+        except asyncio.TimeoutError:
+            tracker.logger.error('Timeout waiting for initial download.')
+
         all_points = app['tkstorage.all_points']
         filtered_points = [point for _, point in all_points if point and point['tk_id'] == id]
         tracker.points_received_observables = app['tkstorage.points_received_observables'][id]
@@ -302,8 +308,8 @@ class TKStorageTracker(Tracker):
             # else:
             #     await tracker.set_config(config)
 
-        if end:
-            asyncio.get_event_loop().call_later((start - now).total_seconds(), tracker.finished.set)
+        # if end:
+        #     asyncio.get_event_loop().call_later((start - now).total_seconds(), tracker.finished.set)
 
         return tracker
 
