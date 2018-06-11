@@ -42,8 +42,14 @@ body {
     justify-content: space-between;
 }
 
-#status, #title_contain {
+#logo_contain {
     -ms-flex: 1 1 auto;
+    margin-right: 8px;
+}
+
+#status, #title_contain {
+    -ms-flex: 2 1 auto;
+    flex-grow: 2;
 }
 
 #title {

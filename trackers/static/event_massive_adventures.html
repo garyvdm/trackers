@@ -5,54 +5,51 @@
     <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
     <link rel="stylesheet" type="text/css" href="{static_urls[/static/event.css]}">
     <style>
-      #head {{
+      #head, #head .select {{
           background: white;
-          color: black;
+          color: #57312a;
           border-bottom: 3px solid #57312a;
-      }}
-      #head>div {{
-          flex: 1;
-          display: inline-flex;
-      }}
-      #advert {{
-          justify-content: center;
-          margin: -8px 8px;
-      }}
-      #advert img{{
-          height: 70px;
       }}
       .select {{
           background: #eaa809;
+          color: white;
       }}
       .select > * {{
           border-bottom-color: #eaa809;
       }}
-      @media screen and (max-width: 800px) {{
-          #advert img{{
-              height: 40px;
-          }}
+      .select > .selected {{
+        color: white;
       }}
+
+      #head .select {{
+        border-bottom: 0px;
+      }}
+      #head .select > * {{
+          border-bottom-color: white;
+      }}
+      #head .select > .selected {{
+        color: #57312a;
+        border-bottom-color: #57312a;
+      }}
+
 
     </style>
   </head>
   <body>
     <div id="foo" class="show_map desktop_show_riders desktop_show_map">
       <div id="head">
-        <div id="title_contain" style="justify-content: left;">
-          <div style="margin-right: auto;">
-            <div id="title">
-              <img src="{static_urls[/static/logos/lindley_gravel_grind.png]}" alt="{title}" style="vertical-align:text-top; height: 40px; margin-top: -4px;">
-            </div>
-            <div id="race_time">&nbsp;</div>
-          </div>
+        <div id="logo_contain">
+          <a href="http://massiveadventures.co.za/" target="_blank"><img src="/static/logos/massive.png" style="height: 41px;"></a>
+        </div>
+        <div id="title_contain">
+          <div id="title">{title}</div>
+          <div id="race_time">&nbsp;</div>
         </div>
         <div id="desktop_main_select" class="select" style="width: 15em;">
           <div show="map" class="selected">Map</div>
           <div show="graphs">Graphs</div>
         </div>
-        <div style="justify-content: right;">
-          <div id="status" style="margin-left: auto;" >Loading</div>
-        </div>
+        <div id="status">Loading</div>
       </div>
       <div id="mobile_select" class="select">
         <div show="map">Map</div>
@@ -129,7 +126,7 @@
         var errors = [];
 
         function update_status(){{
-            var text = errors.slice(-1).concat([status_msg]).join('<br>');
+            var text = errors.slice(-3).concat([status_msg]).join('<br>');
             status_element.innerHTML = text;
         }}
 
