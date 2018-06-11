@@ -98,6 +98,7 @@ class ProcessedStaticManager(object):
     async def monitor_and_process_resources(self):
         while True:
             with closing(aionotify.Watcher()) as watcher:
+                self.current_watcher = watcher
                 try:
                     try:
                         await self.process_resources(watcher)
@@ -111,6 +112,7 @@ class ProcessedStaticManager(object):
                 except OSError as e:
                     logger.error(e)
                     break
+                self.current_watcher = None
                 await asyncio.sleep(1)
                 logger.info('Reprocessing static resources.')
 
@@ -171,15 +173,13 @@ class ProcessedStaticManager(object):
         if body_loader:
             body = body_loader(self, resource_name, watcher)
         else:
-            if watcher:
-                file_name = pkg_resources.resource_filename(self.package, resource_name)
-                with open(file_name, 'rb') as f:
-                    body = f.read()
-                with suppress(ValueError):
-                    watcher.watch(file_name, flags=aionotify.Flags.MODIFY + aionotify.Flags.DELETE_SELF + aionotify.Flags.MOVE_SELF)
-            else:
-                body = pkg_resources.resource_string(self.package, resource_name)
-                file_name = None
+            if watcher is None:
+                watcher = self.current_watcher
+            file_name = pkg_resources.resource_filename(self.package, resource_name)
+            with open(file_name, 'rb') as f:
+                body = f.read()
+            with suppress(ValueError):
+                watcher.watch(file_name, flags=aionotify.Flags.MODIFY + aionotify.Flags.DELETE_SELF + aionotify.Flags.MOVE_SELF)
 
         hash = None
         if body_processor:
