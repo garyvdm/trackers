@@ -306,9 +306,16 @@ async def riders_csv(request, event):
     writer.writerow(['latitude', 'longitude', 'time'])
     for point in tracker.points:
         if 'position' in point:
-            writer.writerow((point['position'][0], point['position'][1], point['time'].isoformat()))
-    return etag_response(request, web.Response(text=out_file.getvalue(), content_type='text/csv'),
-                         etag=tracker.points[-1]['hash'])
+            writer.writerow((format(point['position'][0], '.6f'), format(point['position'][1], '.6f'),
+                             point['time'].astimezone(datetime.timezone.utc).isoformat()))
+    return etag_response(
+        request, web.Response(
+            text=out_file.getvalue(),
+            content_type='text/csv',
+            headers=(('content-disposition', f'attachment; filename="{event.name} - {rider_name}.csv"'), )
+        ),
+        etag=tracker.points[-1]['hash'],
+    )
 
 
 async def on_static_processed(static_manager):
