@@ -83,7 +83,6 @@ async def connection(app, settings, all_points, points_received_observables, sen
                                     await observable(list(points))
                             initial_download_done.set()
 
-
                     finally:
                         await cancel_and_wait_task(write_fut)
                 finally:
@@ -308,8 +307,8 @@ class TKStorageTracker(Tracker):
             # else:
             #     await tracker.set_config(config)
 
-        # if end:
-        #     asyncio.get_event_loop().call_later((start - now).total_seconds(), tracker.finished.set)
+        if end:
+            asyncio.get_event_loop().call_later((end - now).total_seconds(), tracker.finished.set)
 
         return tracker
 
