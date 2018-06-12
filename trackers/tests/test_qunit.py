@@ -45,10 +45,12 @@ class TestQunit(asynctest.TestCase):
 
         async with web_server_fixture(self.loop, app) as url:
 
-            service = arsenic.services.PhantomJS(log_file=arsenic.services.DEVNULL)
-            browser = arsenic.browsers.PhantomJS()
+            # service = arsenic.services.PhantomJS(log_file=arsenic.services.DEVNULL)
+            # browser = arsenic.browsers.PhantomJS()
             # service = arsenic.services.Geckodriver(log_file=arsenic.services.DEVNULL)
             # browser = arsenic.browsers.Firefox()
+            service = arsenic.services.Chromedriver(log_file=arsenic.services.DEVNULL)
+            browser = arsenic.browsers.Chrome(chromeOptions={'args': ['--headless', '--disable-gpu']})
 
             async with arsenic.get_session(service, browser) as driver:
 

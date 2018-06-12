@@ -103,10 +103,10 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
     use_default_loop = True
 
     scenarios = [
-        ('phantomjs', dict(
-            driver_resource_manager=WebDriverService(arsenic.services.PhantomJS(log_file=arsenic.services.DEVNULL)),
-            browser=arsenic.browsers.PhantomJS(),
-        )),
+        # ('phantomjs', dict(
+        #     driver_resource_manager=WebDriverService(arsenic.services.PhantomJS(log_file=arsenic.services.DEVNULL)),
+        #     browser=arsenic.browsers.PhantomJS(),
+        # )),
         # ('firefox', dict(
         #     driver_resource_manager=WebDriverService(arsenic.services.Geckodriver(log_file=arsenic.services.DEVNULL)),
         #     browser=arsenic.browsers.Firefox(),
@@ -115,6 +115,18 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
         #     driver_resource_manager=WebDriverService(arsenic.services.Chromedriver(log_file=arsenic.services.DEVNULL)),
         #     browser=arsenic.browsers.Chrome(),
         # )),
+        # ('firefox-headless', dict(
+        #     driver_resource_manager=WebDriverService(arsenic.services.Geckodriver(log_file=arsenic.services.DEVNULL)),
+        #     browser=arsenic.browsers.Firefox(firefoxOptions={
+        #         'args': ['-headless']
+        #     }),
+        # )),
+        ('chrome-headless', dict(
+            driver_resource_manager=WebDriverService(arsenic.services.Chromedriver(log_file=arsenic.services.DEVNULL)),
+            browser=arsenic.browsers.Chrome(chromeOptions={
+                'args': ['--headless', '--disable-gpu']
+            }),
+        )),
     ]
 
     @property
