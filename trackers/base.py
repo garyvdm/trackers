@@ -10,12 +10,14 @@ logger = logging.getLogger(__name__)
 
 class Tracker(object):
 
-    def __init__(self, name, completed=None, new_points_callbacks=()):
+    def __init__(self, name, completed=None, new_points_callbacks=(), reset_points_callbacks=()):
         self.name = name
         self.points = []
         self.status = None
         self.logger = logging.getLogger('trackers.{}'.format(name))
         self.new_points_observable = Observable(self.logger, callbacks=new_points_callbacks)
+        self.reset_points_observable = Observable(self.logger, callbacks=reset_points_callbacks)
+
         self.callback_tasks = []
         if completed is None:
             completed = asyncio.Future()
@@ -27,8 +29,13 @@ class Tracker(object):
         self.points.extend(new_points)
         await self.new_points_observable(self, new_points)
 
+    async def reset_points(self):
+        self.points = []
+        await self.reset_points_observable(self)
+
     def stop(self):
-        pass
+        if not self.completed.done():
+            self.completed.set_result(None)
 
     async def complete(self):
         try:
@@ -138,22 +145,24 @@ def get_blocked_list(source, existing, smallest_block_len=8, entire_block=False)
 
 class BlockedList(object):
 
-    def __init__(self, source, new_update_callbacks=(), **kwargs):
-        self.source = source
+    def __init__(self, get_source, new_update_callbacks=(), **kwargs):
+        self.get_source = get_source
         self.kwargs = kwargs
-        self.full, _ = get_blocked_list(self.source, {}, **self.kwargs)
+        self.full, _ = get_blocked_list(get_source(), {}, **self.kwargs)
         self.new_update_observable = Observable(logger, callbacks=new_update_callbacks)
 
     @staticmethod
     def from_tracker(tracker, **kwargs):
-        blocked_list = BlockedList(tracker.points, **kwargs)
+        get_source = lambda: tracker.points
+        blocked_list = BlockedList(get_source, **kwargs)
 
-        def tracker_callback(tracker, newpoints):
-            return blocked_list.on_new_items()
+        async def tracker_change(tracker, *args):
+            return await blocked_list.on_new_items()
 
-        tracker.new_points_observable.subscribe(tracker_callback)
+        tracker.new_points_observable.subscribe(tracker_change)
+        tracker.reset_points_observable.subscribe(tracker_change)
         return blocked_list
 
     async def on_new_items(self):
-        self.full, update = get_blocked_list(self.source, self.full, **self.kwargs)
+        self.full, update = get_blocked_list(self.get_source(), self.full, **self.kwargs)
         await self.new_update_observable(self, update)

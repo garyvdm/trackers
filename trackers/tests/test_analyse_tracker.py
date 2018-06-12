@@ -230,6 +230,37 @@ class TestAnalyseTracker(asynctest.TestCase):
         tracker.completed.set_result(None)
         await analyse_tracker.complete()
 
+    async def test_reset(self):
+        tracker = Tracker('test')
+        await tracker.new_points((
+            {'time': d('2017/01/01 05:00:00'), 'position': (-26.300822, 28.049444, 1800)},
+            {'time': d('2017/01/01 05:01:00'), 'position': (-26.302245, 28.051139, 1800)},
+            # {'time': d('2017/01/01 05:30:00'), 'position': (-27.280315, 27.969365, 1800)},
+            # {'time': d('2017/01/01 05:31:00'), 'position': (-27.282870, 27.970620, 1800)},
+        ))
+        analyse_tracker = await AnalyseTracker.start(tracker, d('2017/01/01 05:00:00'), [])
+        pprint.pprint(analyse_tracker.points)
+        self.assertSequenceEqual(analyse_tracker.points, [
+            {'time': d('2017/01/01 05:00:00'), 'position': (-26.300822, 28.049444, 1800), 'track_id': 0},
+            {'time': d('2017/01/01 05:01:00'), 'position': (-26.302245, 28.051139, 1800), 'track_id': 0, 'dist_from_last': 231.0, 'speed_from_last': 13.9, 'time_from_last': datetime.timedelta(0, 60), },
+        ])
+
+        await tracker.reset_points()
+        self.assertSequenceEqual(analyse_tracker.points, [])
+
+        await tracker.new_points((
+            {'time': d('2017/01/01 05:30:00'), 'position': (-27.280315, 27.969365, 1800)},
+            {'time': d('2017/01/01 05:31:00'), 'position': (-27.282870, 27.970620, 1800)},
+        ))
+        pprint.pprint(analyse_tracker.points)
+        self.assertSequenceEqual(analyse_tracker.points, [
+            {'position': (-27.280315, 27.969365, 1800), 'time': datetime.datetime(2017, 1, 1, 5, 30), 'track_id': 0},
+            {'position': (-27.28287, 27.97062, 1800), 'time': datetime.datetime(2017, 1, 1, 5, 31), 'track_id': 0, 'dist_from_last': 309.0, 'speed_from_last': 18.6, 'time_from_last': datetime.timedelta(0, 60), }
+        ])
+
+        tracker.completed.set_result(None)
+        await analyse_tracker.complete()
+
 
 class TestRouteElevation(unittest.TestCase):
 

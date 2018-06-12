@@ -106,9 +106,12 @@ async def index_and_hash_tracker(org_tracker, hasher=None):
         hasher = hashlib.sha1()
     ih_tracker.hasher = hasher
 
-    await index_and_hash_tracker_newpoints(ih_tracker, org_tracker, org_tracker.points)
+    await index_and_hash_tracker_org_newpoints(ih_tracker, org_tracker, org_tracker.points)
     org_tracker.new_points_observable.subscribe(
-        functools.partial(index_and_hash_tracker_newpoints, ih_tracker))
+        functools.partial(index_and_hash_tracker_org_newpoints, ih_tracker))
+    org_tracker.reset_points_observable.subscribe(
+        functools.partial(index_and_hash_tracker_org_reset_points, ih_tracker))
+
     return ih_tracker
 
 
@@ -121,8 +124,12 @@ def index_and_hash_list(points, start, hasher):
     return ih_points
 
 
-async def index_and_hash_tracker_newpoints(ih_tracker, org_tracker, new_points):
+async def index_and_hash_tracker_org_newpoints(ih_tracker, org_tracker, new_points):
     await ih_tracker.new_points(index_and_hash_list(new_points, len(ih_tracker.points), ih_tracker.hasher))
+
+
+async def index_and_hash_tracker_org_reset_points(ih_tracker, org_tracker):
+    await ih_tracker.reset_points()
 
 
 async def filter_inaccurate_tracker_start(org_tracker, tracker_data):

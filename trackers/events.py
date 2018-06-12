@@ -94,7 +94,7 @@ class Event(object):
         self.predicted_task = None
 
         self.config_routes_change_observable = Observable(self.logger)
-        self.rider_new_points_observable = Observable(self.logger)
+        self.rider_new_values_observable = Observable(self.logger)
         self.rider_blocked_list_update_observable = Observable(self.logger)
         self.rider_off_route_blocked_list_update_observable = Observable(self.logger)
         self.rider_predicted_updated_observable = Observable(self.logger)
@@ -226,6 +226,7 @@ class Event(object):
                 self.rider_current_values[rider['name']] = {}
                 await self.on_rider_new_points(rider['name'], tracker, tracker.points)
                 tracker.new_points_observable.subscribe(partial(self.on_rider_new_points, rider['name']))
+                tracker.reset_points_observable.subscribe(partial(self.on_rider_reset_points, rider['name']))
 
                 self.rider_trackers[rider['name']] = tracker
                 self.rider_trackers_blocked_list[rider['name']] = BlockedList.from_tracker(
@@ -267,7 +268,13 @@ class Event(object):
                 values.update(point)
                 if 'position' in point:
                     values['position_time'] = point['time']
-            await self.rider_new_points_observable(self, rider_name, tracker, new_points)
+            await self.rider_new_values_observable(self, rider_name, values)
+        self.new_points.set()
+
+    async def on_rider_reset_points(self, rider_name, tracker):
+        values = self.rider_current_values[rider_name]
+        values.clear()
+        await self.rider_new_values_observable(self, rider_name, values)
         self.new_points.set()
 
     def rider_sort_key_func(self, riders_predicted_points, rider_name):

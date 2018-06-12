@@ -84,6 +84,18 @@ class AnalyseTracker(Tracker):
         else:
             self.find_closest = find_closest_point_pair_routes
 
+        self.completed = asyncio.ensure_future(self._completed())
+
+        self.off_route_tracker = Tracker(f'offroute.{self.name}', completed=self.completed)
+        self.reset()
+
+        await self.on_new_points(org_tracker, org_tracker.points)
+        org_tracker.new_points_observable.subscribe(self.on_new_points)
+        org_tracker.reset_points_observable.subscribe(self.on_reset_points)
+
+        return self
+
+    def reset(self):
         self.prev_point_with_position = None
         self.prev_point_with_position_point = None
         self.prev_unit_vector = None
@@ -93,23 +105,19 @@ class AnalyseTracker(Tracker):
         self.prev_route_dist_time = None
         self.going_forward = None
         self.finished = False
-
-        self.completed = asyncio.ensure_future(self._completed())
-
         self.is_off_route = False
         self.off_route_track_id = 0
-        self.off_route_tracker = Tracker(f'offroute.{self.name}', completed=self.completed)
-
-        await self.on_new_points(org_tracker, org_tracker.points)
-        org_tracker.new_points_observable.subscribe(self.on_new_points)
-
-        return self
 
     def stop(self):
         self.org_tracker.stop()
 
     async def _completed(self):
         await self.org_tracker.complete()
+
+    async def on_reset_points(self, tracker):
+        await self.reset_points()
+        await self.off_route_tracker.reset_points()
+        self.reset()
 
     async def on_new_points(self, tracker, new_points):
         self.logger.debug('analyse_tracker_new_points ({} points)'.format(len(new_points)))

@@ -335,7 +335,7 @@ async def on_static_processed(static_manager):
 
 async def on_new_event(event):
     event.config_routes_change_observable.subscribe(on_event_config_routes_change)
-    event.rider_new_points_observable.subscribe(on_event_rider_new_points)
+    event.rider_new_values_observable.subscribe(on_event_rider_new_values)
     event.rider_blocked_list_update_observable.subscribe(on_event_rider_blocked_list_update)
     event.rider_off_route_blocked_list_update_observable.subscribe(on_event_rider_off_route_blocked_list_update)
     event.rider_predicted_updated_observable.subscribe(on_event_rider_predicted_updated)
@@ -362,11 +362,11 @@ async def on_event_config_routes_change(event):
         await event.start_trackers()
 
 
-async def on_event_rider_new_points(event, rider_name, tracker, new_points):
+async def on_event_rider_new_values(event, rider_name, values):
     await message_to_multiple_wss(
         event.app,
         event.app['trackers.event_ws_sessions'][event.name],
-        {'riders_values': {rider_name: event.rider_current_values[rider_name]}}
+        {'riders_values': {rider_name: values}}
     )
 
 

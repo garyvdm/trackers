@@ -181,8 +181,25 @@ class TestBlockedList(asynctest.TestCase):
 
         blocked_list = BlockedList.from_tracker(tracker, new_update_callbacks=(new_update_callback, ))
 
-        await tracker.new_points(source[:1])
+        await tracker.new_points(source[:9])
+        self.assertEqual(blocked_list.full, {
+            'blocks': [{'end_hash': 'cTTc', 'end_index': 7, 'start_index': 0}],
+            'partial_block': [{'hash': 'xtbb', 'index': 8, 'x': 's'}]
+        })
+        new_update_callback.assert_called_once_with(blocked_list, {
+            'blocks': [{'end_hash': 'cTTc', 'end_index': 7, 'start_index': 0}],
+            'partial_block': [{'hash': 'xtbb', 'index': 8, 'x': 's'}]
+        })
+        new_update_callback.reset_mock()
+
+        await tracker.reset_points()
+        self.assertEqual(blocked_list.full, {'blocks': [], 'partial_block': []})
+        new_update_callback.assert_called_once_with(blocked_list, {'blocks': [], 'partial_block': []})
+        new_update_callback.reset_mock()
+
+        await tracker.new_points(source[10:11])
+        self.assertEqual(blocked_list.full, {'blocks': [], 'partial_block': [{'x': 'm', 'index': 10, 'hash': 'KCgI'}]})
+        new_update_callback.assert_called_once_with(blocked_list, {'add_block': [{'x': 'm', 'index': 10, 'hash': 'KCgI'}]})
+
         tracker.completed.set_result(None)
         await tracker.complete()
-
-        new_update_callback.assert_called_once_with(blocked_list, {'add_block': [{'x': 'L', 'index': 0, 'hash': 'u0Zw'}]})
