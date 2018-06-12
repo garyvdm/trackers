@@ -44,6 +44,7 @@ async def config(app, settings):
 
 
 tk_id_key = lambda point: point['tk_id']
+time_key = lambda point: point.get('time') or point.get('server_time')
 
 
 async def connection(app, settings, all_points, points_received_observables, send_queue, initial_download_done):
@@ -77,6 +78,7 @@ async def connection(app, settings, all_points, points_received_observables, sen
                                 if point and point.get('tk_id'):
                                     new_points.append(point)
 
+                            new_points.sort(key=time_key)
                             for tk_id, points in groupby(sorted(new_points, key=tk_id_key), key=tk_id_key):
                                 observable = points_received_observables.get(tk_id)
                                 if observable:
