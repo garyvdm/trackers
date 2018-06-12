@@ -149,6 +149,9 @@ def msg_item_to_point(msg_item):
             # print(msg)
             point.update(ZC03_parse(msg))
 
+        # HACK Some trackers are out by this time sometimes.
+        if 'time' in point and (server_time - point['time']).total_seconds() // 100 == 713664:
+            point['time'] = point['time'] + datetime.timedelta(days=826)
         return point
 
 
@@ -412,7 +415,7 @@ async def main():
         for signame in ('SIGINT', 'SIGTERM'):
             loop.add_signal_handler(getattr(signal, signame), run_fut.set_result, None)
         try:
-            await run_fut
+            await asyncio.wait((run_fut, tracker.completed), return_when=asyncio.FIRST_COMPLETED)
         finally:
             for signame in ('SIGINT', 'SIGTERM'):
                 loop.remove_signal_handler(getattr(signal, signame))

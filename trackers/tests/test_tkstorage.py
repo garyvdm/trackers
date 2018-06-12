@@ -61,6 +61,18 @@ class TestToPoint(unittest.TestCase):
             },
         )
 
+    def test_pos3(self):
+        self.assertEqual(
+            msg_item_to_point([1990, 1528548291.011041, 1, b'(864768011199962,DW3B,050316,A,2754.4558S,02759.0423E,6.82,124449,279.65,1537.50,10,0)', b'TK05']),
+            {
+                'tk_id': 'TK05',
+                'num_sat': 10,
+                'position': (-27.907596666666667, 27.984038333333334, 1537.5),
+                'server_time': datetime.datetime(2018, 6, 9, 14, 44, 51, 11041),
+                'time':        datetime.datetime(2018, 6, 9, 14, 44, 49),  # NOQA
+            },
+        )
+
     def test_ZC03_msg(self):
 
         def stub_ZC03_parse(msg):
