@@ -57,14 +57,18 @@ async def replay(replay_tracker, org_tracker, event_start_time, replay_start, of
         now = datetime.now()
         new_points = []
         while point_i < len(org_tracker.points):
-            point = org_tracker.points[point_i]
-            new_time = replay_start + ((point['time'] - event_start_time + offset) / speed_multiply)
-            if new_time <= now:
-                point_i += 1
-                point['time'] = new_time
-                new_points.append(point)
-            else:
-                break
+            try:
+                point = org_tracker.points[point_i]
+                time = point.get('time') or point.get('server_time')
+                new_time = replay_start + ((time - event_start_time + offset) / speed_multiply)
+                if new_time <= now:
+                    point_i += 1
+                    point['time'] = new_time
+                    new_points.append(point)
+                else:
+                    break
+            except Exception:
+                replay_tracker.logger.exception('Error in replay:')
 
         if new_points:
             await replay_tracker.new_points(new_points)
