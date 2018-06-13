@@ -10,14 +10,24 @@ def time_key(item):
 class Combined(Tracker):
 
     @classmethod
-    async def start_tracker(cls, name, trackers, new_points_callbacks=(), reset_points_callbacks=()):
+    async def start(cls, name, trackers, new_points_callbacks=(), reset_points_callbacks=()):
         tracker = cls(name, new_points_callbacks=new_points_callbacks, reset_points_callbacks=reset_points_callbacks)
         tracker.trackers = trackers
         tracker.sub_to_be_completed = len(trackers)
+
+        points = tracker.get_sorted_points()
         for sub_tracker in trackers:
             sub_tracker.new_points_observable.subscribe(tracker.on_sub_new_points)
+            sub_tracker.reset_points_observable.subscribe(tracker.on_sub_reset_points)
             sub_tracker.completed.add_done_callback(tracker.on_sub_completed)
+        await tracker.new_points(points)
+
+        if not trackers:
+            tracker.completed.set_result(None)
         return tracker
+
+    def get_sorted_points(self):
+        return list(sorted(chain.from_iterable((sub_tracker.points for sub_tracker in self.trackers)), key=time_key))
 
     async def on_sub_new_points(self, sub_tracker, points):
         if points:
@@ -29,6 +39,12 @@ class Combined(Tracker):
                 all_points_sorted = list(sorted(chain(self.points, points), key=time_key))
                 await self.reset_points()
                 await self.new_points(all_points_sorted)
+
+    async def on_sub_reset_points(self, sub_tracker):
+        new_points = self.get_sorted_points()
+        if new_points != self.points:
+            await self.reset_points()
+            await self.new_points(new_points)
 
     def stop(self):
         for sub_tracker in self.trackers:

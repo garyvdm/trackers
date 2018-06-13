@@ -120,8 +120,10 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
         event = await Event.load(app, 'test_event', writer)
         await event.start_trackers(analyse=False)
 
-        self.assertEqual(event.riders_objects['foo'].tracker.name, 'indexed_and_hashed.mock_tracker')
-        self.assertIsNotNone(event.riders_objects['foo'].blocked_list)
+        rider_objects = event.riders_objects['foo']
+        self.assertEqual(rider_objects.source_trackers[0].name, 'mock_tracker')
+        self.assertEqual(rider_objects.tracker.name, 'indexed_and_hashed.combined.foo')
+        self.assertIsNotNone(rider_objects.blocked_list)
 
         await event.stop_and_complete_trackers()
 
@@ -136,7 +138,7 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
         event = await Event.load(app, 'test_event', writer)
         await event.start_trackers()
 
-        self.assertEqual(event.riders_objects['foo'].tracker.name, 'indexed_and_hashed.analysed.mock_tracker')
+        self.assertEqual(event.riders_objects['foo'].tracker.name, 'indexed_and_hashed.analysed.combined.foo')
 
         await event.stop_and_complete_trackers()
 
@@ -152,7 +154,7 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
         event = await Event.load(app, 'test_event', writer)
         await event.start_trackers(analyse=False)
 
-        self.assertEqual(event.riders_objects['foo'].tracker.name, 'indexed_and_hashed.replay.mock_tracker')
+        self.assertEqual(event.riders_objects['foo'].tracker.name, 'indexed_and_hashed.replay.combined.foo')
 
         await event.stop_and_complete_trackers()
 
@@ -166,6 +168,6 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
         event = await Event.load(app, 'test_event', writer)
         await event.start_trackers()
 
-        self.assertIsNone(event.riders_objects['foo'].tracker)
+        self.assertEqual(len(event.riders_objects['foo'].source_trackers), 0)
 
         await event.stop_and_complete_trackers()

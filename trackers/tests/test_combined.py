@@ -16,17 +16,17 @@ class TestCombinedTracker(asynctest.TestCase):
     async def test_basic(self):
         tracker1 = Tracker('tracker1')
         tracker2 = Tracker('tracker2')
+        await tracker1.new_points([{'time': d('2017/01/01 05:05:00'), 'item': 1}])
 
         new_points_callback = asynctest.CoroutineMock()
         reset_points_callback = asynctest.CoroutineMock()
 
-        combined = await Combined.start_tracker(
+        combined = await Combined.start(
             'combined', (tracker1, tracker2),
             new_points_callbacks=(new_points_callback, ),
             reset_points_callbacks=(reset_points_callback, ),
         )
 
-        await tracker1.new_points([{'time': d('2017/01/01 05:05:00'), 'item': 1}])
         new_points_callback.assert_called_once_with(combined, [{'time': d('2017/01/01 05:05:00'), 'item': 1}])
         new_points_callback.reset_mock()
 

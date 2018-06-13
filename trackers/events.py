@@ -14,7 +14,8 @@ import msgpack
 import yaml
 
 from trackers.analyse import AnalyseTracker, get_analyse_routes
-from trackers.base import BlockedList, cancel_and_wait_task, Observable
+from trackers.base import BlockedList, cancel_and_wait_task, Observable, Tracker
+from trackers.combined import Combined
 from trackers.dulwich_helpers import TreeReader, TreeWriter
 from trackers.general import index_and_hash_tracker, start_replay_tracker
 from trackers.persisted_func_cache import PersistedFuncCache
@@ -212,30 +213,34 @@ class Event(object):
             rider_name = rider['name']
             self.riders_objects[rider_name] = objects = RiderObjects(rider_name, self)
 
+            objects.data_tracker = await DataTracker.start(rider)
+
             if rider['tracker']:
                 start_tracker = self.app['start_event_trackers'][rider['tracker']['type']]
                 tracker = await start_tracker(self.app, self, rider_name, rider['tracker'])
                 objects.source_trackers.append(tracker)
-                if replay:
-                    tracker = await start_replay_tracker(tracker, **replay_kwargs)
-                if analyse:
-                    objects.analyse_tracker = tracker = await AnalyseTracker.start(
-                        tracker, self.event_start, analyse_routes, find_closest_cache=find_closest_cache)
-                    objects.off_route_tracker = off_route_tracker = await index_and_hash_tracker(tracker.off_route_tracker)
-                    objects.off_route_blocked_list = BlockedList.from_tracker(
-                        off_route_tracker, entire_block=not is_live,
-                        new_update_callbacks=(partial(self.rider_off_route_blocked_list_update_observable, self, rider['name']), ))
 
-                tracker = await index_and_hash_tracker(tracker)
-                self.riders_current_values[rider['name']] = {}
-                await self.on_rider_new_points(rider['name'], tracker, tracker.points)
-                tracker.new_points_observable.subscribe(partial(self.on_rider_new_points, rider['name']))
-                tracker.reset_points_observable.subscribe(partial(self.on_rider_reset_points, rider['name']))
+            tracker = await Combined.start(f'combined.{rider_name}', [objects.data_tracker] + objects.source_trackers)
+            if replay:
+                tracker = await start_replay_tracker(tracker, **replay_kwargs)
+            if analyse:
+                objects.analyse_tracker = tracker = await AnalyseTracker.start(
+                    tracker, self.event_start, analyse_routes, find_closest_cache=find_closest_cache)
+                objects.off_route_tracker = off_route_tracker = await index_and_hash_tracker(tracker.off_route_tracker)
+                objects.off_route_blocked_list = BlockedList.from_tracker(
+                    off_route_tracker, entire_block=not is_live,
+                    new_update_callbacks=(partial(self.rider_off_route_blocked_list_update_observable, self, rider['name']), ))
 
-                objects.tracker = tracker
-                objects.blocked_list = BlockedList.from_tracker(
-                    tracker, entire_block=not is_live,
-                    new_update_callbacks=(partial(self.rider_blocked_list_update_observable, self, rider['name']), ))
+            tracker = await index_and_hash_tracker(tracker)
+            self.riders_current_values[rider['name']] = {}
+            await self.on_rider_new_points(rider['name'], tracker, tracker.points)
+            tracker.new_points_observable.subscribe(partial(self.on_rider_new_points, rider['name']))
+            tracker.reset_points_observable.subscribe(partial(self.on_rider_reset_points, rider['name']))
+
+            objects.tracker = tracker
+            objects.blocked_list = BlockedList.from_tracker(
+                tracker, entire_block=not is_live,
+                new_update_callbacks=(partial(self.rider_blocked_list_update_observable, self, rider['name']), ))
         if analyse and is_live:
             self.predicted_task = asyncio.ensure_future(self.predicted())
         self.trackers_started = True
@@ -405,3 +410,19 @@ class RiderObjects(object):
     off_route_tracker = attr.ib(default=None)
     blocked_list = attr.ib(default=None)
     off_route_blocked_list = attr.ib(default=None)
+
+
+class DataTracker(Tracker):
+
+    @classmethod
+    async def start(cls, rider_data):
+        self = cls('data.{rider_data["name"]')
+        self.rider_data = rider_data
+        await self.new_points(rider_data.get('points', ()))
+        self.completed.set_result(None)
+        return self
+
+    async def add_points(self, new_points):
+        self.new_points(new_points)
+        self.rider_data['points'] = self.points
+        # Caller is responsible to call event.save

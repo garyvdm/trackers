@@ -29,6 +29,7 @@ from trackers.analyse import (
     route_with_distance_and_index,
 )
 from trackers.async_exit_stack import AsyncExitStack
+from trackers.combined import Combined
 from trackers.dulwich_helpers import TreeWriter
 from trackers.general import json_dumps, json_encode
 
@@ -179,7 +180,8 @@ async def convert_to_static(app, settings, args):
 
     for rider in event.config['riders']:
         rider_name = rider['name']
-        tracker = event.riders_objects[rider_name].tracker
+        tackers = event.riders_objects[rider_name].source_trackers
+        tracker = await Combined.start(rider_name, tackers)
         if tracker:
             await tracker.complete()
             path = os.path.join('events', event.name, rider_name)

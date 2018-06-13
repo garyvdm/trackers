@@ -56,6 +56,7 @@ async def replay(replay_tracker, org_tracker, event_start_time, replay_start, of
     while not org_tracker.completed.done() or point_i < len(org_tracker.points):
         now = datetime.now()
         new_points = []
+        new_time = None
         while point_i < len(org_tracker.points):
             try:
                 point = org_tracker.points[point_i]
@@ -72,7 +73,10 @@ async def replay(replay_tracker, org_tracker, event_start_time, replay_start, of
 
         if new_points:
             await replay_tracker.new_points(new_points)
-        await asyncio.sleep((new_time - now).total_seconds())
+        if new_time:
+            await asyncio.sleep((new_time - now).total_seconds())
+        else:
+            await asyncio.sleep(1)
 
 
 async def wrapped_tracker_start_event(start_wraped, app, event, rider_name, tracker_data):
