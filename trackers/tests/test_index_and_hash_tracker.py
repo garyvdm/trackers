@@ -55,3 +55,6 @@ class Test(asynctest.TestCase):
             {'hash': 'X60A', 'index': 0, 'position': (-27.280315, 27.969365, 1800)},
             {'hash': 'W9tZ', 'index': 1, 'position': (-27.28287, 27.97062, 1800)}
         ])
+
+        tracker.completed.set_result(None)
+        await ih_tracker.complete()

@@ -103,7 +103,7 @@ async def cropped_tracker_newpoints(cropped_tracker, start, end, org_tracker, ne
 
 
 async def index_and_hash_tracker(org_tracker, hasher=None):
-    ih_tracker = Tracker('indexed_and_hashed.{}'.format(org_tracker.name), org_tracker.complete())
+    ih_tracker = Tracker('indexed_and_hashed.{}'.format(org_tracker.name), org_tracker.completed)
     ih_tracker.stop = org_tracker.stop
     ih_tracker.org_tracker = org_tracker
     if hasher is None:
