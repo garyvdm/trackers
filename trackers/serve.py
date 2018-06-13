@@ -15,7 +15,7 @@ import trackers.web_app
 defaults_yaml = """
     server_type: inet
     inet_host: ''
-    inet_port: 6841
+    inet_port: 5234
     debugtoolbar: False
     aioserver_debug: False
 """
