@@ -692,7 +692,13 @@ function on_new_rider_values(rider_name){
             } else {
                 rider_items.marker.setPosition(position);
             }
+        } else {
+            if (rider_items.marker) {
+                rider_items.marker.setMap(null);
+                rider_items.marker = null;
+            }
         }
+        var series = elevation_chart.get(rider_name);
         if (values.hasOwnProperty('dist_route')) {
             var elevation = 0;
             if (values.hasOwnProperty('position') && values.position.length > 2) {
@@ -701,7 +707,6 @@ function on_new_rider_values(rider_name){
                 elevation = values.route_elevation;
             }
 
-            var series = elevation_chart.get(rider_name);
             if (!series) {
                 elevation_chart.addSeries({
                     id: rider_name,
@@ -726,6 +731,8 @@ function on_new_rider_values(rider_name){
                     }
                 },
             }], true, false);
+        } else {
+            if (series) series.remove();
         }
 
     }).catch(promise_catch);

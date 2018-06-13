@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import sys
 import tempfile
 import traceback
@@ -13,9 +14,10 @@ from aiocontext import async_contextmanager
 from aiohttp import web
 
 from trackers.async_exit_stack import AsyncExitStack
+from trackers.base import Tracker
 from trackers.events import Event
 from trackers.tests import free_port, temp_repo, TEST_GOOGLE_API_KEY, web_server_fixture
-from trackers.web_app import convert_client_urls_to_paths, make_aio_app
+from trackers.web_app import convert_client_urls_to_paths, make_aio_app, on_new_event
 
 
 def load_tests(loader, tests, pattern):
@@ -99,6 +101,10 @@ async def ws_ready_is(session, expected_state):
     return bool(ready) == expected_state
 
 
+def d(date_string):
+    return datetime.datetime.strptime(date_string, '%Y/%m/%d %H:%M:%S')
+
+
 class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
     use_default_loop = True
 
@@ -179,5 +185,72 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
                     []
                 )
                 await wait_condition(ws_ready_is, session, True, timeout=10)
+
+        self.check_no_errors(client_errors, server_errors)
+
+    async def test_tracker_points_show_and_change(self):
+        step_sleep_time = 0.2
+
+        port = free_port()
+        async with AsyncExitStack() as stack:
+            session = await stack.enter_context(self.driver.session(self.browser))
+            app, url, client_errors, server_errors = await stack.enter_context(
+                tracker_web_server_fixture(self.loop, port=port))
+
+            mock_tracker = Tracker('mock_tracker')
+
+            async def start_mock_event_tracker(app, event, rider_name, tracker_data):
+                return mock_tracker
+
+            app['start_event_trackers'] = {
+                'mock': start_mock_event_tracker,
+            }
+
+            app['trackers.events']['test_event'] = event = Event(
+                app, 'test_event',
+                yaml.load("""
+                    title: Test Event
+                    event_start: 2017-01-01 05:00:00
+                    live: True
+                    riders:
+                        - name: Foo Bar
+                          name_short: Foo
+                          tracker: {type: mock}
+                    markers: []
+                    bounds: {'north': -26.300822, 'south': -27.28287, 'east': 28.051139, 'west': 27.969365}
+                """),
+                []
+            )
+            await on_new_event(event)
+            # await event.start_trackers()
+            await session.get(f'{url}/test_event')
+            await wait_condition(ws_ready_is, session, True)
+            await asyncio.sleep(step_sleep_time)
+
+            await mock_tracker.new_points([
+                {'time': d('2017/01/01 05:00:00'), 'position': (-26.300822, 28.049444, 1800)},
+                {'time': d('2017/01/01 05:01:00'), 'position': (-26.351581, 28.100281, 1800)},
+            ])
+            await asyncio.sleep(step_sleep_time)
+            # await session.execute_script('console.log(riders_client_items["Foo Bar"].paths);')
+            # await asyncio.sleep(100)
+
+            self.assertFalse(await session.execute_script('return riders_client_items["Foo Bar"].marker === null;'))
+            self.assertEqual(await session.execute_script('return riders_client_items["Foo Bar"].paths.riders_off_route.length;'), 1)
+            self.assertEqual(await session.execute_script('return riders_client_items["Foo Bar"].paths.riders_off_route[0].getPath().length;'), 2)
+
+            await mock_tracker.reset_points()
+            await asyncio.sleep(step_sleep_time)
+            self.assertTrue(await session.execute_script('return riders_client_items["Foo Bar"].marker === null;'))
+            self.assertEqual(await session.execute_script('return riders_client_items["Foo Bar"].paths.riders_off_route.length;'), 0)
+
+            await mock_tracker.new_points([
+                {'time': d('2017/01/01 05:30:00'), 'position': (-26.351581, 28.100281, 1800)},
+                {'time': d('2017/01/01 05:31:00'), 'position': (-27.282870, 27.970620, 1800)},
+            ])
+            await asyncio.sleep(step_sleep_time)
+            self.assertFalse(await session.execute_script('return riders_client_items["Foo Bar"].marker === null;'))
+            self.assertEqual(await session.execute_script('return riders_client_items["Foo Bar"].paths.riders_off_route.length;'), 1)
+            self.assertEqual(await session.execute_script('return riders_client_items["Foo Bar"].paths.riders_off_route[0].getPath().length;'), 2)
 
         self.check_no_errors(client_errors, server_errors)
