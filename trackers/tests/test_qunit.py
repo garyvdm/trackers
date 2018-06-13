@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import sys
 
 import arsenic
@@ -49,7 +50,7 @@ class TestQunit(asynctest.TestCase):
             # browser = arsenic.browsers.PhantomJS()
             # service = arsenic.services.Geckodriver(log_file=arsenic.services.DEVNULL)
             # browser = arsenic.browsers.Firefox()
-            service = arsenic.services.Chromedriver(log_file=arsenic.services.DEVNULL)
+            service = arsenic.services.Chromedriver(log_file=os.devnull)
             browser = arsenic.browsers.Chrome(chromeOptions={'args': ['--headless', '--disable-gpu']})
 
             async with arsenic.get_session(service, browser) as driver:

@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import os
 import sys
 import tempfile
 import traceback
@@ -131,7 +132,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
         #     }),
         # )),
         ('chrome-headless', dict(
-            driver_resource_manager=WebDriverService(arsenic.services.Chromedriver(log_file=arsenic.services.DEVNULL)),
+            driver_resource_manager=WebDriverService(arsenic.services.Chromedriver(log_file=os.devnull)),
             browser=arsenic.browsers.Chrome(chromeOptions={
                 'args': ['--headless', '--disable-gpu']
             }),
