@@ -120,8 +120,8 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
         event = await Event.load(app, 'test_event', writer)
         await event.start_trackers(analyse=False)
 
-        self.assertEqual(event.rider_trackers['foo'].name, 'indexed_and_hashed.mock_tracker')
-        self.assertIn('foo', event.rider_trackers_blocked_list)
+        self.assertEqual(event.riders_objects['foo'].tracker.name, 'indexed_and_hashed.mock_tracker')
+        self.assertIsNotNone(event.riders_objects['foo'].blocked_list)
 
         await event.stop_and_complete_trackers()
 
@@ -136,7 +136,7 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
         event = await Event.load(app, 'test_event', writer)
         await event.start_trackers()
 
-        self.assertEqual(event.rider_trackers['foo'].name, 'indexed_and_hashed.analysed.mock_tracker')
+        self.assertEqual(event.riders_objects['foo'].tracker.name, 'indexed_and_hashed.analysed.mock_tracker')
 
         await event.stop_and_complete_trackers()
 
@@ -152,7 +152,7 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
         event = await Event.load(app, 'test_event', writer)
         await event.start_trackers(analyse=False)
 
-        self.assertEqual(event.rider_trackers['foo'].name, 'indexed_and_hashed.replay.mock_tracker')
+        self.assertEqual(event.riders_objects['foo'].tracker.name, 'indexed_and_hashed.replay.mock_tracker')
 
         await event.stop_and_complete_trackers()
 
@@ -166,6 +166,6 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
         event = await Event.load(app, 'test_event', writer)
         await event.start_trackers()
 
-        self.assertEqual(len(event.rider_trackers), 0)
+        self.assertIsNone(event.riders_objects['foo'].tracker)
 
         await event.stop_and_complete_trackers()

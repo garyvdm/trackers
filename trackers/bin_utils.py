@@ -179,7 +179,7 @@ async def convert_to_static(app, settings, args):
 
     for rider in event.config['riders']:
         rider_name = rider['name']
-        tracker = event.rider_trackers.get(rider_name)
+        tracker = event.riders_objects[rider_name].tracker
         if tracker:
             await tracker.complete()
             path = os.path.join('events', event.name, rider_name)

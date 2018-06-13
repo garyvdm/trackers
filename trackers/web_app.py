@@ -94,9 +94,9 @@ async def make_aio_app(settings,
     app.router.add_route('GET', '/{event}/config', handler=event_config, name='event_config')
     app.router.add_route('GET', '/{event}/routes', handler=event_routes, name='event_routes')
     app.router.add_route('GET', '/{event}/riders_points', name='riders_points',
-                         handler=coro_partial(blocked_lists, blocked_list_attr_name='rider_trackers_blocked_list'))
+                         handler=coro_partial(blocked_lists, list_attr_name='blocked_list'))
     app.router.add_route('GET', '/{event}/riders_off_route', name='riders_off_route',
-                         handler=coro_partial(blocked_lists, blocked_list_attr_name='rider_off_route_blocked_list'))
+                         handler=coro_partial(blocked_lists, list_attr_name='off_route_blocked_list'))
     app.router.add_route('GET', '/{event}/riders_csv', name='riders_csv', handler=riders_csv)
     app.router.add_route('GET', '/{event}/set_start', handler=event_set_start, name='event_set_start')
 
@@ -192,7 +192,7 @@ def get_event_state(app, event):
         'live': event.config.get('live', False),
         'config_hash': event.config_hash,
         'routes_hash': event.routes_hash,
-        'riders_values': event.rider_current_values,
+        'riders_values': event.riders_current_values,
         'client_hash': event.page[1],
         'server_time': datetime.datetime.now(),
     }
@@ -270,23 +270,28 @@ def compress_point(point):
 
 @say_error_handler
 @event_handler
-async def blocked_lists(request, event, blocked_list_attr_name):
+async def blocked_lists(request, event, list_attr_name):
     rider_name = request.query.get('name')
-    blocked_lists = getattr(event, blocked_list_attr_name)
     if not rider_name:
         hasher = hashlib.sha1()
-        for blocked_list in blocked_lists.values():
-            if blocked_list.source:
-                hasher.update(blocked_list.source[-1]['hash'].encode())
+        lists = [(rider_objects.rider_name, getattr(rider_objects, list_attr_name)) for rider_objects in event.riders_objects.values()]
+        lists = [(name, list) for name, list in lists if list]
+        for name, list in lists:
+            source = list.get_source()
+            if source:
+                hasher.update(source[-1]['hash'].encode())
         hash = urlsafe_b64encode(hasher.digest()[:3]).decode('ascii')
-        blocked_lists_full = {rider_name: list.full for rider_name, list in blocked_lists.items()}
+        blocked_lists_full = {name: list.full for name, list in lists}
         return etag_response(request, partial(json_response, blocked_lists_full), hash)
     else:
         start_index = int(request.query.get('start_index'))
         end_index = int(request.query.get('end_index'))
         end_hash = request.query.get('end_hash')
 
-        points = blocked_lists[rider_name].source[start_index:end_index + 1]
+        rider_objects = event.riders_objects[rider_name]
+        list = getattr(rider_objects, list_attr_name)
+        source = list.get_source()
+        points = source[start_index:end_index + 1]
         if points and points[-1]['hash'] != end_hash:
             raise web.HTTPInternalServerError(text='Wrong end_hash')
 
@@ -398,6 +403,13 @@ async def on_event_rider_predicted_updated(event, predicted, time):
     )
 
 
+def get_rider_blocked_list(event, list_name):
+    unfiltered = (
+        (rider_objects.rider_name, getattr(rider_objects, list_name))
+        for rider_objects in event.riders_objects.values())
+    return ((rider_name, list.full) for rider_name, list in unfiltered if list)
+
+
 async def event_ws(request):
     ws = web.WebSocketResponse()
     ws.subscriptions = set()
@@ -435,16 +447,15 @@ async def event_ws(request):
                             ws.subscriptions = set(data['subscriptions'])
                             added_subscriptions = ws.subscriptions - old_subscriptions
                             if 'riders_points' in added_subscriptions:
-                                await send({'riders_points': {rider_name: list.full for rider_name, list in event.rider_trackers_blocked_list.items()}})
+                                await send({'riders_points': {rider_name: list_full for rider_name, list_full in get_rider_blocked_list(event, 'blocked_list')}})
                             else:
-                                selected_rider_points = {rider_name: list.full
-                                                         for rider_name, list in event.rider_trackers_blocked_list.items()
+                                selected_rider_points = {rider_name: list_full for rider_name, list_full in get_rider_blocked_list(event, 'blocked_list')
                                                          if f'riders_points.{rider_name}' in added_subscriptions}
                                 if selected_rider_points:
                                     await send({'riders_points': selected_rider_points})
 
                             if 'riders_off_route' in added_subscriptions:
-                                await send({'riders_off_route': {rider_name: list.full for rider_name, list in event.rider_off_route_blocked_list.items()}})
+                                await send({'riders_off_route': {rider_name: list_full for rider_name, list_full in get_rider_blocked_list(event, 'off_route_blocked_list')}})
 
                             if 'riders_predicted' in added_subscriptions:
                                 await send({'riders_predicted': event.riders_predicted_points})
@@ -469,9 +480,8 @@ async def event_ws(request):
 
 async def message_to_multiple_wss(app, wss, msg, log_level=logging.DEBUG, filter_ws=None):
     msg = json_dumps(msg)
-    logger.log(log_level, 'send: {}'.format(msg[:1000]))
-
     filtered_wss = [ws for ws in wss if (filter_ws(ws) if filter_ws else True) and not ws.closed]
+    logger.log(log_level, f'send to {len(filtered_wss)}: {msg[:1000]}')
     if filtered_wss:
         futures = [asyncio.ensure_future(ws.send_str(msg)) for ws in filtered_wss]
         await asyncio.wait(futures)

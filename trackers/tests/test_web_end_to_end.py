@@ -20,6 +20,9 @@ from trackers.events import Event
 from trackers.tests import free_port, TEST_GOOGLE_API_KEY, web_server_fixture
 from trackers.web_app import convert_client_urls_to_paths, make_aio_app, on_new_event
 
+# import logging
+# logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+
 
 def load_tests(loader, tests, pattern):
     scenarios = testscenarios.generate_scenarios(tests)
@@ -232,9 +235,8 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
                 {'time': d('2017/01/01 05:01:00'), 'position': (-26.351581, 28.100281, 1800)},
             ])
             await asyncio.sleep(step_sleep_time)
-            # await session.execute_script('console.log(riders_client_items["Foo Bar"].paths);')
+            # await session.execute_script('console.log(riders_client_items["Foo Bar"].marker);')
             # await asyncio.sleep(100)
-
             self.assertFalse(await session.execute_script('return riders_client_items["Foo Bar"].marker === null;'))
             self.assertEqual(await session.execute_script('return riders_client_items["Foo Bar"].paths.riders_off_route.length;'), 1)
             self.assertEqual(await session.execute_script('return riders_client_items["Foo Bar"].paths.riders_off_route[0].getPath().length;'), 2)
@@ -254,3 +256,9 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
             self.assertEqual(await session.execute_script('return riders_client_items["Foo Bar"].paths.riders_off_route[0].getPath().length;'), 2)
 
         self.check_no_errors(client_errors, server_errors)
+
+    # TODO:
+    # * http blocked list download
+    # * Config reload
+    # * graphs
+    # * event with route

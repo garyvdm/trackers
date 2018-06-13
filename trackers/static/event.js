@@ -157,9 +157,9 @@ function on_new_state_received(new_state) {
             var name = entry[0];
             var values = entry[1];
             riders_values[name] = values;
-            if (!predicted_el.checked) on_new_rider_values(name);
+            if (!predicted_el.checked || !riders_predicted.hasOwnProperty(name)) on_new_rider_values(name);
         });
-        if (!predicted_el.checked) update_rider_table();
+        if (!predicted_el.checked || !riders_predicted.length) update_rider_table();
     }
     if (new_state.hasOwnProperty('riders_predicted')) {
         riders_predicted = new_state.riders_predicted;
@@ -664,6 +664,7 @@ predicted_el.onclick();
 
 function on_new_rider_values(rider_name){
     config_loaded.promise.then( function () {
+
         var rider = riders_by_name[rider_name]
         if (!rider) return;
         var rider_items = riders_client_items[rider_name];
@@ -681,8 +682,7 @@ function on_new_rider_values(rider_name){
         if (values.hasOwnProperty('position')) {
             var position = new google.maps.LatLng(values.position[0], values.position[1])
             if (!rider_items.marker) {
-                // console.log('add marker for '+rider_name);
-
+//                console.log('add marker for '+rider_name);
                 rider_items.marker = new RichMarker({
                     map: map,
                     position: position,

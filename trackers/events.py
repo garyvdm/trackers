@@ -9,6 +9,7 @@ from contextlib import closing, suppress
 from functools import partial
 
 import aionotify
+import attr
 import msgpack
 import yaml
 
@@ -179,11 +180,8 @@ class Event(object):
         is_live = self.config.get('live', False)
         self.event_start = self.config.get('event_start')
 
-        self.rider_trackers = {}
-        self.rider_trackers_blocked_list = {}
-        self.rider_current_values = {}
-        self.rider_off_route_trackers = {}
-        self.rider_off_route_blocked_list = {}
+        self.riders_objects = {}
+        self.riders_current_values = {}
         self.riders_predicted_points = {}
 
         if analyse:
@@ -203,7 +201,7 @@ class Event(object):
             replay_config = replay if isinstance(replay, dict) else {}
             replay_kwargs = {
                 'replay_start': datetime.datetime.now(),
-                'speed_multiply': replay_config.get('speed_multiply', 50),
+                'speed_multiply': replay_config.get('speed_multiply', 2),
                 'offset': datetime.timedelta(**replay_config.get('offset', {})),
                 'event_start_time': self.event_start,
             }
@@ -211,27 +209,31 @@ class Event(object):
             self.config_hash = hash_bytes(yaml.dump(self.config).encode())
 
         for rider in self.config['riders']:
+            rider_name = rider['name']
+            self.riders_objects[rider_name] = objects = RiderObjects(rider_name, self)
+
             if rider['tracker']:
                 start_tracker = self.app['start_event_trackers'][rider['tracker']['type']]
-                tracker = await start_tracker(self.app, self, rider['name'], rider['tracker'])
+                tracker = await start_tracker(self.app, self, rider_name, rider['tracker'])
+                objects.source_trackers.append(tracker)
                 if replay:
                     tracker = await start_replay_tracker(tracker, **replay_kwargs)
                 if analyse:
-                    tracker = await AnalyseTracker.start(tracker, self.event_start, analyse_routes, find_closest_cache=find_closest_cache)
-                    self.rider_analyse_trackers[rider['name']] = tracker
-                    self.rider_off_route_trackers[rider['name']] = off_route_tracker = await index_and_hash_tracker(tracker.off_route_tracker)
-                    self.rider_off_route_blocked_list[rider['name']] = BlockedList.from_tracker(
+                    objects.analyse_tracker = tracker = await AnalyseTracker.start(
+                        tracker, self.event_start, analyse_routes, find_closest_cache=find_closest_cache)
+                    objects.off_route_tracker = off_route_tracker = await index_and_hash_tracker(tracker.off_route_tracker)
+                    objects.off_route_blocked_list = BlockedList.from_tracker(
                         off_route_tracker, entire_block=not is_live,
                         new_update_callbacks=(partial(self.rider_off_route_blocked_list_update_observable, self, rider['name']), ))
 
                 tracker = await index_and_hash_tracker(tracker)
-                self.rider_current_values[rider['name']] = {}
+                self.riders_current_values[rider['name']] = {}
                 await self.on_rider_new_points(rider['name'], tracker, tracker.points)
                 tracker.new_points_observable.subscribe(partial(self.on_rider_new_points, rider['name']))
                 tracker.reset_points_observable.subscribe(partial(self.on_rider_reset_points, rider['name']))
 
-                self.rider_trackers[rider['name']] = tracker
-                self.rider_trackers_blocked_list[rider['name']] = BlockedList.from_tracker(
+                objects.tracker = tracker
+                objects.blocked_list = BlockedList.from_tracker(
                     tracker, entire_block=not is_live,
                     new_update_callbacks=(partial(self.rider_blocked_list_update_observable, self, rider['name']), ))
         if analyse and is_live:
@@ -247,25 +249,25 @@ class Event(object):
                 await cancel_and_wait_task(self.predicted_task)
                 self.predicted_task = None
 
-            for tracker in self.rider_trackers.values():
-                tracker.stop()
-            for tracker in self.rider_trackers.values():
+            for riders_objects in self.riders_objects.values():
+                if riders_objects.tracker:
+                    riders_objects.tracker.stop()
+            for riders_objects in self.riders_objects.values():
                 try:
-                    await tracker.complete()
+                    if riders_objects.tracker:
+                        await riders_objects.tracker.complete()
                 except Exception:
                     self.logger.exception('Unhandled tracker error: ')
 
-            del self.rider_trackers
-            del self.rider_trackers_blocked_list
-            del self.rider_current_values
-            with suppress(AttributeError):
-                del self.rider_analyse_trackers
+            del self.riders_objects
+            del self.riders_current_values
+            del self.riders_predicted_points
 
             self.trackers_started = False
 
     async def on_rider_new_points(self, rider_name, tracker, new_points):
         if new_points:
-            values = self.rider_current_values[rider_name]
+            values = self.riders_current_values[rider_name]
             for point in new_points:
                 values.update(point)
                 if 'position' in point:
@@ -274,13 +276,13 @@ class Event(object):
         self.new_points.set()
 
     async def on_rider_reset_points(self, rider_name, tracker):
-        values = self.rider_current_values[rider_name]
+        values = self.riders_current_values[rider_name]
         values.clear()
         await self.rider_new_values_observable(self, rider_name, values)
         self.new_points.set()
 
     def rider_sort_key_func(self, riders_predicted_points, rider_name):
-        rider_values = self.rider_current_values.get(rider_name, {})
+        rider_values = self.riders_current_values.get(rider_name, {})
         finished = 'finished_time' in rider_values
         time_to_finish = rider_values['finished_time'] - self.event_start if finished else None
         has_dist_on_route = 'dist_route' in rider_values
@@ -289,23 +291,26 @@ class Event(object):
 
     async def predicted(self):
         inactive_time = datetime.timedelta(minutes=15)
-        if not self.rider_analyse_trackers:
-            return
+
         while True:
             with suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(self.new_points.wait(), 10)
 
             try:
                 time = datetime.datetime.now()
-                riders_predicted_points = {rider_name: tracker.get_predicted_position(time) or {}
-                                           for rider_name, tracker in self.rider_analyse_trackers.items()}
+                riders_predicted_points = {rider_objects.rider_name: rider_objects.analyse_tracker.get_predicted_position(time) or {}
+                                           for rider_objects in self.riders_objects.values() if rider_objects.analyse_tracker}
+                if not riders_predicted_points:
+                    break
+
                 sort_key_func = partial(self.rider_sort_key_func, riders_predicted_points)
                 rider_names_sorted = list(sorted(riders_predicted_points.keys(), key=sort_key_func))
 
                 leader = rider_names_sorted[0]
+                leader_objects = self.riders_objects[leader]
                 leader_points = []
                 last_point = None
-                for point in self.rider_trackers[leader].points:
+                for point in leader_objects.analyse_tracker.points:
                     if 'dist_route' in point:
                         going_forward = point['dist_route'] > last_point['dist_route'] if last_point else True
                         if going_forward:
@@ -317,7 +322,7 @@ class Event(object):
                 if leader_points:
                     for rider_name in rider_names_sorted[1:]:
                         rider_predicted_points = riders_predicted_points.get(rider_name)
-                        rider_values = self.rider_current_values.get(rider_name)
+                        rider_values = self.riders_current_values.get(rider_name)
                         if rider_values and time - rider_values.get('position_time') < inactive_time:
                             rider_dist_route = None
                             rider_time = None
@@ -387,3 +392,16 @@ class YamlEventDumper(yaml.Dumper):
 
 
 YamlEventDumper.add_representer(dict, yaml_represent_dict)
+
+
+@attr.s()
+class RiderObjects(object):
+    rider_name = attr.ib()
+    event = attr.ib()
+    data_tracker = attr.ib(default=None)
+    source_trackers = attr.ib(default=attr.Factory(list))
+    analyse_tracker = attr.ib(default=None)
+    tracker = attr.ib(default=None)
+    off_route_tracker = attr.ib(default=None)
+    blocked_list = attr.ib(default=None)
+    off_route_blocked_list = attr.ib(default=None)
