@@ -450,6 +450,7 @@ async def event_ws(request):
                                 await send({'riders_predicted': event.riders_predicted_points})
 
                     except Exception:
+                        request.app['exception_recorder']()
                         logger.exception('Error in receive ws msg:')
 
                 if msg.type == WSMsgType.close:
