@@ -1,13 +1,9 @@
 import socket
-import tempfile
 import unittest
-from contextlib import contextmanager
 
 import arsenic.services
-import fixtures
 import structlog
 from aiocontext import async_contextmanager
-from dulwich.repo import Repo
 
 import trackers
 
@@ -15,19 +11,6 @@ import trackers
 def suite():
     tests = unittest.defaultTestLoader.discover(trackers.__path__[0])
     return unittest.TestSuite(tests)
-
-
-class TempRepoFixture(fixtures.TempDir):
-    def _setUp(self):
-        super()._setUp()
-        self.repo = Repo.init_bare(self.path)
-        self.addCleanup(self.repo.close)
-
-
-@contextmanager
-def temp_repo():
-    with tempfile.TemporaryDirectory() as path:
-        yield Repo.init_bare(path)
 
 
 def get_test_app_and_settings(repo):

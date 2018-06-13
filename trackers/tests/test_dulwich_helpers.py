@@ -4,10 +4,9 @@ import unittest
 import dulwich.tests
 import fixtures
 from dulwich.errors import NotTreeError
-from dulwich.repo import Repo
+from dulwich.repo import MemoryRepo, Repo
 
 from trackers.dulwich_helpers import TreeReader, TreeWriter
-from trackers.tests import TempRepoFixture
 
 
 class TestTreeReader(unittest.TestCase):
@@ -49,7 +48,7 @@ class TestTreeWriter(fixtures.TestWithFixtures):
 
     def test(self):
         # TODO This test needs to be broken up.
-        repo = self.useFixture(TempRepoFixture()).repo
+        repo = MemoryRepo()
         writer = TreeWriter(repo)
         writer.set_data('a', b'file a',)
         self.assertEqual(b'file a', writer.get('a').data)

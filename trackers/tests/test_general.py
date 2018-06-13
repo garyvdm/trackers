@@ -2,6 +2,7 @@ import datetime
 
 import asynctest
 import fixtures
+from dulwich.repo import MemoryRepo
 
 from trackers.base import Tracker
 from trackers.dulwich_helpers import TreeWriter
@@ -11,13 +12,13 @@ from trackers.general import (
     start_replay_tracker,
     static_start_event_tracker,
 )
-from trackers.tests import get_test_app_and_settings, TempRepoFixture
+from trackers.tests import get_test_app_and_settings
 
 
 class TestStatic(asynctest.TestCase, fixtures.TestWithFixtures):
 
     async def test_start_msgpack(self):
-        repo = self.useFixture(TempRepoFixture()).repo
+        repo = MemoryRepo()
         writer = TreeWriter(repo)
         writer.set_data('events/test_event/data.yaml', '{}'.encode())
         writer.set_data('events/test_event/test_rider', b'\x91\x82\xa4time\xcbA\xd6\x1a\n\x98\x00\x00\x00\xa3bar\xa3foo')
@@ -34,7 +35,7 @@ class TestStatic(asynctest.TestCase, fixtures.TestWithFixtures):
         })
 
     async def test_start_json(self):
-        repo = self.useFixture(TempRepoFixture()).repo
+        repo = MemoryRepo()
         writer = TreeWriter(repo)
         writer.set_data('events/test_event/data.yaml', '{}'.encode())
         writer.set_data('events/test_event/test_rider', '[]'.encode())

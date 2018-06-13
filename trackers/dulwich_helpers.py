@@ -132,7 +132,7 @@ class TreeWriter(TreeReader):
         self.repo.object_store.add_objects([(obj, None) for obj in self.changed_objects.values()])
         self.repo.refs.set_if_equals(self.branch, self.org_commit_id, commit_id)
 
-        if self.repo.has_index():
+        if hasattr(self.repo, 'has_index') and self.repo.has_index():
             # Apply patch to working tree.
             try:
                 subprocess.call(['git', 'cherry-pick', commit_id, '--no-commit'], cwd=self.repo.path)

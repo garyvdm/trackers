@@ -12,11 +12,12 @@ import testscenarios
 import yaml
 from aiocontext import async_contextmanager
 from aiohttp import web
+from dulwich.repo import MemoryRepo
 
 from trackers.async_exit_stack import AsyncExitStack
 from trackers.base import Tracker
 from trackers.events import Event
-from trackers.tests import free_port, temp_repo, TEST_GOOGLE_API_KEY, web_server_fixture
+from trackers.tests import free_port, TEST_GOOGLE_API_KEY, web_server_fixture
 from trackers.web_app import convert_client_urls_to_paths, make_aio_app, on_new_event
 
 
@@ -44,10 +45,9 @@ class WebDriverService(testresources.TestResourceManager):
 async def tracker_web_server_fixture(loop, port=None):
 
     async with AsyncExitStack() as stack:
-        repo = await stack.enter_context(temp_repo())
+        repo = MemoryRepo()
         cache_path = await stack.enter_context(tempfile.TemporaryDirectory())
         settings = {
-            'data_path': repo.path,
             'google_api_key': TEST_GOOGLE_API_KEY,
             'cache_path': cache_path,
         }

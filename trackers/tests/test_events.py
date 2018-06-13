@@ -2,17 +2,18 @@ from textwrap import dedent
 
 import asynctest
 import fixtures
+from dulwich.repo import MemoryRepo
 
 from trackers.base import Tracker
 from trackers.dulwich_helpers import TreeWriter
 from trackers.events import Event, load_events
-from trackers.tests import get_test_app_and_settings, TempRepoFixture
+from trackers.tests import get_test_app_and_settings
 
 
 class TestEvents(asynctest.TestCase, fixtures.TestWithFixtures):
 
     async def test_load_events(self):
-        repo = self.useFixture(TempRepoFixture()).repo
+        repo = MemoryRepo()
         writer = TreeWriter(repo)
         writer.set_data('events/test_event/data.yaml', '{}'.encode())
         writer.commit('add test_event')
@@ -26,7 +27,7 @@ class TestEvents(asynctest.TestCase, fixtures.TestWithFixtures):
         self.assertEqual(event.name, 'test_event')
 
     async def test_from_load(self):
-        repo = self.useFixture(TempRepoFixture()).repo
+        repo = MemoryRepo()
         writer = TreeWriter(repo)
         writer.set_data('events/test_event/data.yaml', '''
             title: Test event
@@ -39,7 +40,7 @@ class TestEvents(asynctest.TestCase, fixtures.TestWithFixtures):
         self.assertEqual(event.routes, [])
 
     async def test_from_load_with_routes(self):
-        repo = self.useFixture(TempRepoFixture()).repo
+        repo = MemoryRepo()
         writer = TreeWriter(repo)
         writer.set_data('events/test_event/data.yaml', '{}'.encode())
         writer.set_data('events/test_event/routes', b'\x91\x81\xa6points\x90')
@@ -50,7 +51,7 @@ class TestEvents(asynctest.TestCase, fixtures.TestWithFixtures):
         self.assertEqual(event.routes, [{'points': []}])
 
     async def test_save(self):
-        repo = self.useFixture(TempRepoFixture()).repo
+        repo = MemoryRepo()
         writer = TreeWriter(repo)
 
         app, settings = get_test_app_and_settings(repo)
@@ -61,7 +62,7 @@ class TestEvents(asynctest.TestCase, fixtures.TestWithFixtures):
         self.assertEqual(writer.get('events/test_event/routes').data, b'\x91\x81\xa6points\x90')
 
     async def test_save_no_routes(self):
-        repo = self.useFixture(TempRepoFixture()).repo
+        repo = MemoryRepo()
         writer = TreeWriter(repo)
         writer.set_data('events/test_event/data.yaml', '{}'.encode())
         writer.set_data('events/test_event/routes', b'\x91\x81\xa6points\x90')
@@ -75,7 +76,7 @@ class TestEvents(asynctest.TestCase, fixtures.TestWithFixtures):
         self.assertFalse(writer.exists('events/test_event/routes'))
 
     async def test_save_no_routes_before_and_after(self):
-        repo = self.useFixture(TempRepoFixture()).repo
+        repo = MemoryRepo()
         writer = TreeWriter(repo)
 
         app, settings = get_test_app_and_settings(repo)
@@ -88,7 +89,7 @@ class TestEvents(asynctest.TestCase, fixtures.TestWithFixtures):
 class TestEventWithMockTracker(fixtures.TestWithFixtures):
 
     def do_setup(self, data):
-        repo = self.useFixture(TempRepoFixture()).repo
+        repo = MemoryRepo()
         cache_dir = self.useFixture(fixtures.TempDir())
         writer = TreeWriter(repo)
         writer.set_data('events/test_event/data.yaml', dedent(data).encode())
