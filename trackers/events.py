@@ -169,7 +169,6 @@ class Event(object):
                 self.starting_fut = None
 
     async def _start_trackers(self, analyse):
-        await asyncio.sleep(1)
         self.logger.info('Starting {}'.format(self.name))
 
         # analyse = self.config.get('analyse', False)
