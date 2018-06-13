@@ -27,27 +27,30 @@ async def load_events_with_watcher(app, ref=b'HEAD', **kwargs):
 
         repo = app['trackers.data_repo']
 
-        while True:
-            refnames, sha = repo.refs.follow(ref)
-            paths = [repo.refs.refpath(ref) for ref in refnames]
-            logger.debug(f'Watching paths {paths}')
+        if hasattr(repo.refs, 'refpath'):
+            while True:
+                refnames, sha = repo.refs.follow(ref)
+                paths = [repo.refs.refpath(ref) for ref in refnames]
+                logger.debug(f'Watching paths {paths}')
 
-            try:
-                with closing(aionotify.Watcher()) as watcher:
-                    await watcher.setup(asyncio.get_event_loop())
-                    for path in paths:
-                        watcher.watch(path, flags=aionotify.Flags.MODIFY + aionotify.Flags.DELETE_SELF + aionotify.Flags.MOVE_SELF)
-                    await watcher.get_event()
-            except OSError as e:
-                logger.error(e)
-                break
+                try:
+                    with closing(aionotify.Watcher()) as watcher:
+                        await watcher.setup(asyncio.get_event_loop())
+                        for path in paths:
+                            watcher.watch(path, flags=aionotify.Flags.MODIFY + aionotify.Flags.DELETE_SELF + aionotify.Flags.MOVE_SELF)
+                        await watcher.get_event()
+                except OSError as e:
+                    logger.error(e)
+                    break
 
-            await asyncio.sleep(0.1)
+                await asyncio.sleep(0.1)
 
-            new_sha = repo.refs[ref]
-            if sha != new_sha:
-                logger.info('Ref {} changed {} -> {}. Reloading.'.format(ref.decode(), sha.decode()[:6], new_sha.decode()[:6]))
-                await load_events(app, ref=ref, **kwargs)
+                new_sha = repo.refs[ref]
+                if sha != new_sha:
+                    logger.info('Ref {} changed {} -> {}. Reloading.'.format(ref.decode(), sha.decode()[:6], new_sha.decode()[:6]))
+                    await load_events(app, ref=ref, **kwargs)
+        else:
+            logger.debug('No inotify reload on memory repo')
     except asyncio.CancelledError:
         raise
     except Exception:
