@@ -501,7 +501,7 @@ async def message_to_multiple_wss(app, wss, msg, log_level=logging.DEBUG, filter
 @say_error_handler
 @event_handler
 async def event_set_start(request, event):
-    event.config['event_start'] = datetime.datetime.now()
+    event.config['event_start'] = datetime.datetime.now().replace(microsecond=0)
     event.save("Set event start")
     return web.Response(text='Start time set to {}'.format(event.config['event_start']))
 
@@ -675,7 +675,7 @@ async def event_admin(request, event):
                     w(event.config['event_start'])
             with c(Tag('form', action=router['event_set_start'].url_for(event=event.name), method='POST')):
                 with c(Tag('p')):
-                    w(Tag('button', type='submit'), 'Set Start')
+                    w(Tag('button', type='submit'), 'Set Start to Now')
 
     return web.Response(body=body.getvalue(), headers={'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache'})
 
