@@ -126,6 +126,7 @@ class Event(object):
     async def reload(self, tree_reader):
         _, git_hash = tree_reader.lookup(self.path)
         if self.git_hash != git_hash:
+            self.logger.info('Reloading')
             await self.stop_and_complete_trackers()
             await self._load(tree_reader)
 
@@ -151,16 +152,21 @@ class Event(object):
     def save(self, message, author=None, tree_writer=None):
         if tree_writer is None:
             tree_writer = TreeWriter(self.app['trackers.data_repo'])
-        config_text = yaml.dump(self.config, default_flow_style=False, Dumper=YamlEventDumper)
-        tree_writer.set_data(self.config_path, config_text.encode())
+        config_bytes = yaml.dump(self.config, default_flow_style=False, Dumper=YamlEventDumper).encode()
+        self.config_hash = hash_bytes(config_bytes)
+        tree_writer.set_data(self.config_path, config_bytes)
 
         if self.routes:
             routes_bytes = msgpack.dumps(self.routes)
+            self.routes_hash = hash_bytes(routes_bytes)
             tree_writer.set_data(self.routes_path, routes_bytes)
         else:
             if tree_writer.exists(self.routes_path):
                 tree_writer.remove(self.routes_path)
+            self.routes_hash = None
+
         tree_writer.commit(message, author=author)
+        _, self.git_hash = tree_writer.lookup(self.path)
 
     async def start_trackers(self, analyse=True):
         if self.starting_fut:
