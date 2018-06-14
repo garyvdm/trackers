@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import datetime
 import logging
 import re
@@ -10,12 +11,14 @@ from itertools import groupby
 import aiomsgpack
 import more_itertools
 from aiocontext import async_contextmanager
-from aiohttp.web import Application as WebApplication
+from aiohttp import web, WSMsgType
 
-from trackers.base import cancel_and_wait_task, Observable, print_tracker, Tracker
+from trackers.base import cancel_and_wait_task, list_register, Observable, print_tracker, Tracker
 
 
 logger = logging.getLogger(__name__)
+
+web_app = None
 
 
 @async_contextmanager
@@ -24,10 +27,21 @@ async def config(app, settings):
     app['tkstorage.send_queue'] = send_queue = asyncio.Queue()
     app['tkstorage.all_points'] = all_points = []
     app['tkstorage.initial_download'] = initial_download_done = asyncio.Event()
-    connection_task = asyncio.ensure_future(connection(app, settings, all_points, points_received_observables, send_queue, initial_download_done))
+    app['tkstorage.configs'] = configs = defaultdict(dict)
+    app['tkstorage.values'] = values = defaultdict(dict)
+    app['tkstorage.values_changed'] = values_changed = Observable(logger)
 
-    if isinstance(app, WebApplication):
+    connection_task = asyncio.ensure_future(connection(app, settings, all_points, points_received_observables, send_queue,
+                                                       initial_download_done, configs, values, values_changed))
+
+    if isinstance(app, web.Application):
         import trackers.web_app
+        global web_app
+        web_app = trackers.web_app
+
+        app['tkstorage.admin_ws_sessions'] = []
+        values_changed.subscribe(partial(send_values_changed_to_admin_ws, app))
+        app.router.add_route('GET', '/tkstorage_admin/tkstorage_websocket', handler=admin_ws, name='tkstorage_admin_ws')
         app.router.add_route('GET', '/tk/{id}',
                              handler=trackers.web_app.individual_page,
                              name='tkstorage_individual_page')
@@ -35,7 +49,6 @@ async def config(app, settings):
                              handler=partial(trackers.web_app.individual_ws, get_individual_key,
                                              partial(start_individual_tracker, app, settings)),
                              name='tkstorage_individual_ws')
-
     try:
         yield
     finally:
@@ -47,7 +60,8 @@ tk_id_key = lambda point: point['tk_id']
 time_key = lambda point: point.get('time') or point.get('server_time')
 
 
-async def connection(app, settings, all_points, points_received_observables, send_queue, initial_download_done):
+async def connection(app, settings, all_points, points_received_observables, send_queue,
+                     initial_download_done, configs, values, values_changed):
     try:
         reconnect_sleep_time = 5
         path = settings['tkstorage_path']
@@ -79,6 +93,19 @@ async def connection(app, settings, all_points, points_received_observables, sen
                                     new_points.append(point)
 
                             new_points.sort(key=time_key)
+                            new_points = [consume_config_from_point(configs, point) for point in new_points]
+
+                            trackers_values_changed = set()
+                            for point in new_points:
+                                tk_id = point['tk_id']
+                                trackers_values_changed.add(tk_id)
+                                tracker_values = values[tk_id]
+                                tracker_values['last_connection'] = point['server_time']
+                                for key in ('tk_status', 'tk_config', 'position'):
+                                    if key in point:
+                                        tracker_values[key] = {'value': point[key], 'time': point['time']}
+                            await values_changed({tk_id: values[tk_id] for tk_id in trackers_values_changed})
+
                             for tk_id, points in groupby(sorted(new_points, key=tk_id_key), key=tk_id_key):
                                 observable = points_received_observables.get(tk_id)
                                 if observable:
@@ -250,6 +277,36 @@ def parse_coordinate(raw, neg):
     return (deg + min / 60) * hem
 
 
+config_keys = {'tk_routetrack', 'tk_rupload', 'tk_rsampling', 'tk_check', }
+
+
+def consume_config_from_point(configs, point):
+    config_items = [(key[3:], value) for key, value in point.items() if key in config_keys]
+    if config_items:
+        c = configs[point['tk_id']]
+        c.update(config_items)
+        # Do we want to rm the config keys
+        point = copy(point)
+        config_texts = []
+        routetrack = c.get('routetrack')
+        if routetrack:
+            t = 'on' if routetrack == True else f'on for {routetrack} hrs'  # NOQA
+            if 'rupload' in c and 'rsampling' in c:
+                if c["rupload"] == c["rsampling"]:
+                    config_texts.append(f'Routetrack {t} {c["rupload"]} sec upload')
+                else:
+                    config_texts.append(f'Routetrack {t} {c["rupload"]} sec upload, {c["rsampling"]} sec sample')
+            else:
+                config_texts.append(f'Routetrack {t}')
+        if c.get('check'):
+            config_texts.append(f'Check on {c["check"]} min upload')
+        if not config_texts:
+            config_texts.append(f'Off')
+        point['tk_config'] = '\n'.join(config_texts)
+        # print(repr(point['tk_config']))
+    return point
+
+
 async def start_event_tracker(app, event, rider_name, tracker_data):
     return await TKStorageTracker.start(
         app, rider_name, tracker_data['id'],
@@ -314,46 +371,18 @@ class TKStorageTracker(Tracker):
 
         return tracker
 
-    config_keys = {'tk_routetrack', 'tk_rupload', 'tk_rsampling', 'tk_check', }
-
-    def consume_config_from_point(self, point):
-        config_items = [(key[3:], value) for key, value in point.items() if key in self.config_keys]
-        if config_items:
-            c = self.current_config
-            c.update(config_items)
-            # Do we want to rm the config keys
-            point = copy(point)
-            config_texts = []
-            routetrack = c.get('routetrack')
-            if routetrack:
-                t = 'on' if routetrack == True else f'on for {routetrack} hrs'  # NOQA
-                if 'rupload' in c and 'rsampling' in c:
-                    if c["rupload"] == c["rsampling"]:
-                        config_texts.append(f'Routetrack {t} {c["rupload"]} sec upload')
-                    else:
-                        config_texts.append(f'Routetrack {t} {c["rupload"]} sec upload, {c["rsampling"]} sec sample')
-                else:
-                    config_texts.append(f'Routetrack {t}')
-            if c.get('check'):
-                config_texts.append(f'Check on {c["check"]} min upload')
-            if not config_texts:
-                config_texts.append(f'Off')
-            point['tk_config'] = '\n'.join(config_texts)
-            # print(repr(point['tk_config']))
-        return point
-
     def use_point(self, point):
         time = point.get('time')
         server_time = point.get('server_time')
         if time_between(time, self.start, self.end) or time_between(server_time, self.start, self.end):
             return True
         if time_between(time, self.config_read_start, self.end) or time_between(server_time, self.config_read_start, self.end):
-            if any((key in point for key in self.config_keys)):
+            if any((key in point for key in config_keys)):
                 return True
         return False
 
     async def points_received(self, points):
-        points = [self.consume_config_from_point(point) for point in points if self.use_point(point)]
+        points = [point for point in points if self.use_point(point)]
         await self.new_points(points)
 
     def stop(self):
@@ -390,6 +419,43 @@ class TKStorageTracker(Tracker):
                 commands.append(f'*checkoff*')
 
         await self.send_queue.put({'id': self.id, 'commands': commands, 'urgent': urgent})
+
+
+async def admin_ws(request):
+    app = request.app
+    ws = web.WebSocketResponse()
+    ws.subscriptions = set()
+    await ws.prepare(request)
+    with contextlib.ExitStack() as exit_stack:
+        try:
+            exit_stack.enter_context(list_register(app['trackers.ws_sessions'], ws))
+            await web_app.message_to_multiple_wss(app, [ws], {'values': app['tkstorage.values']})
+            exit_stack.enter_context(list_register(app['tkstorage.admin_ws_sessions'], ws))
+            async for msg in ws:
+                if msg.type == WSMsgType.text:
+                    try:
+                        logger.debug('receive: {}'.format(msg.data))
+                        # data = json.loads(msg.data)
+                    except Exception:
+                        request.app['exception_recorder']()
+                        logger.exception('Error in receive ws msg:')
+
+                if msg.type == WSMsgType.close:
+                    await ws.close()
+                if msg.type == WSMsgType.error:
+                    raise ws.exception()
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            request.app['exception_recorder']()
+            await ws.close(message='Server Error: {}'.format(e))
+            logger.exception('Error in tkstorage_admin_ws: ')
+        finally:
+            return ws
+
+
+async def send_values_changed_to_admin_ws(app, values_changed):
+    await web_app.message_to_multiple_wss(app, app['tkstorage.admin_ws_sessions'], {'changed_values': values_changed})
 
 
 async def main():
