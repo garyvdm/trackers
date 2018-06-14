@@ -423,6 +423,6 @@ class DataTracker(Tracker):
         return self
 
     async def add_points(self, new_points):
-        self.new_points(new_points)
+        await self.new_points(new_points)
         self.rider_data['points'] = self.points
         # Caller is responsible to call event.save

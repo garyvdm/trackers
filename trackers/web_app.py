@@ -14,7 +14,9 @@ from contextlib import suppress
 from functools import partial, wraps
 
 import pkg_resources
+import yaml
 from aiohttp import web, WSCloseCode, WSMsgType
+from htmlwrite import Markup, Tag, Writer
 from more_itertools import chunked
 
 import trackers.bin_utils
@@ -98,7 +100,10 @@ async def make_aio_app(settings,
     app.router.add_route('GET', '/{event}/riders_off_route', name='riders_off_route',
                          handler=coro_partial(blocked_lists, list_attr_name='off_route_blocked_list'))
     app.router.add_route('GET', '/{event}/riders_csv', name='riders_csv', handler=riders_csv)
-    app.router.add_route('GET', '/{event}/set_start', handler=event_set_start, name='event_set_start')
+
+    app.router.add_route('GET', '/{event}/admin', handler=event_admin, name='event_admin')
+    app.router.add_route('POST', '/{event}/set_start', handler=event_set_start, name='event_set_start')
+    app.router.add_route('POST', '/{event}/add_rider_point', handler=event_add_rider_point, name='event_add_rider_point')
 
     app.router.add_route('POST', '/client_error', handler=client_error_handler, name='client_error')
 
@@ -614,3 +619,79 @@ client_url_re = re.compile(r'https?://.*?/static/(?P<path>.*?)(\?hash=.*?)?(?P<t
 
 def convert_client_urls_to_paths(static_path, s):
     return client_url_re.sub(rf'\n{static_path}/\g<path>\g<term>', s)
+
+
+@say_error_handler
+@event_handler
+async def event_admin(request, event):
+    router = request.app.router
+    body = io.StringIO()
+    writer = Writer(body)
+    w = writer.w
+    c = writer.c
+
+    w(Markup('<!DOCTYPE html>'))
+    with c(Tag('html')):
+        with c(Tag('head')):
+            w(Tag('title'), ('Admin', event.name))
+        with c(Tag('body')):
+            w(Tag('h1'), ('Admin - ', event.config['title']))
+
+            w(Tag('h2'), 'Add Rider Points')
+
+            with c(Tag('form', action=router['event_add_rider_point'].url_for(event=event.name), method='POST')):
+                with c(Tag('p')):
+                    w('Rider: ')
+                    w(Tag('br'))
+                    with c(Tag('select', name='rider_name')):
+                        w(Tag('option', value=''), '---')
+                        for rider in event.config['riders']:
+                            w(Tag('option', value=rider['name']), rider['name'])
+
+                w('Point: ')
+                w(Tag('br'))
+                w(Tag('script', src='https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.22.2/moment.min.js'))
+                w(Tag('script'), Markup('''
+                    function set_status(status) {
+                        var now = new moment().local().format('YYYY-MM-DDTHH:mm:ss');
+                        var val = 'rider_status: '+status+'\\ntime: ' + now;
+                        if (status == 'Finished') val += '\\nfinish_time: ' + now;
+                        document.getElementById('point').value = val
+                    }
+                '''))
+                w(Tag('button', onclick='set_status("Did not start")', type="button"), 'Did not start')
+                w(Tag('button', onclick='set_status("Withdrawn")', type="button"), 'Withdrawn')
+                w(Tag('button', onclick='set_status("Disqualified")', type="button"), 'Disqualified')
+                w(Tag('button', onclick='set_status("Finished")', type="button"), 'Finished')
+                w(Tag('br'))
+                w(Tag('textarea', name='point', id='point', rows="10", cols="50"))
+                with c(Tag('p')):
+                    w(Tag('button', type='submit'), 'Add rider point')
+
+            w(Tag('h2'), 'Start')
+            if 'event_start' in event.config:
+                with c(Tag('p')):
+                    w(Tag('b'), 'Start is set to: ')
+                    w(event.config['event_start'])
+            with c(Tag('form', action=router['event_set_start'].url_for(event=event.name), method='POST')):
+                with c(Tag('p')):
+                    w(Tag('button', type='submit'), 'Set Start')
+
+    return web.Response(body=body.getvalue(), headers={'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache'})
+
+
+@say_error_handler
+@event_handler
+async def event_add_rider_point(request, event):
+    post = await request.post()
+    rider_name = post['rider_name']
+    point = post['point']
+    point = yaml.safe_load(point)
+
+    rider_objects = event.riders_objects[rider_name]
+    await rider_objects.data_tracker.add_points([point])
+
+    status = point.get('rider_status', '')
+    event.save(f'{event.name}: add point to {rider_name} - {status}')
+
+    return web.Response(text=f'Added point to {rider_name}: {point}')

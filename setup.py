@@ -18,6 +18,7 @@ setuptools.setup(
         'dulwich',
         'filemagic',
         'fixtures',
+        'htmlwrite',
         'jsonpointer',
         'libsass',
         'more-itertools',
