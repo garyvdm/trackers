@@ -126,15 +126,17 @@ async def make_aio_app(settings,
 
 
 async def shutdown(app):
-    for ws in app['trackers.ws_sessions']:
-        await ws.close(code=WSCloseCode.GOING_AWAY,
-                       message='Server shutdown')
+    logger.info('Closing web socket connections.')
+    await asyncio.wait([ws.close(code=WSCloseCode.SERVICE_RESTART, message='Server shutdown')
+                        for ws in app['trackers.ws_sessions']], timeout=20)
 
+    logger.info('Stopping load_events_with_watcher_task')
     await cancel_and_wait_task(app['load_events_with_watcher_task'])
 
-    for event in app['trackers.events'].values():
-        await event.stop_and_complete_trackers()
-
+    logger.info('Stopping event trackers')
+    await asyncio.wait([event.stop_and_complete_trackers()
+                        for event in app['trackers.events'].values()])
+    logger.info('Module cleanup')
     await app['trackers.app_setup_cm'].__aexit__(None, None, None)
 
 
