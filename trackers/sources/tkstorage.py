@@ -286,9 +286,6 @@ class TKStorageTracker(Tracker):
         tracker.current_config = {}
         tracker.send_queue = app['tkstorage.send_queue']
 
-        tracker.finished = asyncio.Event()
-        tracker.completed = asyncio.ensure_future(tracker.finished.wait())
-
         # await app['tkstorage.initial_download'].wait()
         try:
             await asyncio.wait_for(app['tkstorage.initial_download'].wait(), timeout=5)
@@ -313,7 +310,7 @@ class TKStorageTracker(Tracker):
             #     await tracker.set_config(config)
 
         if end:
-            asyncio.get_event_loop().call_later((end - now).total_seconds(), tracker.finished.set)
+            asyncio.get_event_loop().call_later((end - now).total_seconds(), tracker.completed.set_result, None)
 
         return tracker
 
@@ -360,7 +357,7 @@ class TKStorageTracker(Tracker):
         await self.new_points(points)
 
     def stop(self):
-        self.finished.set()
+        self.completed.set_result(None)
         if self.initial_config_handle:
             self.initial_config_handle.cancel()
 
