@@ -149,7 +149,7 @@ class Event(object):
 
         await self.config_routes_change_observable(self)
 
-    def save(self, message, author=None, tree_writer=None):
+    async def save(self, message, author=None, tree_writer=None):
         if tree_writer is None:
             tree_writer = TreeWriter(self.app['trackers.data_repo'])
         config_bytes = yaml.dump(self.config, default_flow_style=False, Dumper=YamlEventDumper).encode()
@@ -167,6 +167,7 @@ class Event(object):
 
         tree_writer.commit(message, author=author)
         _, self.git_hash = tree_writer.lookup(self.path)
+        await self.config_routes_change_observable(self)
 
     async def start_trackers(self, analyse=True):
         if self.starting_fut:

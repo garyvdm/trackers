@@ -510,7 +510,7 @@ async def message_to_multiple_wss(app, wss, msg, log_level=logging.DEBUG, filter
 async def event_set_start(request, event):
     event.config['event_start'] = datetime.datetime.now().replace(microsecond=0)
     author = await get_git_author(request)
-    event.save(f"{event.name}: Set event start", author=author)
+    await event.save(f"{event.name}: Set event start", author=author)
     return web.Response(text='Start time set to {}'.format(event.config['event_start']))
 
 
@@ -702,6 +702,6 @@ async def event_add_rider_point(request, event):
 
     status = point.get('rider_status', '')
     author = await get_git_author(request)
-    event.save(f'{event.name}: add point to {rider_name} - {status}', author=author)
+    await event.save(f'{event.name}: add point to {rider_name} - {status}', author=author)
 
     return web.Response(text=f'Added point to {rider_name}: {point}')

@@ -195,7 +195,7 @@ async def convert_to_static(app, settings, args):
     event.config['analyse'] = False
     event.config['live'] = False
     if not args.dry_run:
-        event.save('convert_to_static: {}'.format(args.event_name), tree_writer=tree_writer)
+        await event.save('convert_to_static: {}'.format(args.event_name), tree_writer=tree_writer)
 
 
 @async_command(partial(event_command_parser, description="Assigns unique colors to riders"), basic=True)
@@ -210,7 +210,7 @@ async def assign_rider_colors(app, settings, args):
     for rider, hue in zip(event.config['riders'], alternating_hues):
         rider['color'] = 'hsl({}, 100%, 50%)'.format(hue)
         rider['color_marker'] = 'hsl({}, 100%, 60%)'.format(hue)
-    event.save('assign_rider_colors: {}'.format(args.event_name), tree_writer=tree_writer)
+    await event.save('assign_rider_colors: {}'.format(args.event_name), tree_writer=tree_writer)
 
 
 def add_gpx_to_event_routes_parser():
@@ -255,14 +255,14 @@ async def add_gpx_to_event_routes(app, settings, args):
     event.routes.append(route)
     process_secondary_route_details(event.routes)
     # TODO - add gpx file to repo
-    event.save('add_gpx_to_event_routes: {} - {}'.format(args.event_name, args.gpx_file), tree_writer=writer)
+    await event.save('add_gpx_to_event_routes: {} - {}'.format(args.event_name, args.gpx_file), tree_writer=writer)
 
 
 @async_command(partial(event_command_parser, description="Open and save event. Side effect is convert to new formats."), basic=True)
 async def reformat_event(app, settings, args):
     writer = TreeWriter(app['trackers.data_repo'])
     event = await trackers.events.Event.load(app, args.event_name, writer)
-    event.save('reformat_event: {}'.format(args.event_name), tree_writer=writer)
+    await event.save('reformat_event: {}'.format(args.event_name), tree_writer=writer)
 
 
 @async_command(partial(event_command_parser, description="Update bounds for event"), basic=True)
@@ -284,7 +284,7 @@ async def update_bounds(app, settings, args):
         'west': min(lngs),
     }
 
-    event.save('update_bounds: {}'.format(args.event_name), tree_writer=writer)
+    await event.save('update_bounds: {}'.format(args.event_name), tree_writer=writer)
 
 
 def process_event_routes_parser(*args, **kwargs):
@@ -303,7 +303,7 @@ async def process_event_routes(app, settings, args):
             route['rdp_epsilon'] = args.rdp_epsilon
         await process_route(settings, route)
     process_secondary_route_details(event.routes)
-    event.save('process_event_routes: {}'.format(args.event_name), tree_writer=writer)
+    await event.save('process_event_routes: {}'.format(args.event_name), tree_writer=writer)
 
 
 def process_secondary_route_details(routes):
@@ -390,4 +390,4 @@ async def load_riders_from_csv(app, settings, args):
         for row in reader
     ]
 
-    event.save('load_riders_from_csv: {}'.format(args.event_name), tree_writer=tree_writer)
+    await event.save('load_riders_from_csv: {}'.format(args.event_name), tree_writer=tree_writer)
