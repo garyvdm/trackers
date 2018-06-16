@@ -42,19 +42,27 @@ body {
     justify-content: space-between;
 }
 
-#logo_contain {
-    -ms-flex: 1 1 auto;
-    margin-right: 8px;
+
+#status {
+    -ms-flex: 2 1 0;
+    flex: 2 1 0;
 }
 
-#status, #title_contain {
-    -ms-flex: 2 1 auto;
-    flex-grow: 2;
+#title_contain {
+    -ms-flex: 3 1 0;
+    flex: 3 1 0;
 }
 
 #title {
     font-weight: bold;
     font-size: larger;
+}
+
+@media screen and (max-width: 410px) {
+    #title {
+        font-weight: bold;
+        font-size: inherit;
+    }
 }
 
 #race_time {
@@ -312,8 +320,6 @@ body {
     }
 
 }
-
-
 
 /* Css loader pulse */
 .l1, .l2, .l3 {
