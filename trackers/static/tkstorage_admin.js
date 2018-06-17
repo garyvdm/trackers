@@ -94,13 +94,10 @@ function ws_onmessage(event){
         update_values();
     }
     if (data.hasOwnProperty('changed_values')) {
-        Object.assign(values, new_values);
+        Object.assign(values, data.changed_values);
         update_values();
     }
 }
-
-ws_ensure_connect();
-
 
 function update_values() {
     var now = (new Date().getTime() / 1000);
@@ -136,6 +133,19 @@ function update_values() {
             sprintf('<td>%s</td>', position) +
             sprintf('<td>%s</td>', tk_status) +
             sprintf('<td>%s</td>', tk_config) +
+            sprintf('<td>' +
+                    '<button onclick="send_command(\'%s\', \'*getpos*\', true);">Get Position</button>' +
+                    '<button onclick="send_command(\'%s\', \'*status*\', true);">Get Status</button>' +
+                    '<br>' +
+                    '<button onclick="send_command(\'%s\', \'*routetrackoff*\', true);">Routetrack Off</button>' +
+                    '<button onclick="send_command(\'%s\', \'*routetrack*99*\', true);">Routetrack On</button>' +
+                    '<button onclick="send_command(\'%s\', \'*rupload*60*\', false);">Upload 1min</button>' +
+                    '<button onclick="send_command(\'%s\', \'*rsampling*60*\', false);">Sampling 1min</button>' +
+                    '<br>' +
+
+                    '<button onclick="send_command(\'%s\', \'*checkoff*\', true);">Check Off</button>' +
+                    '</td>', id, id, id, id, id) +
+            sprintf('<td></td>', id) +
 
            '</tr>';
     });
@@ -146,5 +156,18 @@ function update_values() {
         '<td>Position</td>' +
         '<td>Status</td>' +
         '<td>Config</td>' +
+        '<td>Actions</td>' +
         '</tr>' + table_rows.join('') + '</table>';
 }
+
+function send_command(id, command, urgent){
+    send_commands(id, [command], urgent);
+}
+
+function send_commands(id, commands, urgent){
+    var data = JSON.stringify({'commands': commands, 'id': id, 'urgent': urgent});
+    ws.send(data);
+}
+
+ws_ensure_connect();
+setInterval(update_values, 1000);

@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import datetime
+import json
 import logging
 import re
 from collections import defaultdict
@@ -423,6 +424,7 @@ class TKStorageTracker(Tracker):
 
 async def admin_ws(request):
     app = request.app
+    send_queue = app['tkstorage.send_queue']
     ws = web.WebSocketResponse()
     ws.subscriptions = set()
     await ws.prepare(request)
@@ -435,7 +437,9 @@ async def admin_ws(request):
                 if msg.type == WSMsgType.text:
                     try:
                         logger.debug('receive: {}'.format(msg.data))
-                        # data = json.loads(msg.data)
+                        data = json.loads(msg.data)
+                        if 'commands' in data:
+                            await send_queue.put(data)
                     except Exception:
                         request.app['exception_recorder']()
                         logger.exception('Error in receive ws msg:')
