@@ -39,7 +39,7 @@ class TestToPoint(unittest.TestCase):
 
     def test_pos1(self):
         self.assertEqual(
-            msg_item_to_point([0, 1526394347, 1, b'(864768011193965,DW30,150518,A,2605.6699S,02756.5543E,0.20,142539,0.00,1604.20,12)', b'TK01']),
+            msg_item_to_point([0, 1526394347, 1, '(864768011193965,DW30,150518,A,2605.6699S,02756.5543E,0.20,142539,0.00,1604.20,12)', 'TK01']),
             {
                 'tk_id': 'TK01',
                 'num_sat': 12,
@@ -51,7 +51,7 @@ class TestToPoint(unittest.TestCase):
 
     def test_pos2(self):
         self.assertEqual(
-            msg_item_to_point([0, 1526394347, 1, b'(864768011468102,DW30,080618,A,2752.87996S,02755.19665E,1.910,202919,000.0,1538.20,12,0)', b'TK01']),
+            msg_item_to_point([0, 1526394347, 1, '(864768011468102,DW30,080618,A,2752.87996S,02755.19665E,1.910,202919,000.0,1538.20,12,0)', 'TK01']),
             {
                 'tk_id': 'TK01',
                 'num_sat': 12,
@@ -63,7 +63,7 @@ class TestToPoint(unittest.TestCase):
 
     def test_pos3(self):
         self.assertEqual(
-            msg_item_to_point([1990, 1528548291.011041, 1, b'(864768011199962,DW3B,050316,A,2754.4558S,02759.0423E,6.82,124449,279.65,1537.50,10,0)', b'TK05']),
+            msg_item_to_point([1990, 1528548291.011041, 1, '(864768011199962,DW3B,050316,A,2754.4558S,02759.0423E,6.82,124449,279.65,1537.50,10,0)', 'TK05']),
             {
                 'tk_id': 'TK05',
                 'num_sat': 10,
@@ -80,7 +80,7 @@ class TestToPoint(unittest.TestCase):
 
         with unittest.mock.patch('trackers.sources.tkstorage.ZC03_parse', stub_ZC03_parse):
             self.assertEqual(
-                msg_item_to_point([0, 1526394226, 1, b'(864768011193965,ZC03,150518,142343,$stuff$)', b'TK01']),
+                msg_item_to_point([0, 1526394226, 1, '(864768011193965,ZC03,150518,142343,$stuff$)', 'TK01']),
                 {'server_time': datetime.datetime(2018, 5, 15, 16, 23, 46),
                  'tk_id': 'TK01',
                  'time': datetime.datetime(2018, 5, 15, 16, 23, 43),

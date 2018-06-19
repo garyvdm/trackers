@@ -82,7 +82,7 @@ function ws_onclose(event) {
 }
 
 var values = {};
-
+var trackers = {}
 
 function ws_onmessage(event){
     set_status('&#x2713; Connected');
@@ -91,20 +91,28 @@ function ws_onmessage(event){
     var data = JSON.parse(event.data);
     if (data.hasOwnProperty('values')) {
         values = data.values;
-        update_values();
     }
     if (data.hasOwnProperty('changed_values')) {
         Object.assign(values, data.changed_values);
-        update_values();
     }
+    if (data.hasOwnProperty('trackers')) {
+        trackers = data.trackers;
+    }
+    update_values();
 }
 
 function update_values() {
     var now = (new Date().getTime() / 1000);
-    var ids = Object.keys(values);
+    var ids = Object.keys(trackers);
     ids.sort();
     var table_rows = ids.map(function (id) {
-        var tk_values = values[id];
+        var tk_values = values[id] || {};
+        var tracker = trackers[id];
+
+        var last_connection = ''
+        if (tk_values.hasOwnProperty('last_connection')) {
+            last_connection = format_time_delta_ago(now - tk_values.last_connection);
+        }
 
         var position = ''
         if (tk_values.hasOwnProperty('position')) {
@@ -128,8 +136,8 @@ function update_values() {
 
         return '' +
             sprintf('<tr tk_id="%s" >', id) +
-            sprintf('<td>%s</td>', id) +
-            sprintf('<td style="text-align: right">%s</td>', format_time_delta_ago(now - tk_values.last_connection)) +
+            sprintf('<td>%s<br><a href="tel:%s">%s</a><br>%s</td>', id, tracker.phone_number, tracker.phone_number, tracker.device_id) +
+            sprintf('<td style="text-align: right">%s</td>', last_connection)+
             sprintf('<td>%s</td>', position) +
             sprintf('<td>%s</td>', tk_status) +
             sprintf('<td>%s</td>', tk_config) +

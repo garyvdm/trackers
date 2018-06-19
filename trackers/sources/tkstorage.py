@@ -31,6 +31,8 @@ async def config(app, settings):
     app['tkstorage.configs'] = configs = defaultdict(dict)
     app['tkstorage.values'] = values = defaultdict(dict)
     app['tkstorage.values_changed'] = values_changed = Observable(logger)
+    app['tkstorage.trackers'] = {}
+    app['tkstorage.trackers_changed'] = trackers_changed = Observable(logger)
 
     connection_task = asyncio.ensure_future(connection(app, settings, all_points, points_received_observables, send_queue,
                                                        initial_download_done, configs, values, values_changed))
@@ -42,6 +44,8 @@ async def config(app, settings):
 
         app['tkstorage.admin_ws_sessions'] = []
         values_changed.subscribe(partial(send_values_changed_to_admin_ws, app))
+        trackers_changed.subscribe(partial(send_trackers_changed_to_admin_ws, app))
+
         app.router.add_route('GET', '/tkstorage_admin/tkstorage_websocket', handler=admin_ws, name='tkstorage_admin_ws')
         app.router.add_route('GET', '/tk/{id}',
                              handler=trackers.web_app.individual_page,
@@ -71,7 +75,7 @@ async def connection(app, settings, all_points, points_received_observables, sen
             try:
                 logger.debug(f'Connecting to {path}')
                 _, proto = await loop.create_unix_connection(
-                    aiomsgpack.make_msgpack_protocol_factory(loop=loop),
+                    aiomsgpack.make_msgpack_protocol_factory(loop=loop, unpacker_args={'raw': False},),
                     path=path,
                 )
                 try:
@@ -80,38 +84,43 @@ async def connection(app, settings, all_points, points_received_observables, sen
                     write_fut = asyncio.ensure_future(write(app, proto, send_queue))
                     try:
                         async for msg in proto:
-                            logging.debug(f'Downloaded {len(msg)} points.')
-                            new_points = []
-                            for item in msg:
-                                try:
-                                    point = msg_item_to_point(item)
-                                except Exception:
-                                    logger.exception('Error in msg_item_to_point: ')
-                                    point = None
-                                all_points.append((item, point))
+                            if isinstance(msg, dict):
+                                if 'trackers' in msg:
+                                    app['tkstorage.trackers'] = msg['trackers']
+                                    await app['tkstorage.trackers_changed'](msg['trackers'])
+                            if isinstance(msg, list):
+                                logging.debug(f'Downloaded {len(msg)} points.')
+                                new_points = []
+                                for item in msg:
+                                    try:
+                                        point = msg_item_to_point(item)
+                                    except Exception:
+                                        logger.exception('Error in msg_item_to_point: ')
+                                        point = None
+                                    all_points.append((item, point))
 
-                                if point and point.get('tk_id'):
-                                    new_points.append(point)
+                                    if point and point.get('tk_id'):
+                                        new_points.append(point)
 
-                            new_points.sort(key=time_key)
-                            new_points = [consume_config_from_point(configs, point) for point in new_points]
+                                new_points.sort(key=time_key)
+                                new_points = [consume_config_from_point(configs, point) for point in new_points]
 
-                            trackers_values_changed = set()
-                            for point in new_points:
-                                tk_id = point['tk_id']
-                                trackers_values_changed.add(tk_id)
-                                tracker_values = values[tk_id]
-                                tracker_values['last_connection'] = point['server_time']
-                                for key in ('tk_status', 'tk_config', 'position'):
-                                    if key in point:
-                                        tracker_values[key] = {'value': point[key], 'time': point['time']}
-                            await values_changed({tk_id: values[tk_id] for tk_id in trackers_values_changed})
+                                trackers_values_changed = set()
+                                for point in new_points:
+                                    tk_id = point['tk_id']
+                                    trackers_values_changed.add(tk_id)
+                                    tracker_values = values[tk_id]
+                                    tracker_values['last_connection'] = point['server_time']
+                                    for key in ('tk_status', 'tk_config', 'position'):
+                                        if key in point:
+                                            tracker_values[key] = {'value': point[key], 'time': point['time']}
+                                await values_changed({tk_id: values[tk_id] for tk_id in trackers_values_changed})
 
-                            for tk_id, points in groupby(sorted(new_points, key=tk_id_key), key=tk_id_key):
-                                observable = points_received_observables.get(tk_id)
-                                if observable:
-                                    await observable(list(points))
-                            initial_download_done.set()
+                                for tk_id, points in groupby(sorted(new_points, key=tk_id_key), key=tk_id_key):
+                                    observable = points_received_observables.get(tk_id)
+                                    if observable:
+                                        await observable(list(points))
+                                initial_download_done.set()
 
                     finally:
                         await cancel_and_wait_task(write_fut)
@@ -153,13 +162,11 @@ def msg_item_to_point(msg_item):
         return
 
     if type == MESSAGE_RECEIVED and data:
-        id = id.decode()
         server_time = datetime.datetime.fromtimestamp(server_time)
         point = {
             'server_time': server_time,
             'tk_id': id,
         }
-        data = data.decode('latin1')
         assert data[0] == '('
         assert data[-1] == ')'
         data = data_split(data[1:-1])
@@ -431,7 +438,10 @@ async def admin_ws(request):
     with contextlib.ExitStack() as exit_stack:
         try:
             exit_stack.enter_context(list_register(app['trackers.ws_sessions'], ws))
-            await web_app.message_to_multiple_wss(app, [ws], {'values': app['tkstorage.values']})
+            await web_app.message_to_multiple_wss(app, [ws], {
+                'values': app['tkstorage.values'],
+                'trackers': app['tkstorage.trackers']
+            })
             exit_stack.enter_context(list_register(app['tkstorage.admin_ws_sessions'], ws))
             async for msg in ws:
                 if msg.type == WSMsgType.text:
@@ -460,6 +470,10 @@ async def admin_ws(request):
 
 async def send_values_changed_to_admin_ws(app, values_changed):
     await web_app.message_to_multiple_wss(app, app['tkstorage.admin_ws_sessions'], {'changed_values': values_changed})
+
+
+async def send_trackers_changed_to_admin_ws(app, trackers):
+    await web_app.message_to_multiple_wss(app, app['tkstorage.admin_ws_sessions'], {'trackers': trackers})
 
 
 async def main():
