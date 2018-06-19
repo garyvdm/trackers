@@ -121,14 +121,13 @@ function update_trackers() {
             '<td>' +
             sprintf('<button onclick="send_command(\'%s\', \'*getpos*\', true);">Get Position</button>', id) +
             sprintf('<button onclick="send_command(\'%s\', \'*status*\', true);">Get Status</button>', id) +
-            '<br>' +
-            sprintf('<button onclick="send_command(\'%s\', \'*routetrackoff*\', true);">Routetrack Off</button>', id) +
-            sprintf('<button onclick="send_command(\'%s\', \'*routetrack*99*\', true);">Routetrack On</button>', id) +
-            sprintf('<button onclick="send_command(\'%s\', \'*rupload*60*\', false);">Upload 1min</button>', id) +
-            sprintf('<button onclick="send_command(\'%s\', \'*rsampling*60*\', false);">Sampling 1min</button>', id) +
-            '<br>' +
-            sprintf('<button onclick="send_command(\'%s\', \'*checkoff*\', true);">Check Off</button>', id) +
-            sprintf('<button onclick="send_command(\'%s\', \'*checkm*5*\', true);">Check 5min</button>', id) +
+            '<br>Routetrack: ' +
+            sprintf('<button onclick="send_command(\'%s\', \'*routetrackoff*\', true);">Off</button>', id) +
+            sprintf('<button onclick="routetrack(\'%s\', 60);">60 sec</button>', id) +
+            sprintf('<button onclick="routetrack(\'%s\', 10);">10 sec</button>', id) +
+            '<br>Check: ' +
+            sprintf('<button onclick="send_command(\'%s\', \'*checkoff*\', true);">Off</button>', id) +
+            sprintf('<button onclick="send_command(\'%s\', \'*checkm*5*\', true);">5min</button>', id) +
 //            '<br>' +
 //            sprintf('<button onclick="send_command(\'%s\', \'*apn*internet*\', true);">*apn*internet*</button>', id) +
 //            sprintf('<button onclick="send_command(\'%s\', \'*master*123456*+27635933475*\', true);">master</button>', id) +
@@ -202,6 +201,14 @@ function basic_config(id){
             '*multiquery*',
             '*setip*154*127*61*242*6002*',
         ], true);
+}
+
+function routetrack(id, time){
+    send_commands(id, [
+            '*routetrack*99*',
+            sprintf('*rupload*%s*', time),
+            sprintf('*rsampling*%s*', time)
+        ], 'first');
 }
 
 function send_command(id, command, urgent){
