@@ -347,7 +347,7 @@ class TKStorageTracker(Tracker):
         tracker.id = id
         tracker.start = start
         tracker.end = end
-        tracker.config_read_start = start - datetime.timedelta(days=1)
+        tracker.config_read_start = start
         tracker.current_config = {}
         tracker.send_queue = app['tkstorage.send_queue']
 
