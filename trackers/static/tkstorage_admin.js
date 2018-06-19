@@ -89,58 +89,35 @@ function ws_onmessage(event){
     console.log(event.data);
 
     var data = JSON.parse(event.data);
+    if (data.hasOwnProperty('trackers')) {
+        trackers = data.trackers;
+        update_trackers()
+    }
     if (data.hasOwnProperty('values')) {
         values = data.values;
+        update_values();
     }
     if (data.hasOwnProperty('changed_values')) {
         Object.assign(values, data.changed_values);
+        update_values();
     }
-    if (data.hasOwnProperty('trackers')) {
-        trackers = data.trackers;
-    }
-    update_values();
+
+
 }
 
-function update_values() {
-    var now = (new Date().getTime() / 1000);
+function update_trackers() {
     var ids = Object.keys(trackers);
     ids.sort();
     var table_rows = ids.map(function (id) {
-        var tk_values = values[id] || {};
         var tracker = trackers[id];
-
-        var last_connection = ''
-        if (tk_values.hasOwnProperty('last_connection')) {
-            last_connection = format_time_delta_ago(now - tk_values.last_connection);
-        }
-
-        var position = ''
-        if (tk_values.hasOwnProperty('position')) {
-            var latlng = sprintf('%.6f,%.6f', tk_values.position.value[0], tk_values.position.value[1]);
-            var position = sprintf('<a href="http://www.google.com/maps/place/%s" target="blank">%s</a>' +
-                                   '<div class="ago">%s</div>',
-                                   latlng, latlng, format_time_delta_ago(now - tk_values.position.time))
-        }
-
-        var tk_status = ''
-        if (tk_values.hasOwnProperty('tk_status')) {
-            var tk_status = sprintf('%s<div class="ago">%s</div>', tk_values.tk_status.value.replace(/\r\n/g, '<br>'),
-                                    format_time_delta_ago(now - tk_values.tk_status.time))
-        }
-
-        var tk_config = ''
-        if (tk_values.hasOwnProperty('tk_config')) {
-            var tk_config = sprintf('%s<div class="ago">%s</div>', tk_values.tk_config.value,
-                                    format_time_delta_ago(now - tk_values.tk_config.time))
-        }
 
         return '' +
             sprintf('<tr tk_id="%s" >', id) +
             sprintf('<td>%s<br><a href="tel:%s">%s</a><br>%s</td>', id, tracker.phone_number, tracker.phone_number, tracker.device_id) +
-            sprintf('<td style="text-align: right">%s</td>', last_connection)+
-            sprintf('<td>%s</td>', position) +
-            sprintf('<td>%s</td>', tk_status) +
-            sprintf('<td>%s</td>', tk_config) +
+            '<td style="text-align: right"></td>' +
+            '<td></td>' +
+            '<td></td>' +
+            '<td></td>' +
             '<td>' +
             sprintf('<button onclick="send_command(\'%s\', \'*getpos*\', true);">Get Position</button>', id) +
             sprintf('<button onclick="send_command(\'%s\', \'*status*\', true);">Get Status</button>', id) +
@@ -171,6 +148,51 @@ function update_values() {
         '<td>Config</td>' +
         '<td>Actions</td>' +
         '</tr>' + table_rows.join('') + '</table>';
+    update_values();
+}
+
+function update_values() {
+    var now = (new Date().getTime() / 1000);
+    Object.keys(values).forEach(function (id) {
+        var tk_values = values[id];
+
+        var row = document.querySelector(sprintf('*[tk_id=%s]', id));
+        if (!row) return;
+
+        var cells = row.cells;
+
+        if (tk_values.hasOwnProperty('last_connection')) {
+            cells[1].innerText = format_time_delta_ago(now - tk_values.last_connection);
+        } else {
+            cells[1].innerText = '';
+        }
+
+        if (tk_values.hasOwnProperty('position')) {
+            var latlng = sprintf('%.6f,%.6f', tk_values.position.value[0], tk_values.position.value[1]);
+            cells[2].innerHTML = sprintf(
+                '<a href="http://www.google.com/maps/place/%s" target="blank">%s</a>' +
+                '<div class="ago">%s</div>',
+                latlng, latlng, format_time_delta_ago(now - tk_values.position.time))
+        } else {
+            cells[2].innerText = '';
+        }
+
+        if (tk_values.hasOwnProperty('tk_status')) {
+            cells[3].innerHTML = sprintf(
+                '%s<div class="ago">%s</div>', tk_values.tk_status.value.replace(/\r\n/g, '<br>'),
+                format_time_delta_ago(now - tk_values.tk_status.time))
+        } else {
+            cells[3].innerText = '';
+        }
+
+        if (tk_values.hasOwnProperty('tk_config')) {
+            cells[4].innerHTML = sprintf(
+                '%s<div class="ago">%s</div>', tk_values.tk_config.value,
+                format_time_delta_ago(now - tk_values.tk_config.time))
+        } else {
+            cells[4].innerText = ''
+        }
+    });
 }
 
 function basic_config(id){
