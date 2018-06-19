@@ -141,21 +141,26 @@ function update_values() {
             sprintf('<td>%s</td>', position) +
             sprintf('<td>%s</td>', tk_status) +
             sprintf('<td>%s</td>', tk_config) +
-            sprintf('<td>' +
-                    '<button onclick="send_command(\'%s\', \'*getpos*\', true);">Get Position</button>' +
-                    '<button onclick="send_command(\'%s\', \'*status*\', true);">Get Status</button>' +
-                    '<br>' +
-                    '<button onclick="send_command(\'%s\', \'*routetrackoff*\', true);">Routetrack Off</button>' +
-                    '<button onclick="send_command(\'%s\', \'*routetrack*99*\', true);">Routetrack On</button>' +
-                    '<button onclick="send_command(\'%s\', \'*rupload*60*\', false);">Upload 1min</button>' +
-                    '<button onclick="send_command(\'%s\', \'*rsampling*60*\', false);">Sampling 1min</button>' +
-                    '<br>' +
-
-                    '<button onclick="send_command(\'%s\', \'*checkoff*\', true);">Check Off</button>' +
-                    '</td>', id, id, id, id, id) +
-            sprintf('<td></td>', id) +
-
-           '</tr>';
+            '<td>' +
+            sprintf('<button onclick="send_command(\'%s\', \'*getpos*\', true);">Get Position</button>', id) +
+            sprintf('<button onclick="send_command(\'%s\', \'*status*\', true);">Get Status</button>', id) +
+            '<br>' +
+            sprintf('<button onclick="send_command(\'%s\', \'*routetrackoff*\', true);">Routetrack Off</button>', id) +
+            sprintf('<button onclick="send_command(\'%s\', \'*routetrack*99*\', true);">Routetrack On</button>', id) +
+            sprintf('<button onclick="send_command(\'%s\', \'*rupload*60*\', false);">Upload 1min</button>', id) +
+            sprintf('<button onclick="send_command(\'%s\', \'*rsampling*60*\', false);">Sampling 1min</button>', id) +
+            '<br>' +
+            sprintf('<button onclick="send_command(\'%s\', \'*checkoff*\', true);">Check Off</button>', id) +
+            sprintf('<button onclick="send_command(\'%s\', \'*checkm*5*\', true);">Check 5min</button>', id) +
+//            '<br>' +
+//            sprintf('<button onclick="send_command(\'%s\', \'*apn*internet*\', true);">*apn*internet*</button>', id) +
+//            sprintf('<button onclick="send_command(\'%s\', \'*master*123456*+27635933475*\', true);">master</button>', id) +
+//            sprintf('<button onclick="send_command(\'%s\', \'*multiquery*\', true);">*multiquery*</button>', id) +
+//            sprintf('<button onclick="send_command(\'%s\', \'*alertoff*\', true);">alertoff</button>', id) +
+//            sprintf('<button onclick="send_command(\'%s\', \'*setip*154*127*61*242*6002*\', true);">setip</button>', id) +
+//            sprintf('<button onclick="basic_config(\'%s\');">Basic Config</button>', id) +
+            '</td>'+
+            '</tr>';
     });
     document.getElementById('trackers').innerHTML =
         '<table><tr class="head">' +
@@ -166,6 +171,15 @@ function update_values() {
         '<td>Config</td>' +
         '<td>Actions</td>' +
         '</tr>' + table_rows.join('') + '</table>';
+}
+
+function basic_config(id){
+    send_commands(id, [
+            '*master*123456*+27635933475*',
+            '*apn*internet*',
+            '*multiquery*',
+            '*setip*154*127*61*242*6002*',
+        ], true);
 }
 
 function send_command(id, command, urgent){
