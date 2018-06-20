@@ -489,19 +489,21 @@ var route_marker;
 function on_new_routes(){
     config_loaded.promise.then( function () {
         // console.log('add routes');
-
+        var i = 0;
         route_paths = routes.map(function (route){
+            i ++;
             return new google.maps.Polyline({
                 map: map,
                 path: route.points.map(function (point) {return new google.maps.LatLng(point[0], point[1])}),
                 geodesic: false,
-                strokeColor: 'black',
+                strokeColor: (i==1?'black':'#444444'),
                 strokeOpacity: 0.7,
                 strokeWeight: 2,
                 zIndex: -1
             })
         });
 
+        var i = 0;
         all_route_points = [];
         routes.forEach(function (route){
             var start_distance, dist_factor
@@ -520,10 +522,11 @@ function on_new_routes(){
                 }
             });
             all_route_points.extend(elevation_points);
+            i ++;
 
             elevation_chart.addSeries({
                 marker: {enabled: false, symbol: 'circle'},
-                color: 'black',
+                color: (i==1?'black':'#444444'),
                 turboThreshold: 5000,
                 data: elevation_points.map(function (item) { return {
                     x: item.dist,
