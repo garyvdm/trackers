@@ -5,8 +5,10 @@ import hashlib
 import logging
 import os
 from bisect import bisect
+from collections import defaultdict
 from contextlib import closing, suppress
 from functools import partial
+from itertools import chain
 
 import aionotify
 import attr
@@ -70,18 +72,23 @@ async def load_events(app, ref=b'HEAD', new_event_observable=Observable(logger),
         for name in events.keys() - names:
             await events[name].stop_and_complete_trackers()
             await removed_event_observable(events.pop(name))
-        for name in names:
-            try:
-                if name in events:
-                    await events[name].reload(tree_reader)
-                else:
-                    events[name] = event = await Event.load(app, name, tree_reader)
-                    await new_event_observable(event)
-            except yaml.YAMLError as e:
-                logger.error(f'Error loading {name!r}: {e}')
-            except Exception:
-                logger.exception(f'Error loading {name!r}: ')
+        load_event_fs = [load_event(name, app, events, tree_reader, new_event_observable) for name in names]
+        if load_event_fs:
+            await asyncio.wait(load_event_fs)
         logger.info('Events loaded.')
+
+
+async def load_event(name, app, events, tree_reader, new_event_observable):
+    try:
+        if name in events:
+            await events[name].reload(tree_reader)
+        else:
+            events[name] = event = await Event.load(app, name, tree_reader)
+            await new_event_observable(event)
+    except yaml.YAMLError as e:
+        logger.error(f'Error loading {name!r}: {e}')
+    except Exception:
+        logger.exception(f'Error loading {name!r}: ')
 
 
 def hash_bytes(b):
@@ -216,16 +223,26 @@ class Event(object):
             self.event_start = replay_kwargs['replay_start'] + replay_kwargs['offset']
             self.config_hash = hash_bytes(yaml.dump(self.config).encode())
 
+        rider_tracker_start_fs = defaultdict(list)
         for rider in self.config['riders']:
             rider_name = rider['name']
-            self.riders_objects[rider_name] = objects = RiderObjects(rider_name, self)
-
-            objects.data_tracker = await DataTracker.start(rider)
 
             if rider['tracker']:
                 start_tracker = self.app['start_event_trackers'][rider['tracker']['type']]
-                tracker = await start_tracker(self.app, self, rider_name, rider['tracker'])
-                objects.source_trackers.append(tracker)
+                start_fut = asyncio.ensure_future(start_tracker(self.app, self, rider_name, rider['tracker']))
+                rider_tracker_start_fs[rider_name].append(start_fut)
+
+        all_start_fs = list(chain.from_iterable(rider_tracker_start_fs.values()))
+        if all_start_fs:
+            await asyncio.wait(all_start_fs)
+
+        for rider in self.config['riders']:
+            self.riders_objects[rider_name] = objects = RiderObjects(rider_name, self)
+            objects.data_tracker = await DataTracker.start(rider)
+            rider_name = rider['name']
+
+            for start_fut in rider_tracker_start_fs[rider_name]:
+                objects.source_trackers.append(start_fut.result())
 
             tracker = await Combined.start(f'combined.{rider_name}', [objects.data_tracker] + objects.source_trackers)
             if replay:
