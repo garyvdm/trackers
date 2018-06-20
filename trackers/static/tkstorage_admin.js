@@ -121,13 +121,22 @@ function update_trackers() {
             '<td>' +
             sprintf('<button onclick="send_command(\'%s\', \'*getpos*\', true);">Get Position</button>', id) +
             sprintf('<button onclick="send_command(\'%s\', \'*status*\', true);">Get Status</button>', id) +
+            '<br>Config: ' +
+            sprintf('<button onclick="set_config(\'%s\', {});">Off</button>', id) +
+            sprintf('<button onclick="del_config(\'%s\');">Clear</button>', id) +
             '<br>Routetrack: ' +
-            sprintf('<button onclick="send_command(\'%s\', \'*routetrackoff*\', true);">Off</button>', id) +
-            sprintf('<button onclick="routetrack(\'%s\', 60);">60 sec</button>', id) +
-            sprintf('<button onclick="routetrack(\'%s\', 10);">10 sec</button>', id) +
+            sprintf('<button onclick="set_config(\'%s\', {routetrack: true, rupload: 60, rsampling: 60});">60 sec</button>', id) +
+            sprintf('<button onclick="set_config(\'%s\', {routetrack: true, rupload: 10, rsampling: 10});">10 sec</button>', id) +
             '<br>Check: ' +
-            sprintf('<button onclick="send_command(\'%s\', \'*checkoff*\', true);">Off</button>', id) +
-            sprintf('<button onclick="send_command(\'%s\', \'*checkm*5*\', true);">5min</button>', id) +
+            sprintf('<button onclick="set_config(\'%s\', {check: 5});">5min</button>', id) +
+
+//            '<br>Routetrack: ' +
+//            sprintf('<button onclick="send_command(\'%s\', \'*routetrackoff*\', true);">Off</button>', id) +
+//            sprintf('<button onclick="routetrack(\'%s\', 60);">60 sec</button>', id) +
+//            sprintf('<button onclick="routetrack(\'%s\', 10);">10 sec</button>', id) +
+//            '<br>Check: ' +
+//            sprintf('<button onclick="send_command(\'%s\', \'*checkoff*\', true);">Off</button>', id) +
+//            sprintf('<button onclick="send_command(\'%s\', \'*checkm*5*\', true);">5min</button>', id) +
 //            '<br>' +
 //            sprintf('<button onclick="send_command(\'%s\', \'*apn*internet*\', true);">*apn*internet*</button>', id) +
 //            sprintf('<button onclick="send_command(\'%s\', \'*master*123456*+27635933475*\', true);">master</button>', id) +
@@ -190,13 +199,18 @@ function update_values() {
             cells[3].innerText = '';
         }
 
+        var config_cell = ''
         if (tk_values.hasOwnProperty('tk_config')) {
-            cells[4].innerHTML = sprintf(
+            config_cell += sprintf(
                 '%s<div class="ago">%s</div>', tk_values.tk_config.value,
                 format_time_delta_ago(now - tk_values.tk_config.time))
-        } else {
-            cells[4].innerText = ''
         }
+        if (tk_values.hasOwnProperty('desired_configs')) {
+            Object.keys(tk_values.desired_configs).forEach(function (config_id){
+                config_cell += sprintf('<div>%s rank=%s</div>', config_id, tk_values.desired_configs[config_id].rank)
+            });
+        }
+        cells[4].innerHTML = config_cell
     });
 }
 
@@ -223,6 +237,16 @@ function send_command(id, command, urgent){
 
 function send_commands(id, commands, urgent){
     var data = JSON.stringify({'commands': commands, 'id': id, 'urgent': urgent});
+    ws.send(data);
+}
+
+function set_config(id, config){
+    var data = JSON.stringify({'config': config, 'id': id});
+    ws.send(data);
+}
+
+function del_config(id){
+    var data = JSON.stringify({'del_config': true, 'id': id});
     ws.send(data);
 }
 

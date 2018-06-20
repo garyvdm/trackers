@@ -7,6 +7,7 @@ from base64 import urlsafe_b64encode
 from copy import copy
 from datetime import datetime, timedelta
 
+import attr
 import msgpack
 
 from trackers.base import Tracker
@@ -18,6 +19,8 @@ def json_encode(obj):
         return obj.timestamp()
     if isinstance(obj, timedelta):
         return obj.total_seconds()
+    if hasattr(type(obj), '__attrs_attrs__'):
+        return attr.asdict(obj)
 
 
 json_dumps = functools.partial(json.dumps, default=json_encode, sort_keys=True)
