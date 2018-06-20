@@ -4,7 +4,7 @@ import datetime
 import json
 import logging
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from copy import copy
 from functools import partial
 from itertools import groupby
@@ -343,6 +343,7 @@ class TKStorageTracker(Tracker):
     @classmethod
     async def start(cls, app, tracker_name, id, start, end, config=None):
         tracker = cls(f'tkstorage.{id}-{tracker_name}')
+        tracker.tracker_name = tracker_name
         tracker.app = app
         tracker.id = id
         tracker.start = start
@@ -350,6 +351,10 @@ class TKStorageTracker(Tracker):
         tracker.config_read_start = start
         tracker.current_config = {}
         tracker.send_queue = app['tkstorage.send_queue']
+
+        values = app['tkstorage.values'][id]
+        values.setdefault('active', Counter()).update((tracker_name, ))
+        await app['tkstorage.values_changed']({id: values})
 
         # await app['tkstorage.initial_download'].wait()
         try:
@@ -400,6 +405,9 @@ class TKStorageTracker(Tracker):
 
     def on_completed(self, fut):
         self.points_received_observables.unsubscribe(self.points_received)
+        values = self.app['tkstorage.values'][self.id]
+        values['active'].subtract(self.tracker_name)
+        asyncio.ensure_future(self.app['tkstorage.values_changed']({self.id: values})).add_done_callback(lambda fut: fut.result)
 
     def set_config_sync(self, config, urgent):
         loop = asyncio.get_event_loop()

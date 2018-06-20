@@ -113,7 +113,7 @@ function update_trackers() {
 
         return '' +
             sprintf('<tr tk_id="%s" >', id) +
-            sprintf('<td>%s<br><a href="tel:%s">%s</a><br>%s</td>', id, tracker.phone_number, tracker.phone_number, tracker.device_id) +
+            sprintf('<td>%s<br><a href="tel:%s">%s</a><br>%s<br><span id="active"></span></td>', id, tracker.phone_number, tracker.phone_number, tracker.device_id) +
             '<td style="text-align: right"></td>' +
             '<td></td>' +
             '<td></td>' +
@@ -159,6 +159,12 @@ function update_values() {
         if (!row) return;
 
         var cells = row.cells;
+
+        if (tk_values.hasOwnProperty('active')) {
+            row.querySelector('#active').innerText = Object.keys(tk_values.active).join(', ');
+        } else {
+            row.querySelector('#active').innerText = '';
+        }
 
         if (tk_values.hasOwnProperty('last_connection')) {
             cells[1].innerText = format_time_delta_ago(now - tk_values.last_connection);
