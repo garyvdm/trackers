@@ -10,6 +10,7 @@ from functools import partial
 from itertools import groupby
 
 import aiomsgpack
+import attr
 import more_itertools
 from aiocontext import async_contextmanager
 from aiohttp import web, WSMsgType
@@ -28,14 +29,13 @@ async def config(app, settings):
     app['tkstorage.send_queue'] = send_queue = asyncio.Queue()
     app['tkstorage.all_points'] = all_points = []
     app['tkstorage.initial_download'] = initial_download_done = asyncio.Event()
-    app['tkstorage.configs'] = configs = defaultdict(dict)
-    app['tkstorage.values'] = values = defaultdict(dict)
+    app['tkstorage.trackers_objects'] = trackers_objects = dict()
     app['tkstorage.values_changed'] = values_changed = Observable(logger)
     app['tkstorage.trackers'] = {}
     app['tkstorage.trackers_changed'] = trackers_changed = Observable(logger)
 
     connection_task = asyncio.ensure_future(connection(app, settings, all_points, points_received_observables, send_queue,
-                                                       initial_download_done, configs, values, values_changed))
+                                                       initial_download_done, trackers_objects, values_changed))
 
     if isinstance(app, web.Application):
         import trackers.web_app
@@ -61,12 +61,28 @@ async def config(app, settings):
         await cancel_and_wait_task(connection_task)
 
 
+@attr.s()
+class TrackerObjects(object):
+    tk_id = attr.ib()
+
+    config = attr.ib(default=attr.Factory(dict))
+    values = attr.ib(default=attr.Factory(dict))
+
+
+def get_tracker_objects(trackers_objects, tk_id):
+    tracker_objects = trackers_objects.get(tk_id)
+    if not tracker_objects:
+        tracker_objects = TrackerObjects(tk_id)
+        trackers_objects[tk_id] = tracker_objects
+    return tracker_objects
+
+
 tk_id_key = lambda point: point['tk_id']
 time_key = lambda point: point.get('time') or point.get('server_time')
 
 
 async def connection(app, settings, all_points, points_received_observables, send_queue,
-                     initial_download_done, configs, values, values_changed):
+                     initial_download_done, trackers_objects, values_changed):
     try:
         reconnect_sleep_time = 5
         path = settings['tkstorage_path']
@@ -103,18 +119,18 @@ async def connection(app, settings, all_points, points_received_observables, sen
                                         new_points.append(point)
 
                                 new_points.sort(key=time_key)
-                                new_points = [consume_config_from_point(configs, point) for point in new_points]
+                                new_points = [consume_config_from_point(trackers_objects, point) for point in new_points]
 
                                 trackers_values_changed = set()
                                 for point in new_points:
                                     tk_id = point['tk_id']
                                     trackers_values_changed.add(tk_id)
-                                    tracker_values = values[tk_id]
+                                    tracker_values = trackers_objects[tk_id].values
                                     tracker_values['last_connection'] = point['server_time']
                                     for key in ('tk_status', 'tk_config', 'position'):
                                         if key in point:
                                             tracker_values[key] = {'value': point[key], 'time': point['time']}
-                                await values_changed({tk_id: values[tk_id] for tk_id in trackers_values_changed})
+                                await values_changed({tk_id: trackers_objects[tk_id].values for tk_id in trackers_values_changed})
 
                                 for tk_id, points in groupby(sorted(new_points, key=tk_id_key), key=tk_id_key):
                                     observable = points_received_observables.get(tk_id)
@@ -288,10 +304,10 @@ def parse_coordinate(raw, neg):
 config_keys = {'tk_routetrack', 'tk_rupload', 'tk_rsampling', 'tk_check', }
 
 
-def consume_config_from_point(configs, point):
+def consume_config_from_point(trackers_objects, point):
     config_items = [(key[3:], value) for key, value in point.items() if key in config_keys]
     if config_items:
-        c = configs[point['tk_id']]
+        c = trackers_objects[point['tk_id']].config
         c.update(config_items)
         # Do we want to rm the config keys
         point = copy(point)
@@ -352,9 +368,9 @@ class TKStorageTracker(Tracker):
         tracker.current_config = {}
         tracker.send_queue = app['tkstorage.send_queue']
 
-        values = app['tkstorage.values'][id]
-        values.setdefault('active', Counter()).update((tracker_name, ))
-        await app['tkstorage.values_changed']({id: values})
+        tracker.objects = tracker_objects = get_tracker_objects(app['tkstorage.trackers_objects'], id)
+        tracker_objects.values.setdefault('active', Counter()).update((tracker_name, ))
+        await app['tkstorage.values_changed']({id: tracker_objects.values})
 
         # await app['tkstorage.initial_download'].wait()
         try:
@@ -405,9 +421,9 @@ class TKStorageTracker(Tracker):
 
     def on_completed(self, fut):
         self.points_received_observables.unsubscribe(self.points_received)
-        values = self.app['tkstorage.values'][self.id]
-        values['active'].subtract(self.tracker_name)
-        asyncio.ensure_future(self.app['tkstorage.values_changed']({self.id: values})).add_done_callback(lambda fut: fut.result)
+
+        self.objects.values['active'].subtract(self.tracker_name)
+        asyncio.ensure_future(self.app['tkstorage.values_changed']({self.id: self.objects.values})).add_done_callback(lambda fut: fut.result)
 
     def set_config_sync(self, config, urgent):
         loop = asyncio.get_event_loop()
@@ -447,7 +463,7 @@ async def admin_ws(request):
         try:
             exit_stack.enter_context(list_register(app['trackers.ws_sessions'], ws))
             await web_app.message_to_multiple_wss(app, [ws], {
-                'values': app['tkstorage.values'],
+                'values': {objects.tk_id: objects.values for objects in app['tkstorage.trackers_objects'].values()},
                 'trackers': app['tkstorage.trackers']
             })
             exit_stack.enter_context(list_register(app['tkstorage.admin_ws_sessions'], ws))
