@@ -25,6 +25,9 @@ class Tracker(object):
             completed = asyncio.ensure_future(completed)
         self.completed = completed
 
+    def __repr__(self):
+        return f'<{type(self).__name__}({self.name})>'
+
     async def new_points(self, new_points):
         self.points.extend(new_points)
         await self.new_points_observable(self, new_points)

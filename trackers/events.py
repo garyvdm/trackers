@@ -237,9 +237,9 @@ class Event(object):
             await asyncio.wait(all_start_fs)
 
         for rider in self.config['riders']:
+            rider_name = rider['name']
             self.riders_objects[rider_name] = objects = RiderObjects(rider_name, self)
             objects.data_tracker = await DataTracker.start(rider)
-            rider_name = rider['name']
 
             for start_fut in rider_tracker_start_fs[rider_name]:
                 objects.source_trackers.append(start_fut.result())
@@ -440,7 +440,7 @@ class DataTracker(Tracker):
 
     @classmethod
     async def start(cls, rider_data):
-        self = cls('data.{rider_data["name"]')
+        self = cls(f'data.{rider_data["name"]}')
         self.rider_data = rider_data
         await self.new_points(rider_data.get('points', ()))
         self.completed.set_result(None)
