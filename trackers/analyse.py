@@ -185,6 +185,7 @@ class AnalyseTracker(Tracker):
                             point['server_time_from_last'] = point['server_time'] - prev_point['server_time']
                         if time > self.track_break_time and dist > self.track_break_dist:
                             self.current_track_id += 1
+                            self.off_route_track_id += 1
                         if not dist_from_last_set:
                             point['dist_from_last'] = round(dist)
                             seconds = time.total_seconds()
@@ -200,7 +201,7 @@ class AnalyseTracker(Tracker):
                     # self.logger.info((not self.routes, not closest, closest.dist > 500 if closest else None, not self.going_forward and point.get('dist_from_last', 0)))
                     if not self.routes or not closest or closest.dist > 500 or (not self.going_forward and point.get('dist_from_last', 0) > 500):
                         # self.logger.info('off_route')
-                        if not self.is_off_route and self.prev_point_with_position:
+                        if not self.is_off_route and self.prev_point_with_position and self.prev_point_with_position['track_id'] == self.current_track_id:
                             new_off_route_points.append({'position': self.prev_point_with_position['position'], 'track_id': self.off_route_track_id})
                         self.is_off_route = True
                         new_off_route_points.append({'position': point['position'], 'track_id': self.off_route_track_id})
