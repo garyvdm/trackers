@@ -534,7 +534,7 @@ class TKStorageTracker(Tracker):
     def on_completed(self, fut):
         self.points_received_observables.unsubscribe(self.points_received)
 
-        self.objects.values['active'].subtract(self.tracker_name)
+        self.objects.values['active'].subtract((self.tracker_name, ))
         asyncio.ensure_future(self.app['tkstorage.values_changed']({self.id: self.objects.values})).add_done_callback(lambda fut: fut.result)
 
         # TODO maybe do this if finished but not stopped
