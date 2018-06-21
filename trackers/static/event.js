@@ -827,6 +827,7 @@ function update_rider_table(){
                        '<td>' + rider_status + '</td>' +
                        '<td style="text-align: right">' + (current_time - values.position_time < 15 * 60 && values.speed_from_last ? sprintf('%.1f', values.speed_from_last) || '': '') + '</td>' +
                        '<td style="text-align: right">' + (values.hasOwnProperty('dist_route') ? sprintf('%.1f', values.dist_route / 1000) : '') + '</td>' +
+                       '<td style="text-align: right">' + (values.hasOwnProperty('dist') ? sprintf('%.1f', values.dist / 1000) : '') + '</td>' +
                        '<td style="text-align: right">' + leader_time_diff + '</td>' +
                        '<td style="text-align: right">' + (finished_time || '') + '</td>' +
                        '</tr>';
@@ -851,7 +852,7 @@ function update_rider_table(){
                 '<td>Battery</td>' +
                 '<td>Config</td>' +
                 '</tr>' + rider_rows.join('') + '</table>';
-            document.getElementById('riders_options').style.minWidth = '400px';
+            document.getElementById('riders_options').style.minWidth = '700px';
         }
         if (detail_level == 'progress') {
             document.getElementById('riders_actual').innerHTML =
@@ -861,11 +862,12 @@ function update_rider_table(){
                 '<td>Last Position</td>' +
                 '<td>Status</td>' +
                 '<td style="text-align: right">Current<br>Speed</td>' +
-                '<td style="text-align: right">Dist on<br>Route</td>' +
+                '<td style="text-align: right">Dist on<br>Main Route</td>' +
+                '<td style="text-align: right">Dist</td>' +
                 '<td style="text-align: right">Gap to<br>Leader</td>' +
                 '<td style="text-align: right">Finish<br>Time</td>' +
                 '</tr>' + rider_rows.join('') + '</table>';
-            document.getElementById('riders_options').style.minWidth = '600px';
+            document.getElementById('riders_options').style.minWidth = '700px';
         }
         if (detail_level == 'simple') {
             document.getElementById('riders_actual').innerHTML =
