@@ -241,6 +241,7 @@ class AnalyseTracker(Tracker):
                 if log_time_delta >= 1 or (is_last_point and did_slow_log):
                     self.logger.info('{}/{} ({:.1f}%) points analysed at {:.2f} points/second.'.format(
                         i, len(new_points), i / (len(new_points) - 1) * 100, (i - log_i) / log_time_delta))
+                    await asyncio.sleep(0)
                     log_time = now
                     log_i = i
                     did_slow_log = True
