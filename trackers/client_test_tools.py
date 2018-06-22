@@ -109,7 +109,7 @@ async def qunit_runner_async(args, loop):
 
         url = await stack.enter_context(web_server_fixture(loop, app))
 
-        service = arsenic.services.Geckodriver(log_file=arsenic.services.DEVNULL)
+        service = arsenic.services.Geckodriver(log_file=os.devnull)
         browser = arsenic.browsers.Firefox()
 
         driver = await stack.enter_context(arsenic.get_session(service, browser))

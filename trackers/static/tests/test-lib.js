@@ -63,3 +63,11 @@ QUnit.test( 'format_time_delta_ago gt 1 hour', function( assert ) {
         '1:01 ago'
     );
 });
+
+
+QUnit.test( 'format_time_delta_ago gt 1 day', function( assert ) {
+    assert.equal(
+        format_time_delta_ago(90060),
+        '1d 1:01 ago'
+    );
+});

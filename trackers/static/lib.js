@@ -1,5 +1,9 @@
 "use strict";
 
+var date_locale = 'en-GB';
+var date_options = {weekday: 'short',  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' };
+var date_options_delta = {weekday: 'short', hour: '2-digit', minute: '2-digit' };
+
 function format_time_delta(seconds, show_days) {
     if (show_days) {
         return sprintf('%id %02i:%02i:%02i',
@@ -21,10 +25,18 @@ function format_time_delta(seconds, show_days) {
 function format_time_delta_ago(seconds){
     // TODO more than a day
     if (seconds < 60) { return '< 1 min ago' }
-    else if (seconds < 60 * 60) { return sprintf('%i min ago', Math.floor(seconds / 60))}
-    else { return sprintf('%i:%02i ago', Math.floor(seconds / 60 / 60), Math.floor(seconds / 60 % 60))}
+    else if (seconds < 60 * 60) { return sprintf('%i min ago', Math.floor(seconds / 60)) }
+    else if (seconds < 60 * 60 * 24) { return sprintf('%i:%02i ago', Math.floor(seconds / 60 / 60), Math.floor(seconds / 60 % 60)) }
+    else { return sprintf('%id %i:%02i ago', Math.floor(seconds / 60 / 60 / 24), Math.floor(seconds / 60 / 60 % 24), Math.floor(seconds / 60 % 60))}
 }
 
+function format_time_delta_ago_with_date(current_time, time, options){
+    var formated = format_time_delta_ago(current_time - time);
+    if (current_time - time > 60 * 60 * 4) {
+        formated += sprintf('<br>%s', new Date(time  * 1000).toLocaleString(date_locale, options));
+    }
+    return formated
+}
 
 function process_update_list(fetch_block, old_list, update){
     return new Promise(function (resolve, reject) {

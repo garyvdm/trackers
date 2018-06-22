@@ -176,7 +176,7 @@ function update_values() {
         }
 
         if (tk_values.hasOwnProperty('last_connection')) {
-            cells[1].innerText = format_time_delta_ago(now - tk_values.last_connection);
+            cells[1].innerHTML = format_time_delta_ago_with_date(now, tk_values.last_connection, date_options)
         } else {
             cells[1].innerText = '';
         }
@@ -186,7 +186,7 @@ function update_values() {
             cells[2].innerHTML = sprintf(
                 '<a href="http://www.google.com/maps/place/%s" target="blank">%s</a>' +
                 '<div class="ago">%s</div>',
-                latlng, latlng, format_time_delta_ago(now - tk_values.position.time))
+                latlng, latlng, format_time_delta_ago_with_date(now, tk_values.position.time, date_options))
         } else {
             cells[2].innerText = '';
         }
@@ -194,7 +194,7 @@ function update_values() {
         if (tk_values.hasOwnProperty('tk_status')) {
             cells[3].innerHTML = sprintf(
                 '%s<div class="ago">%s</div>', tk_values.tk_status.value.replace(/\r\n/g, '<br>'),
-                format_time_delta_ago(now - tk_values.tk_status.time))
+                format_time_delta_ago_with_date(now, tk_values.tk_status.time, date_options))
         } else {
             cells[3].innerText = '';
         }
@@ -203,7 +203,7 @@ function update_values() {
         if (tk_values.hasOwnProperty('tk_config')) {
             config_cell += sprintf(
                 '%s<div class="ago">%s</div>', tk_values.tk_config.value,
-                format_time_delta_ago(now - tk_values.tk_config.time))
+                format_time_delta_ago_with_date(now, tk_values.tk_config.time, date_options))
         }
         if (tk_values.hasOwnProperty('desired_configs')) {
             Object.keys(tk_values.desired_configs).forEach(function (config_id){

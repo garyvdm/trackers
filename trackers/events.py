@@ -393,6 +393,7 @@ dict_key_order = {
     'live': -6,
     'analyse': -5,
     'replay': -4,
+    'time_show_days': -3,
     'riders': 10,
 
     # Rider

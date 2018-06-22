@@ -116,6 +116,10 @@ body {
 
     td {
         padding: 10px;
+        white-space: nowrap;
+    }
+    td.name {
+        white-space: wrap;
     }
 }
 

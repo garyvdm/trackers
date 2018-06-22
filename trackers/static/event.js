@@ -3,6 +3,7 @@
 got_to_loading = true;
 var loader_html = '<span class="l1"></span><span class="l2"></span><span class="l3"></span> '
 
+
 function get(url) {
     return fetch(location.pathname + url)
         .catch(promise_catch)
@@ -76,6 +77,7 @@ var config;
 var config_loaded = new Deferred();
 var routes = []
 var all_route_points = [];
+var time_show_days = true;
 
 var event_markers = [];
 var route_paths = [];
@@ -404,7 +406,7 @@ var elevation_chart = Highcharts.chart('elevation', {
 var race_time = document.getElementById('race_time');
 setInterval(function(){
     if (config && config.hasOwnProperty('event_start')){
-        race_time.innerText = 'Race time: ' + format_time_delta((new Date().getTime() / 1000) - config.event_start - time_offset);
+        race_time.innerText = 'Race time: ' + format_time_delta((new Date().getTime() / 1000) - config.event_start - time_offset, time_show_days);
     } else {
         race_time.innerHTML = '&nbsp;';
     }
@@ -412,6 +414,8 @@ setInterval(function(){
 
 function on_new_config(){
     if (config) {
+        time_show_days = config['time_show_days'] || false;
+
         if (!map) {
             map = new google.maps.Map(document.getElementById('map_el'), {
                 bounds: bounds,
@@ -787,7 +791,7 @@ function update_rider_table(){
             var rider_status = (rider.hasOwnProperty('status') ? rider.status : values.rider_status || '' );
             if (values.finished_time) {
                 if (config && config.hasOwnProperty('event_start')){
-                    finished_time = format_time_delta(values.finished_time - config.event_start);
+                    finished_time = format_time_delta(values.finished_time - config.event_start, time_show_days);
                 } else {
                     var time = new Date(values.finished_time * 1000);
                     finished_time = sprintf('%s %02i:%02i:%02i', days[time.getDay()], time.getHours(), time.getMinutes(), time.getSeconds() )
@@ -795,10 +799,10 @@ function update_rider_table(){
 
             }
             if (values.hasOwnProperty('position_time')) {
-                last_position_time = format_time_delta_ago(current_time - values.position_time);
+                last_position_time = format_time_delta_ago_with_date(current_time, values.position_time, date_options_delta);
             }
             if (values.hasOwnProperty('server_time')) {
-                last_server_time = format_time_delta_ago(current_time - values.server_time);
+                last_server_time = format_time_delta_ago_with_date(current_time, values.server_time, date_options_delta)
             }
             if (values.hasOwnProperty('leader_time_diff')) {
                 var total_min = Math.round(values.leader_time_diff / 60);
@@ -811,7 +815,7 @@ function update_rider_table(){
             if (detail_level == 'tracker') {
                 return '<tr rider_name="' + rider.name + '" class="rider">' +
                        '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
-                       '<td>' + rider.name + '</td>' +
+                       '<td class="name">' + rider.name + '</td>' +
                        '<td style="text-align: right">' + (last_position_time || '') + '</td>' +
                        '<td style="text-align: right">' + (last_server_time || '') + '</td>' +
                        '<td style="text-align: right">' + (values.battery ? sprintf('%i %%', values.battery) : '') +
@@ -822,7 +826,7 @@ function update_rider_table(){
             if (detail_level == 'progress') {
                 return '<tr rider_name="' + rider.name + '" class="rider">' +
                        '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
-                       '<td>' + rider.name + '</td>' +
+                       '<td class="name">' + rider.name + '</td>' +
                        '<td style="text-align: right">' + (last_position_time || '') + '</td>' +
                        '<td>' + rider_status + '</td>' +
                        '<td style="text-align: right">' + (current_time - values.position_time < 15 * 60 && values.speed_from_last ? sprintf('%.1f', values.speed_from_last) || '': '') + '</td>' +
@@ -835,7 +839,7 @@ function update_rider_table(){
             if (detail_level == 'simple') {
                 return '<tr rider_name="' + rider.name + '" class="rider">' +
                        '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
-                       '<td>' + rider.name + '</td>' +
+                       '<td class="name">' + rider.name + '</td>' +
                        '<td style="text-align: right">' +
                             (finished_time || (values.hasOwnProperty('dist_route') ? sprintf('%.1f km', values.dist_route / 1000) : ''))
                             + '<br>' + (rider_status || last_position_time || '') +'</td>' +
@@ -999,9 +1003,9 @@ function point_marker_onclick(marker, point) {
         var time = new Date(point.time * 1000);
         var rel_time = format_time_delta_ago(current_time - point.time);
         content += sprintf('<tr><td style="font-weight: bold;">Time:</td><td>%s<br>%s</td></tr>',
-                           time.toLocaleString(), rel_time);
+                           time.toLocaleString(date_locale, date_options), rel_time);
         if (config.hasOwnProperty('event_start')){
-            var race_time = format_time_delta(point.time - config.event_start);
+            var race_time = format_time_delta(point.time - config.event_start, time_show_days);
             content += sprintf('<tr><td style="font-weight: bold;">Race Time:</td><td>%s</td></tr>', race_time);
         }
     }
@@ -1032,11 +1036,10 @@ function point_marker_onclick(marker, point) {
                            format_time_delta(point.time_from_last));
     }
     if (point.hasOwnProperty('server_time')) {
-        // TODO more than a day
         var time = new Date(point.server_time * 1000);
         var rel_time = format_time_delta_ago(current_time - point.server_time);
         content += sprintf('<tr><td style="font-weight: bold;">Server Time:</td><td>%s<br>%s</td></tr>',
-                           time.toLocaleString(), rel_time);
+                           time.toLocaleString(date_locale, date_options), rel_time);
         if (point.hasOwnProperty('time')){
             var delay = format_time_delta(point.server_time - point.time);
             content += sprintf('<tr><td style="font-weight: bold;">Delay to server:</td><td>%s</td></tr>', delay);
