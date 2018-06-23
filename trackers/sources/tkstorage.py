@@ -33,6 +33,7 @@ async def config(app, settings):
     app['tkstorage.values_changed'] = values_changed = Observable(logger)
     app['tkstorage.trackers'] = {}
     app['tkstorage.trackers_changed'] = trackers_changed = Observable(logger)
+    app['tkstorage.config'] = settings.get('tkstorage_config', True)
 
     connection_task = asyncio.ensure_future(connection(app, settings, all_points, points_received_observables, send_queue,
                                                        initial_download_done, trackers_objects, values_changed))
@@ -110,10 +111,11 @@ class TrackerObjects(object):
             await self.app['tkstorage.values_changed']({self.tk_id: self.values})
 
     async def start_ensure_config(self):
-        if self.ensure_config_fut:
-            await cancel_and_wait_task(self.ensure_config_fut)
-        self.ensure_config_fut = asyncio.ensure_future(self.ensure_config())
-        self.ensure_config_fut.add_done_callback(self.ensure_config_done)
+        if self.app['tkstorage.config']:
+            if self.ensure_config_fut:
+                await cancel_and_wait_task(self.ensure_config_fut)
+            self.ensure_config_fut = asyncio.ensure_future(self.ensure_config())
+            self.ensure_config_fut.add_done_callback(self.ensure_config_done)
 
     def ensure_config_done(self, fut):
         self.ensure_config_fut = None
@@ -519,11 +521,11 @@ class TKStorageTracker(Tracker):
                     if rule['type'] == 'within_dist_to_point':
                         dist = distance(Point(*rule['point']), Point(*last_poistion[:2]))
                         if dist < rule['dist']:
-                            self.logger.info(f'Using config rule {i}')
+                            self.logger.debug(f'Using config rule {i}')
                             await self.objects.add_desired_config('rules', rule['config'], rank=20)
                             break
                 else:
-                    self.logger.info('Clear config rule.')
+                    self.logger.debug('Clear config rule.')
                     await self.objects.del_desired_config('rules')
 
     def stop(self):
