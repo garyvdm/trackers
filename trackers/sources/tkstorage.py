@@ -27,7 +27,7 @@ web_app = None
 async def config(app, settings):
     app['tkstorage.points_received_observables'] = points_received_observables = defaultdict(partial(Observable, logger))
     app['tkstorage.send_queue'] = send_queue = asyncio.Queue()
-    app['tkstorage.all_points'] = all_points = []
+    app['tkstorage.all_points_len'] = 0
     app['tkstorage.initial_download'] = initial_download_done = asyncio.Event()
     app['tkstorage.trackers_objects'] = trackers_objects = dict()
     app['tkstorage.values_changed'] = values_changed = Observable(logger)
@@ -35,7 +35,7 @@ async def config(app, settings):
     app['tkstorage.trackers_changed'] = trackers_changed = Observable(logger)
     app['tkstorage.config'] = settings.get('tkstorage_config', True)
 
-    connection_task = asyncio.ensure_future(connection(app, settings, all_points, points_received_observables, send_queue,
+    connection_task = asyncio.ensure_future(connection(app, settings, points_received_observables, send_queue,
                                                        initial_download_done, trackers_objects, values_changed))
 
     if isinstance(app, web.Application):
@@ -76,6 +76,7 @@ class TrackerObjects(object):
     app = attr.ib()
     tk_id = attr.ib()
 
+    points = attr.ib(default=attr.Factory(list))
     config = attr.ib(default=attr.Factory(dict))
     values = attr.ib(default=attr.Factory(dict))
 
@@ -180,7 +181,7 @@ tk_id_key = lambda point: point['tk_id']
 time_key = lambda point: point.get('time') or point.get('server_time')
 
 
-async def connection(app, settings, all_points, points_received_observables, send_queue,
+async def connection(app, settings, points_received_observables, send_queue,
                      initial_download_done, trackers_objects, values_changed):
     try:
         reconnect_sleep_time = 5
@@ -195,7 +196,7 @@ async def connection(app, settings, all_points, points_received_observables, sen
                 )
                 try:
                     reconnect_sleep_time = 1
-                    proto.write({'start': len(all_points)})
+                    proto.write({'start': app['tkstorage.all_points_len']})
                     write_fut = asyncio.ensure_future(write(app, proto, send_queue))
                     try:
                         async for msg in proto:
@@ -209,10 +210,9 @@ async def connection(app, settings, all_points, points_received_observables, sen
                                 for item in msg:
                                     try:
                                         point = msg_item_to_point(item)
-                                    except Exception:
-                                        logger.exception('Error in msg_item_to_point: ')
+                                    except Exception as e:
+                                        logger.error(f'Error in msg_item_to_point: msg={item!r} \n {e}')
                                         point = None
-                                    all_points.append((item, point))
 
                                     if point and point.get('tk_id'):
                                         new_points.append(point)
@@ -224,17 +224,21 @@ async def connection(app, settings, all_points, points_received_observables, sen
                                 for point in new_points:
                                     tk_id = point['tk_id']
                                     trackers_values_changed.add(tk_id)
-                                    tracker_values = trackers_objects[tk_id].values
+                                    tracker_values = get_tracker_objects(app, point['tk_id']).values
                                     tracker_values['last_connection'] = point['server_time']
                                     for key in ('tk_status', 'tk_config', 'position'):
                                         if key in point:
                                             tracker_values[key] = {'value': point[key], 'time': point['time']}
                                 await values_changed({tk_id: trackers_objects[tk_id].values for tk_id in trackers_values_changed})
 
-                                for tk_id, points in groupby(sorted(new_points, key=tk_id_key), key=tk_id_key):
+                                for tk_id, tracker_points in groupby(sorted(new_points, key=tk_id_key), key=tk_id_key):
                                     observable = points_received_observables.get(tk_id)
+                                    tracker_points = list(tracker_points)
+                                    trackers_objects[tk_id].points.extend(tracker_points)
+
                                     if observable:
-                                        await observable(list(points))
+                                        await observable(tracker_points)
+
                                 initial_download_done.set()
 
                     finally:
@@ -479,12 +483,10 @@ class TKStorageTracker(Tracker):
         except asyncio.TimeoutError:
             tracker.logger.error('Timeout waiting for initial download.')
 
-        all_points = app['tkstorage.all_points']
-        filtered_points = [point for _, point in all_points if point and point['tk_id'] == id]
         tracker.points_received_observables = app['tkstorage.points_received_observables'][id]
         tracker.points_received_observables.subscribe(tracker.points_received)
         tracker.completed.add_done_callback(tracker.on_completed)
-        await tracker.points_received(filtered_points)
+        await tracker.points_received(tracker_objects.points)
 
         now = datetime.datetime.now()
         tracker.initial_config_handle = None
