@@ -574,6 +574,7 @@ async def admin_ws(request):
                             tracker_objects = get_tracker_objects(app, data['id'])
                             await tracker_objects.add_desired_config('admin_console', data['config'], rank=100)
                         if 'del_config' in data:
+                            tracker_objects = get_tracker_objects(app, data['id'])
                             await tracker_objects.del_desired_config('admin_console')
 
                     except Exception:
