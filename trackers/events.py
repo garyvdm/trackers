@@ -227,9 +227,14 @@ class Event(object):
         for rider in self.config['riders']:
             rider_name = rider['name']
 
-            if rider['tracker']:
+            if 'tracker' in rider and rider['tracker']:
                 start_tracker = self.app['start_event_trackers'][rider['tracker']['type']]
                 start_fut = asyncio.ensure_future(start_tracker(self.app, self, rider_name, rider['tracker']))
+                rider_tracker_start_fs[rider_name].append(start_fut)
+
+            for tracker in rider.get('trackers', ()):
+                start_tracker = self.app['start_event_trackers'][tracker['type']]
+                start_fut = asyncio.ensure_future(start_tracker(self.app, self, rider_name, tracker))
                 rider_tracker_start_fs[rider_name].append(start_fut)
 
         all_start_fs = list(chain.from_iterable(rider_tracker_start_fs.values()))
