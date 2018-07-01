@@ -531,9 +531,10 @@ class TKStorageTracker(Tracker):
                     await self.objects.del_desired_config('rules')
 
     def stop(self):
-        self.completed.set_result(None)
-        if self.initial_config_handle:
-            self.initial_config_handle.cancel()
+        if not self.completed.done():
+            self.completed.set_result(None)
+            if self.initial_config_handle:
+                self.initial_config_handle.cancel()
 
     def on_completed(self, fut):
         self.points_received_observables.unsubscribe(self.points_received)

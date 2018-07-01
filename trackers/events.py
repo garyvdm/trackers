@@ -357,7 +357,7 @@ class Event(object):
                     for rider_name in rider_names_sorted[1:]:
                         rider_predicted_points = riders_predicted_points.get(rider_name)
                         rider_values = self.riders_current_values.get(rider_name)
-                        if rider_values and time - rider_values.get('position_time') < inactive_time:
+                        if rider_values and 'position_time' in rider_values and time - rider_values['position_time'] < inactive_time:
                             rider_dist_route = None
                             rider_time = None
                             if rider_predicted_points and 'dist_route' in rider_predicted_points:
