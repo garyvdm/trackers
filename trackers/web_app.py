@@ -320,7 +320,7 @@ async def blocked_lists(request, event, list_attr_name):
 @event_handler
 async def riders_csv(request, event):
     rider_name = request.query.get('name')
-    tracker = event.rider_trackers[rider_name]
+    tracker = event.riders_objects[rider_name].tracker
 
     out_file = io.StringIO()
     writer = csv.writer(out_file)
