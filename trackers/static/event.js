@@ -323,10 +323,22 @@ function subscriptions_updated() {
                 if (subscriptions[name] > 0 && !non_live_subscriptions_got[name]) {
                     non_live_subscriptions_got[name] = true;
                     if (name=='riders_points') {
-                        get('/riders_points').then(function(data) {on_new_state_received({'riders_points': data});}).catch(promise_catch);
+                        get('/riders_points').then(function(data) {
+                            on_new_state_received({'riders_points': data});
+                        }).catch(promise_catch);
+                    }
+                    if (name.slice(0, 14)=='riders_points.') {
+                        var rider_name = name.slice(14);
+                        get('/riders_points').then(function(data) {
+                            var data_filtered = {};
+                            data_filtered[rider_name] = data[rider_name];
+                            on_new_state_received({'riders_points': data_filtered});
+                        }).catch(promise_catch);
                     }
                     if (name=='riders_off_route') {
-                        get('/riders_off_route').then(function(data) {on_new_state_received({'riders_off_route': data});}).catch(promise_catch);
+                        get('/riders_off_route').then(function(data) {
+                            on_new_state_received({'riders_off_route': data});
+                        }).catch(promise_catch);
                     }
                 }
             });
