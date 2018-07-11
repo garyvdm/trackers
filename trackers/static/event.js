@@ -21,6 +21,25 @@ function get(url) {
         .catch(promise_catch);
 }
 
+function get_pb(url, pb_cls) {
+    return fetch(location.pathname + url)
+        .then( function(response) {
+            if (response.ok) {
+                return response.arrayBuffer();
+            } else {
+                response.text().then(function (error) {
+                    console.log(error);
+                    errors.push(error);
+                    update_status();
+                });
+            }
+        })
+        .then( function(buffer) {
+            return pb_cls.decode(new Uint8Array(buffer));
+        })
+        .catch(promise_catch);
+}
+
 function load_state(){
     set_status(loader_html + 'Loading');
     var new_state = JSON.parse(window.localStorage.getItem(location.pathname))
@@ -147,8 +166,8 @@ function on_new_state_received(new_state) {
         elevation_chart.series.forEach(function (series) { series.remove(false) });
 
         state.routes_hash = new_state.routes_hash;
-        get('/routes?hash=' + state.routes_hash).then(function (new_routes){
-            routes = new_routes;
+        get_pb('/routes?hash=' + state.routes_hash, protobuf.roots["default"].trackers.Routes).then(function (new_routes){
+            routes = new_routes.routes;
             // console.log('routes loaded');
             on_new_routes();
         }).catch(promise_catch);
@@ -183,8 +202,11 @@ function on_new_state_received(new_state) {
                 var list = list_container[name] || [];
 
                 function fetch_block(block) {
-                    return get('/' + list_name + '?name=' + name + '&start_index=' + block.start_index +
-                               '&end_index=' + block.end_index + '&end_hash=' + block.end_hash);
+                    return get_pb(
+                        '/' + list_name + '?name=' + name + '&start_index=' + block.start_index +
+                        '&end_index=' + block.end_index + '&end_hash=' + block.end_hash,
+                        protobuf.roots["default"].trackers.Points)
+                    .then(function (response) {return response.points});
                 }
 
                 process_update_list(fetch_block, list, update).then(function (rider_points) {
@@ -498,7 +520,7 @@ function on_new_routes(){
             i ++;
             return new google.maps.Polyline({
                 map: map,
-                path: route.points.map(function (point) {return new google.maps.LatLng(point[0], point[1])}),
+                path: route.points.map(function (point) {return new google.maps.LatLng(point.lat/1000000, point.lng/1000000)}),
                 geodesic: false,
                 strokeColor: (i==1?'black':'#444444'),
                 strokeOpacity: 0.7,
@@ -520,9 +542,9 @@ function on_new_routes(){
             }
             var elevation_points = route.elevation.map(function (point) {
                 return {
-                    latlng: new google.maps.LatLng(point[0], point[1]),
-                    dist: (point[3] * dist_factor) + start_distance,
-                    elevation: point[2],
+                    latlng: new google.maps.LatLng(point.lat/1000000, point.lng/1000000),
+                    dist: (point.distance * dist_factor) + start_distance,
+                    elevation: point.elevation / 100,
                 }
             });
             all_route_points.extend(elevation_points);
@@ -646,7 +668,7 @@ function on_new_rider_points(rider_name, list_name, items, new_items, old_items)
                     strokeWeight: 2,
                     visible: show_route_for_rider(list_name, rider_name)
                 }))).getPath()
-                path.push(new google.maps.LatLng(point.position[0], point.position[1]));
+                path.push(new google.maps.LatLng(point.position.lat/1000000, point.position.lng/1000000));
             }
         });
 
@@ -708,8 +730,8 @@ function on_new_rider_values(rider_name){
         var series = elevation_chart.get(rider_name);
         if (values.hasOwnProperty('dist_route')) {
             var elevation = 0;
-            if (values.hasOwnProperty('position') && values.position.length > 2) {
-                elevation = values.position[2]
+            if (values.hasOwnProperty('position') && values.position.elevation) {
+                elevation = values.position.elevation
             } else if (values.hasOwnProperty('route_elevation')) {
                 elevation = values.route_elevation;
             }
@@ -971,7 +993,7 @@ function update_selected_rider_point_markers(){
             Object.values(rider_items.point_markers).forEach(function (marker) {marker.setVisible(true)});
             riders_points[selected_rider].forEach(function (point){
                 if (!rider_items.point_markers.hasOwnProperty(point.index) && point.hasOwnProperty('position')) {
-                    var position = new google.maps.LatLng(point.position[0], point.position[1]);
+                    var position = new google.maps.LatLng(point.position.lat/1000000, point.position.lng/1000000);
                     if (bounds.contains(position)){
                         var marker = new google.maps.Marker({
                             icon: {
@@ -1010,14 +1032,14 @@ function point_marker_onclick(marker, point) {
         }
     }
     content += sprintf('<tr><td style="font-weight: bold;">Position:</td><td>%.6f, %.6f</td></tr>',
-                       point.position[0], point.position[1]);
+                       point.position.lat/1000000, point.position.lng/1000000);
     if (point.hasOwnProperty('accuracy')) {
         content += sprintf('<tr><td style="font-weight: bold;">Accuracy:</td><td>%.1f m</td></tr>',
                            point.accuracy);
     }
-    if (point.position.length == 3) {
+    if (point.position.elevation) {
         content += sprintf('<tr><td style="font-weight: bold;">Elevation:</td><td>%.0f m</td></tr>',
-                           point.position[2]);
+                           point.elevation);
     }
     if (point.hasOwnProperty('dist_route')) {
         content += sprintf('<tr><td style="font-weight: bold;">Dist on Route:</td><td>%.1f km</td></tr>',

@@ -160,7 +160,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
 
         async with self.driver.session(self.browser) as session:
             async with tracker_web_server_fixture(self.loop, port=port) as (app, url, client_errors, server_errors):
-                app['trackers.events']['test_event'] = Event(
+                app['trackers.events']['test_event'] = event = Event(
                     app, 'test_event',
                     yaml.load("""
                         title: Test Event
@@ -172,6 +172,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
                     """),
                     []
                 )
+                await on_new_event(event)
                 await session.get(f'{url}/test_event')
                 await wait_condition(ws_ready_is, session, True)
 
@@ -179,7 +180,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
 
             # Bring the server back up, reconnect
             async with tracker_web_server_fixture(self.loop, port=port) as (app, url, client_errors, server_errors):
-                app['trackers.events']['test_event'] = Event(
+                app['trackers.events']['test_event'] = event = Event(
                     app, 'test_event',
                     yaml.load("""
                         title: Test Event
@@ -191,6 +192,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
                     """),
                     []
                 )
+                await on_new_event(event)
                 await wait_condition(ws_ready_is, session, True, timeout=10)
 
         self.check_no_errors(client_errors, server_errors)

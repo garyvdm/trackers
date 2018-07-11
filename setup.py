@@ -27,6 +27,7 @@ setuptools.setup(
         'msgpack-python',
         'nvector',
         'polyline',
+        'protobuf',
         'python-slugify',
         'pyyaml',
         'tap.py',

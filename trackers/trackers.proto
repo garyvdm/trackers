@@ -1,0 +1,58 @@
+syntax = "proto2";
+
+package trackers;
+
+message Position {
+    required sint64 lat = 1;
+    required sint64 lng = 2;
+    optional int64 elevation = 3;
+}
+
+message Point {
+    optional uint64 index = 1;
+    optional uint64 time = 2;
+    optional int64 time_from_last = 3;
+    optional uint64 server_time = 4;
+    optional int64 server_time_from_last = 5;
+    optional Position position = 6;
+    optional int64 route_elevation = 7;
+    optional uint32 track_id = 8;
+    optional uint64 dist = 9;
+    optional uint64 dist_route = 10;
+    optional uint64 dist_from_last = 11;
+    optional uint32 num_sat = 12;
+    optional float speed_from_last = 13;
+    optional string config = 14;
+    optional string rider_status = 15;
+    optional uint64 finished_time = 16;
+}
+
+message Points {
+    repeated Point points = 1;
+}
+
+
+message RouteElevationPoint {
+    required sint64 lat = 1;
+    required sint64 lng = 2;
+    required int64 elevation = 3;
+    required uint64 distance = 4;
+}
+
+message RoutePoint {
+    required sint64 lat = 1;
+    required sint64 lng = 2;
+}
+
+message Route {
+    repeated RouteElevationPoint elevation = 1;
+    repeated RoutePoint points = 2;
+    required bool main = 3;
+    optional float dist_factor = 4;
+    optional float start_distance = 5;
+    optional float end_distance = 6;
+}
+
+message Routes {
+    repeated Route routes = 1;
+}

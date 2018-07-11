@@ -22,10 +22,11 @@ from more_itertools import chunked
 import trackers.auth
 import trackers.bin_utils
 import trackers.events
+from trackers import trackers_pb2
 from trackers.analyse import AnalyseTracker
 from trackers.auth import ensure_authorized, get_git_author, show_identity
 from trackers.base import cancel_and_wait_task, list_register, Observable
-from trackers.general import json_dumps
+from trackers.general import hash_bytes, json_dumps, point_2_pb_point
 from trackers.web_helpers import (
     coro_partial,
     etag_query_hash_response,
@@ -77,6 +78,9 @@ async def make_aio_app(settings,
     static_manager.add_resource('/static/highcharts.js', charset='utf8', content_type='text/javascript')
     static_manager.add_resource('/static/highcharts.js.map', charset='utf8', content_type='text/javascript')
     static_manager.add_resource('/static/highcharts.src.js', charset='utf8', content_type='text/javascript')
+    static_manager.add_resource('/static/protobuf.min.js', charset='utf8', content_type='text/javascript')
+    static_manager.add_resource('/static/protobuf.min.js.map', charset='utf8', content_type='text/javascript')
+    static_manager.add_resource('/static/trackers_pb.js', charset='utf8', content_type='text/javascript')
 
     static_manager.add_resource('/static/instructions.html', '/instructions', charset='utf8', content_type='text/html')
     static_manager.add_resource('/static/tkstorage_admin.js', charset='utf8', content_type='text/javascript')
@@ -149,6 +153,10 @@ def json_response(data, **kwargs):
     return web.Response(text=json_dumps(data), content_type='application/json', **kwargs)
 
 
+def pb_response(obj, **kwargs):
+    return web.Response(body=obj.SerializeToString(), content_type='application/protobuf', **kwargs)
+
+
 def page_body_processor(static_manager, body, **kwargs):
     # since we need the hash in the body, we manually hash every thing that goes into the body.
 
@@ -207,8 +215,8 @@ def get_event_state(app, event):
     ensure_event_page(app, event)
     return {
         'live': event.config.get('live', False),
-        'config_hash': event.config_hash,
-        'routes_hash': event.routes_hash,
+        'config_hash': event.client_config_body_hash,
+        'routes_hash': event.client_routes_body_hash,
         'riders_values': event.riders_current_values,
         'client_hash': event.page[1],
         'server_time': datetime.datetime.now(),
@@ -255,17 +263,15 @@ async def event_state(request, event):
 @say_error_handler
 @event_handler
 async def event_config(request, event):
-    get_response = partial(json_response, event.config)
-    return etag_query_hash_response(request, get_response, event.config_hash)
+    response = web.Response(text=event.client_config_body, content_type='application/json')
+    return etag_query_hash_response(request, response, event.client_config_body_hash)
 
 
 @say_error_handler
 @event_handler
 async def event_routes(request, event):
-    remove_keys = {'original_points'}
-    routes = [{key: value for key, value in route.items() if key not in remove_keys} for route in event.routes]
-    get_response = partial(json_response, routes)
-    return etag_query_hash_response(request, get_response, event.routes_hash)
+    response = web.Response(body=event.client_routes_body, content_type='application/protobuf')
+    return etag_query_hash_response(request, response, event.client_routes_body_hash)
 
 
 point_keys = {
@@ -312,7 +318,12 @@ async def blocked_lists(request, event, list_attr_name):
         if points and points[-1]['hash'] != end_hash:
             raise web.HTTPInternalServerError(text='Wrong end_hash')
 
-        return etag_response(request, json_response(points), end_hash,
+        pb_points = trackers_pb2.Points()
+        for point in points:
+            pb_point = pb_points.points.add()
+            point_2_pb_point(point, pb_point)
+
+        return etag_response(request, pb_response(pb_points), end_hash,
                              cache_control=immutable_cache_control)
 
 
@@ -361,9 +372,7 @@ async def on_new_event(event):
     event.rider_blocked_list_update_observable.subscribe(on_event_rider_blocked_list_update)
     event.rider_off_route_blocked_list_update_observable.subscribe(on_event_rider_off_route_blocked_list_update)
     event.rider_predicted_updated_observable.subscribe(on_event_rider_predicted_updated)
-
-    if event.config.get('live', False):
-        await event.start_trackers()
+    await on_event_config_routes_change(event)
 
 
 async def on_removed_event(event):
@@ -371,13 +380,41 @@ async def on_removed_event(event):
 
 
 async def on_event_config_routes_change(event):
+    event.client_config_body = json_dumps(event.config)
+    event.client_config_body_hash = hash_bytes(event.client_config_body.encode())
+
+    pb_routes = trackers_pb2.Routes()
+    for route in event.routes:
+        pb_route = pb_routes.routes.add()
+        pb_route.main = route.get('main', False)
+
+        if not pb_route.main:
+            pb_route.dist_factor = route.get('dist_factor', 1)
+            pb_route.start_distance = route.get('start_distance', 0)
+            pb_route.end_distance = route.get('end_distance', 0)
+
+        for point in route.get('points', ()):
+            pb_point = pb_route.points.add()
+            pb_point.lat = int(point[0] * 1000000)
+            pb_point.lng = int(point[1] * 1000000)
+
+        for elevation_point in route.get('elevation', ()):
+            pb_elevation_point = pb_route.elevation.add()
+            pb_elevation_point.lat = int(elevation_point[0] * 1000000)
+            pb_elevation_point.lng = int(elevation_point[1] * 1000000)
+            pb_elevation_point.elevation = int(elevation_point[2] * 100)
+            pb_elevation_point.distance = int(elevation_point[3])
+
+    event.client_routes_body = pb_routes.SerializeToString()
+    event.client_routes_body_hash = hash_bytes(event.client_routes_body)
+
     await message_to_multiple_wss(
         event.app,
         event.app['trackers.event_ws_sessions'][event.name],
         {
             'live': event.config.get('live', False),
-            'config_hash': event.config_hash,
-            'routes_hash': event.routes_hash,
+            'config_hash': event.client_config_body_hash,
+            'routes_hash': event.client_routes_body_hash,
         },
     )
     if event.config.get('live', False):

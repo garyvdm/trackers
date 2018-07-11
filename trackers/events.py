@@ -1,7 +1,5 @@
 import asyncio
-import base64
 import datetime
-import hashlib
 import logging
 import os
 from bisect import bisect
@@ -19,7 +17,7 @@ from trackers.analyse import AnalyseTracker, get_analyse_routes
 from trackers.base import BlockedList, cancel_and_wait_task, Observable, Tracker
 from trackers.combined import Combined
 from trackers.dulwich_helpers import TreeReader, TreeWriter
-from trackers.general import index_and_hash_tracker, start_replay_tracker
+from trackers.general import hash_bytes, index_and_hash_tracker, start_replay_tracker
 from trackers.persisted_func_cache import PersistedFuncCache
 
 logger = logging.getLogger(__name__)
@@ -91,10 +89,6 @@ async def load_event(name, app, events, tree_reader, new_event_observable):
         logger.exception(f'Error loading {name!r}: ')
 
 
-def hash_bytes(b):
-    return base64.urlsafe_b64encode(hashlib.sha1(b).digest()).decode('ascii')
-
-
 class Event(object):
     def __init__(self, app, name, config=None, routes=None):
         self.name = name
@@ -118,7 +112,6 @@ class Event(object):
 
         self.config_path = os.path.join(self.path, 'data.yaml')
         self.config = config
-        self.config_hash = hash_bytes(yaml.dump(config).encode()) if config else None
 
         self.routes_path = os.path.join(self.path, 'routes')
         self.routes = routes
@@ -144,7 +137,6 @@ class Event(object):
         _, self.git_hash = tree_reader.lookup(self.path)
         config_bytes = tree_reader.get(self.config_path).data
         self.config = yaml.load(config_bytes.decode())
-        self.config_hash = hash_bytes(config_bytes)
 
         if tree_reader.exists(self.routes_path):
             routes_bytes = tree_reader.get(self.routes_path).data
@@ -160,7 +152,6 @@ class Event(object):
         if tree_writer is None:
             tree_writer = TreeWriter(self.app['trackers.data_repo'])
         config_bytes = yaml.dump(self.config, default_flow_style=False, Dumper=YamlEventDumper).encode()
-        self.config_hash = hash_bytes(config_bytes)
         tree_writer.set_data(self.config_path, config_bytes)
 
         if self.routes:
@@ -221,7 +212,6 @@ class Event(object):
                 'event_start_time': self.event_start,
             }
             self.event_start = replay_kwargs['replay_start'] + replay_kwargs['offset']
-            self.config_hash = hash_bytes(yaml.dump(self.config).encode())
 
         rider_tracker_start_fs = defaultdict(list)
         for rider in self.config['riders']:

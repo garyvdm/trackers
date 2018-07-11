@@ -128,6 +128,7 @@
             update_status();
             var full_error_message = error + '\n' + (error? error.stack: '')
             log_to_server(full_error_message);
+            console.log(full_error_message);
             throw error;
         }}
 
@@ -154,6 +155,8 @@
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/sprintf/1.0.3/sprintf.min.js"></script>
     <script defer src="{static_urls[/static/richmarker.js]}"></script>
     <script defer src="{static_urls[/static/highcharts.js]}"></script>
+    <script defer src="{static_urls[/static/protobuf.min.js]}"></script>
+    <script defer src="{static_urls[/static/trackers_pb.js]}"></script>
     <script defer src="{static_urls[/static/lib.js]}"></script>
     <script defer src="{static_urls[/static/event.js]}"></script>
   </body>
