@@ -1051,7 +1051,7 @@ function point_marker_onclick(marker, point) {
     }
     if (point.position.elevation) {
         content += sprintf('<tr><td style="font-weight: bold;">Elevation:</td><td>%.0f m</td></tr>',
-                           point.elevation);
+                           point.position.elevation);
     }
     if (point.hasOwnProperty('dist_route')) {
         content += sprintf('<tr><td style="font-weight: bold;">Dist on Route:</td><td>%.1f km</td></tr>',
