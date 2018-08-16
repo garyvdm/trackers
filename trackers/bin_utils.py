@@ -224,6 +224,7 @@ def add_gpx_to_event_routes_parser():
     parser.add_argument('--rdp-epsilon', action='store', type=int, default=2)
     parser.add_argument('--circular-range', action='store', type=int,
                         help="Set to about 1/2 of distance (m) of circular route. To help with find closest point.")
+    parser.add_argument('--print', action='store_true')
 
     return parser
 
@@ -245,17 +246,24 @@ async def add_gpx_to_event_routes(app, settings, args):
     trkpts = xml_doc.findall('./gpx:trk/gpx:trkseg/gpx:trkpt', gpx_ns)
     points = [[float(trkpt.attrib['lat']), float(trkpt.attrib['lon'])] for trkpt in trkpts]
 
-    writer = TreeWriter(app['trackers.data_repo'])
-    event = await trackers.events.Event.load(app, args.event_name, writer)
     route = {'original_points': points}
     for key in ('no_elevation', 'split_at_dist', 'split_point_range', 'rdp_epsilon', 'circular_range'):
         route[key] = getattr(args, key)
 
-    await process_route(settings, route)
-    event.routes.append(route)
-    process_secondary_route_details(event.routes)
-    # TODO - add gpx file to repo
-    await event.save('add_gpx_to_event_routes: {} - {}'.format(args.event_name, args.gpx_file), tree_writer=writer)
+    if not args.print:
+        writer = TreeWriter(app['trackers.data_repo'])
+        event = await trackers.events.Event.load(app, args.event_name, writer)
+        await process_route(settings, route)
+        event.routes.append(route)
+        process_secondary_route_details(event.routes)
+        # TODO - add gpx file to repo
+        await event.save('add_gpx_to_event_routes: {} - {}'.format(args.event_name, args.gpx_file), tree_writer=writer)
+    else:
+        original_points = route['original_points']
+        filtered_points = (point for last_point, point in zip([None] + original_points[:-1], original_points) if point != last_point)
+        point_points = route_with_distance_and_index(filtered_points)
+        for point in point_points:
+            print(f'{point.index}: {point.distance} {point.lat},{point.lng}')
 
 
 @async_command(partial(event_command_parser, description="Open and save event. Side effect is convert to new formats."), basic=True)

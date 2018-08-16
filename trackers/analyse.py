@@ -411,6 +411,7 @@ def ramer_douglas_peucker_sections(points, epsilon, split_at_dist, split_point_r
         min_dist = dist - split_point_range
         max_dist = dist + split_point_range
         close_points = [point for point in points if min_dist <= point.distance < max_dist]
+        # TODO extend split_point_range if no points found
         simplified_close_points = ramer_douglas_peucker(close_points, epsilon)
         closest_point = min(simplified_close_points, key=lambda point: abs(dist - point.distance))
         closest_index = closest_point.index
