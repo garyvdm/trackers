@@ -440,7 +440,13 @@ var elevation_chart = Highcharts.chart('elevation', {
 var race_time = document.getElementById('race_time');
 setInterval(function(){
     if (config && config.hasOwnProperty('event_start')){
-        race_time.innerText = 'Race time: ' + format_time_delta((new Date().getTime() / 1000) - config.event_start - time_offset, time_show_days);
+        var event_type = config.display_type || 'Race';
+        var race_time_seconds = (new Date().getTime() / 1000) - config.event_start - time_offset
+        if (race_time_seconds >= 0 && state.live) {
+            race_time.innerText = event_type + ' time: ' + format_time_delta((new Date().getTime() / 1000) - config.event_start - time_offset, time_show_days);
+        } else {
+            race_time.innerText = event_type + ' start time: ' + new Date(config.event_start * 1000).toLocaleString(date_locale, date_options_full);
+        }
     } else {
         race_time.innerHTML = '&nbsp;';
     }

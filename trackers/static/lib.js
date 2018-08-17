@@ -3,6 +3,8 @@
 var date_locale = 'en-GB';
 var date_options = {weekday: 'short',  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' };
 var date_options_delta = {weekday: 'short', hour: '2-digit', minute: '2-digit' };
+var date_options_full = {weekday: 'short',  day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' };
+
 
 function format_time_delta(seconds, show_days) {
     if (show_days) {
