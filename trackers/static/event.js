@@ -990,7 +990,7 @@ function rider_onclick(row, rider_name, event) {
             }
         });
     }
-    event_markers.forEach(function (marker) { marker.setOpacity((selected_rider ? 0.5 : 1)) });
+    event_markers.forEach(function (marker) { if (marker.hasOwnProperty('setOpacity')) {marker.setOpacity((selected_rider ? 0.5 : 1))} });
 
     if (event.ctrlKey) {
         var values = riders_values[rider_name] || {};
