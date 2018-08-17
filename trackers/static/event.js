@@ -492,7 +492,17 @@ function on_new_config(){
         }
 
         (config.markers || {}).forEach(function (marker_data) {
-            var marker = new google.maps.Marker(marker_data);
+            var marker;
+            if (!marker_data.hasOwnProperty('marker_text')) {
+                marker = new google.maps.Marker(marker_data);
+            } else {
+                marker = new RichMarker({
+                    position: new google.maps.LatLng(marker_data.position.lat, marker_data.position.lng),
+                    content: '<div class="rider-marker" style="background: black; color: white;" title="' + marker_data.title + '">' + marker_data.marker_text + '</div>' +
+                             '<div class="rider-marker-pointer" style="border-color: transparent black black transparent;"></div>',
+                    flat: true,
+                });
+            }
             marker.setMap(map);
             event_markers.push(marker);
         });

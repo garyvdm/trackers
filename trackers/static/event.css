@@ -348,6 +348,7 @@ body {
 .rider-marker {
     padding: 4px;
     border-radius: 2px;
+    cursor: pointer;
 }
 .rider-marker-pointer {
     position: relative;
