@@ -713,7 +713,8 @@ function on_new_rider_points(rider_name, list_name, items, new_items, old_items)
                     strokeColor: path_color,
                     strokeOpacity: 1.0,
                     strokeWeight: 2,
-                    visible: show_route_for_rider(list_name, rider_name)
+                    visible: show_route_for_rider(list_name, rider_name),
+                    zIndex: (list_name == 'riders_points'? 1: 0),
                 }))).getPath()
                 path.push(new google.maps.LatLng(point.position.lat, point.position.lng));
             }
@@ -993,9 +994,10 @@ function rider_onclick(row, rider_name, event) {
             rider_items.marker.setZIndex(zIndex);
             rider_items.marker.markerContent_.style.opacity = opacity;
         }
-        Object.values(rider_items.paths).forEach(function (paths) {
+        Object.keys(rider_items.paths).forEach(function (list_name) {
+            var paths = rider_items.paths[list_name];
             Object.values(paths).forEach(function (path) {
-                path.setOptions({zIndex: zIndex, strokeOpacity: opacity});
+                path.setOptions({zIndex: (list_name == 'riders_points'? zIndex: 0), strokeOpacity: opacity});
             });
         });
         update_rider_paths_visible(rider.name);
