@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import contextlib
+import copy
 import csv
 import datetime
 import hashlib
@@ -26,7 +27,7 @@ from trackers import trackers_pb2
 from trackers.analyse import AnalyseTracker
 from trackers.auth import ensure_authorized, get_git_author, show_identity
 from trackers.base import cancel_and_wait_task, list_register, Observable
-from trackers.general import hash_bytes, json_dumps, point_2_pb_point
+from trackers.general import hash_bytes, json_dumps, points_2_pb
 from trackers.web_helpers import (
     coro_partial,
     etag_query_hash_response,
@@ -151,10 +152,6 @@ async def shutdown(app):
 
 def json_response(data, **kwargs):
     return web.Response(text=json_dumps(data), content_type='application/json', **kwargs)
-
-
-def pb_response(obj, **kwargs):
-    return web.Response(body=obj.SerializeToString(), content_type='application/protobuf', **kwargs)
 
 
 def page_body_processor(static_manager, body, **kwargs):
@@ -318,13 +315,8 @@ async def blocked_lists(request, event, list_attr_name):
         if points and points[-1]['hash'] != end_hash:
             raise web.HTTPInternalServerError(text='Wrong end_hash')
 
-        pb_points = trackers_pb2.Points()
-        for point in points:
-            pb_point = pb_points.points.add()
-            point_2_pb_point(point, pb_point)
-
-        return etag_response(request, pb_response(pb_points), end_hash,
-                             cache_control=immutable_cache_control)
+        response = web.Response(body=points_2_pb(points), content_type='application/protobuf')
+        return etag_response(request, response, end_hash, cache_control=immutable_cache_control)
 
 
 @say_error_handler
@@ -434,7 +426,7 @@ async def on_event_rider_blocked_list_update(event, rider_name, blocked_list, up
     await message_to_multiple_wss(
         event.app,
         event_wss,
-        {'riders_points': {rider_name: update}},
+        {'riders_points': {rider_name: blocked_list_pb_points(update)}},
         filter_ws=lambda ws: 'riders_points' in ws.subscriptions or f'riders_points.{rider_name}' in ws.subscriptions,
     )
 
@@ -443,7 +435,7 @@ async def on_event_rider_off_route_blocked_list_update(event, rider_name, blocke
     await message_to_multiple_wss(
         event.app,
         event.app['trackers.event_ws_sessions'][event.name],
-        {'riders_off_route': {rider_name: update}},
+        {'riders_off_route': {rider_name: blocked_list_pb_points(update)}},
         filter_ws=lambda ws: 'riders_off_route' in ws.subscriptions,
     )
 
@@ -462,6 +454,12 @@ def get_rider_blocked_list(event, list_name):
         (rider_objects.rider_name, getattr(rider_objects, list_name))
         for rider_objects in event.riders_objects.values())
     return ((rider_name, list.full) for rider_name, list in unfiltered if list)
+
+
+def blocked_list_pb_points(full):
+    full = copy.copy(full)
+    full['partial_block'] = base64.b64encode(points_2_pb(full['partial_block'])).decode('ascii')
+    return full
 
 
 async def event_ws(request):
@@ -501,15 +499,18 @@ async def event_ws(request):
                             ws.subscriptions = set(data['subscriptions'])
                             added_subscriptions = ws.subscriptions - old_subscriptions
                             if 'riders_points' in added_subscriptions:
-                                await send({'riders_points': {rider_name: list_full for rider_name, list_full in get_rider_blocked_list(event, 'blocked_list')}})
+                                await send({'riders_points': {rider_name: blocked_list_pb_points(list_full)
+                                                              for rider_name, list_full in get_rider_blocked_list(event, 'blocked_list')}})
                             else:
-                                selected_rider_points = {rider_name: list_full for rider_name, list_full in get_rider_blocked_list(event, 'blocked_list')
+                                selected_rider_points = {rider_name: blocked_list_pb_points(list_full)
+                                                         for rider_name, list_full in get_rider_blocked_list(event, 'blocked_list')
                                                          if f'riders_points.{rider_name}' in added_subscriptions}
                                 if selected_rider_points:
                                     await send({'riders_points': selected_rider_points})
 
                             if 'riders_off_route' in added_subscriptions:
-                                await send({'riders_off_route': {rider_name: list_full for rider_name, list_full in get_rider_blocked_list(event, 'off_route_blocked_list')}})
+                                await send({'riders_off_route': {rider_name: blocked_list_pb_points(list_full)
+                                                                 for rider_name, list_full in get_rider_blocked_list(event, 'off_route_blocked_list')}})
 
                             if 'riders_predicted' in added_subscriptions:
                                 await send({'riders_predicted': event.riders_predicted_points})

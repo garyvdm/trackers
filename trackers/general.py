@@ -107,6 +107,14 @@ async def cropped_tracker_newpoints(cropped_tracker, start, end, org_tracker, ne
         await cropped_tracker.new_points(points)
 
 
+def points_2_pb(points):
+    pb_points = trackers_pb2.Points()
+    for point in points:
+        pb_point = pb_points.points.add()
+        point_2_pb_point(point, pb_point)
+    return pb_points.SerializeToString()
+
+
 def point_2_pb_point(point, pb_point):
     for field in pb_point.DESCRIPTOR.fields:
         if field.name == 'position':
