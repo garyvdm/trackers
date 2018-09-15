@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import datetime
 import logging
 import os
@@ -107,13 +108,14 @@ class Event(object):
         self.new_points = asyncio.Event()
 
         self.path = os.path.join('events', name)
-        self.routes_path = os.path.join(self.path, 'routes')
         self.git_hash = None
 
         self.config_path = os.path.join(self.path, 'data.yaml')
         self.config = config
 
-        self.routes_path = os.path.join(self.path, 'routes')
+        self.routes_msgpack_path = os.path.join(self.path, 'routes')
+        self.routes_yaml_path = os.path.join(self.path, 'routes.yaml')
+
         self.routes = routes
         self.routes_hash = hash_bytes(msgpack.dumps(routes)) if routes else None
 
@@ -138,8 +140,17 @@ class Event(object):
         config_bytes = tree_reader.get(self.config_path).data
         self.config = yaml.load(config_bytes.decode())
 
-        if tree_reader.exists(self.routes_path):
-            routes_bytes = tree_reader.get(self.routes_path).data
+        if tree_reader.exists(self.routes_yaml_path):
+            self.routes = yaml.load(tree_reader.get(self.routes_yaml_path).data)
+            for route in self.routes:
+                if route.get('data_hash'):
+                    route_data_path = os.path.join(self.path, 'routes_data', route.get('data_hash'))
+                    route_data = msgpack.loads(tree_reader.get(route_data_path).data, raw=False)
+                    route.update(route_data)
+                    del route['data_hash']
+            self.routes_hash = hash_bytes(msgpack.dumps(self.routes))
+        elif tree_reader.exists(self.routes_msgpack_path):
+            routes_bytes = tree_reader.get(self.routes_msgpack_path).data
             self.routes = msgpack.loads(routes_bytes, raw=False)
             self.routes_hash = hash_bytes(routes_bytes)
         else:
@@ -148,20 +159,35 @@ class Event(object):
 
         await self.config_routes_change_observable(self)
 
-    async def save(self, message, author=None, tree_writer=None):
+    async def save(self, message, author=None, tree_writer=None, save_routes=False):
         if tree_writer is None:
             tree_writer = TreeWriter(self.app['trackers.data_repo'])
         config_bytes = yaml.dump(self.config, default_flow_style=False, Dumper=YamlEventDumper).encode()
         tree_writer.set_data(self.config_path, config_bytes)
 
-        if self.routes:
-            routes_bytes = msgpack.dumps(self.routes)
-            self.routes_hash = hash_bytes(routes_bytes)
-            tree_writer.set_data(self.routes_path, routes_bytes)
-        else:
-            if tree_writer.exists(self.routes_path):
-                tree_writer.remove(self.routes_path)
-            self.routes_hash = None
+        if save_routes:
+            if tree_writer.exists(self.routes_msgpack_path):
+                tree_writer.remove(self.routes_msgpack_path)
+
+            routes_data_path = os.path.join(self.path, 'routes_data')
+            if tree_writer.exists(routes_data_path):
+                tree_writer.remove(routes_data_path)
+
+            routes = [copy.copy(route) for route in self.routes]
+            for route in routes:
+                route_data = {}
+                for key in ('original_points', 'points', 'simplified_points_indexes', 'elevation'):
+                    if key in route:
+                        route_data[key] = route[key]
+                        del route[key]
+                route_data_bytes = msgpack.dumps(route_data)
+                route_data_hash = hash_bytes(route_data_bytes)
+                route_data_path = os.path.join(routes_data_path, route_data_hash)
+                tree_writer.set_data(route_data_path, route_data_bytes)
+                route['data_hash'] = route_data_hash
+
+            routes_bytes = yaml.dump(routes, default_flow_style=False, Dumper=YamlEventDumper).encode()
+            tree_writer.set_data(self.routes_yaml_path, routes_bytes)
 
         tree_writer.commit(message, author=author)
         _, self.git_hash = tree_writer.lookup(self.path)

@@ -42,6 +42,22 @@ class TestEvents(asynctest.TestCase, fixtures.TestWithFixtures):
     async def test_from_load_with_routes(self):
         repo = MemoryRepo()
         writer = TreeWriter(repo)
+
+        self.assertFalse(writer.exists('events/test_event/routes'))
+
+        writer.set_data('events/test_event/data.yaml', '{}'.encode())
+        writer.set_data('events/test_event/routes.yaml', '- {data_hash: abcd, name: foo}'.encode())
+        writer.set_data('events/test_event/routes_data/abcd', b'\x81\xa6points\x90')
+
+        writer.commit('add test_event')
+
+        app, settings = get_test_app_and_settings(repo)
+        event = await Event.load(app, 'test_event', writer)
+        self.assertEqual(event.routes, [{'name': 'foo', 'points': []}])
+
+    async def test_from_load_with_routes_old(self):
+        repo = MemoryRepo()
+        writer = TreeWriter(repo)
         writer.set_data('events/test_event/data.yaml', '{}'.encode())
         writer.set_data('events/test_event/routes', b'\x91\x81\xa6points\x90')
         writer.commit('add test_event')
@@ -55,11 +71,12 @@ class TestEvents(asynctest.TestCase, fixtures.TestWithFixtures):
         writer = TreeWriter(repo)
 
         app, settings = get_test_app_and_settings(repo)
-        event = Event(app, 'test_event', {'title': 'Test event'}, [{'points': []}])
-        await event.save('save test_event', tree_writer=writer)
+        event = Event(app, 'test_event', {'title': 'Test event'}, [{'title': 'foobar', 'points': []}])
+        await event.save('save test_event', tree_writer=writer, save_routes=True)
 
         self.assertEqual(writer.get('events/test_event/data.yaml').data.decode(), 'title: Test event\n')
-        self.assertEqual(writer.get('events/test_event/routes').data, b'\x91\x81\xa6points\x90')
+        self.assertEqual(writer.get('events/test_event/routes.yaml').data.decode(), '- title: foobar\n  data_hash: KhGSreKJpp4AwDUWjtATeuAYLms=\n')
+        self.assertEqual(writer.get('events/test_event/routes_data/KhGSreKJpp4AwDUWjtATeuAYLms=').data, b'\x81\xa6points\x90')
 
     async def test_save_no_routes(self):
         repo = MemoryRepo()
@@ -71,7 +88,7 @@ class TestEvents(asynctest.TestCase, fixtures.TestWithFixtures):
         app, settings = get_test_app_and_settings(repo)
         event = await Event.load(app, 'test_event', writer)
         event.routes.pop()
-        await event.save('save test_event', tree_writer=writer)
+        await event.save('save test_event', tree_writer=writer, save_routes=True)
 
         self.assertFalse(writer.exists('events/test_event/routes'))
 
@@ -81,7 +98,7 @@ class TestEvents(asynctest.TestCase, fixtures.TestWithFixtures):
 
         app, settings = get_test_app_and_settings(repo)
         event = Event(app, 'test_event', {'title': 'Test event'}, [])
-        await event.save('save test_event', tree_writer=writer)
+        await event.save('save test_event', tree_writer=writer, save_routes=True)
 
         self.assertFalse(writer.exists('events/test_event/routes'))
 

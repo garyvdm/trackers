@@ -4,13 +4,13 @@ from tempfile import NamedTemporaryFile
 from textwrap import dedent
 
 import asynctest
-import msgpack
 
 from trackers.bin_utils import (
     add_gpx_to_event_routes,
     assign_rider_colors,
     convert_to_static,
 )
+from trackers.events import Event
 from trackers.tests.test_events import TestEventWithMockTracker
 
 
@@ -89,8 +89,8 @@ class TestAddGpxToEventRoutes(asynctest.TestCase, TestEventWithMockTracker):
                                      print=False, ))
 
         writer.reset()
-        routes = msgpack.loads(writer.get('/events/test_event/routes').data, raw=False)
-        self.assertEqual(routes, [
+        event = await Event.load(app, 'test_event', writer)
+        self.assertEqual(event.routes, [
             {
                 'original_points': [[-26.09321, 27.9813], [-26.0933, 27.98154], [-26.09341, 27.98186]],
                 'points': [[-26.09321, 27.9813], [-26.09341, 27.98186]],
