@@ -34,8 +34,8 @@ url_session_token_matcher = re.compile('http://livetrack.garmin.com/session/(?P<
 async def email_recive(request):
     # using https://www.cloudmailin.com/ to get email to me.
     body = await request.content.read()
-    url_m = re.search(b'<a href="(http:\/\/livetrack\.garmin\.com\/session\/[\w\d-]+\/token\/[\w\d-]+)"', body)
-    name_m = re.search(b'An invitation from (.*)\n', body)
+    url_m = re.search(br'<a href="(http:\/\/livetrack\.garmin\.com\/session\/[\w\d-]+\/token\/[\w\d-]+)"', body)
+    name_m = re.search(br'An invitation from (.*)\n', body)
     logging.debug('Garmin email: {}, {}'.format(url_m, name_m))
     if url_m and name_m:
         logging.debug('Garmin email matches: {}, {}'.format(url_m.group(1), name_m.group(1)))
@@ -52,7 +52,8 @@ async def monitor_session(client_session, session_token_match, tracker):
         nonlocal last_status
         while True:
             try:
-                session = await (await client_session.get(session_url)).json()
+                response = await client_session.get(session_url)
+                session = await response.json()
                 status = session['sessionStatus']
                 if status != last_status:
                     time = datetime.datetime.fromtimestamp(session['endTime'] / 1000)
@@ -71,7 +72,7 @@ async def monitor_session(client_session, session_token_match, tracker):
     while True:
         try:
             reqs = await client_session.get(tracklog_url, params=(('from', str(last_timestamp)), ), )
-            tracklog = await (reqs).json()
+            tracklog = await reqs.json()
             if tracklog:
                 points = []
                 for item in tracklog:

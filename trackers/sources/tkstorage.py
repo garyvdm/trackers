@@ -311,13 +311,13 @@ def msg_item_to_point(msg_item):
         return point
 
 
-status_battery_re = re.compile('Power: (\d*)%')
-check_re = re.compile('Check interval is set to (\d*) minute\(s\).')
-routetrack_re = re.compile('Routetrack (data is uploading|is on), Period is set to (\d*)')
-routetrack_time_re = re.compile('Notice: System has entered routetrack function for (\d*) hour\(s\).')
-rsampling_re = re.compile('Notice: Track sampling interval is (\d*) second\(s\).')
-rupload_re = re.compile('Notice: Upload time interval is set to (\d*) second\(s\)')
-check_on_re = re.compile('Notice: Check interval is set to (\d*) minute\(s\).')
+status_battery_re = re.compile(r'Power: (\d*)%')
+check_re = re.compile(r'Check interval is set to (\d*) minute\(s\).')
+routetrack_re = re.compile(r'Routetrack (data is uploading|is on), Period is set to (\d*)')
+routetrack_time_re = re.compile(r'Notice: System has entered routetrack function for (\d*) hour\(s\).')
+rsampling_re = re.compile(r'Notice: Track sampling interval is (\d*) second\(s\).')
+rupload_re = re.compile(r'Notice: Upload time interval is set to (\d*) second\(s\)')
+check_on_re = re.compile(r'Notice: Check interval is set to (\d*) minute\(s\).')
 
 
 def ZC03_parse(msg):

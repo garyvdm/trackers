@@ -458,7 +458,8 @@ def get_rider_blocked_list(event, list_name):
 
 def blocked_list_pb_points(full):
     full = copy.copy(full)
-    full['partial_block'] = base64.b64encode(points_2_pb(full['partial_block'])).decode('ascii')
+    if 'partial_block' in full:
+        full['partial_block'] = base64.b64encode(points_2_pb(full['partial_block'])).decode('ascii')
     return full
 
 

@@ -85,7 +85,8 @@ class TestAddGpxToEventRoutes(asynctest.TestCase, TestEventWithMockTracker):
 
         await add_gpx_to_event_routes.__wrapped__(
             app, settings, Namespace(event_name='test_event', gpx_file=f.name, no_elevation=True,
-                                     split_at_dist=[], split_point_range=1000, rdp_epsilon=2, circular_range=None))
+                                     split_at_dist=[], split_point_range=1000, rdp_epsilon=2, circular_range=None,
+                                     print=False, ))
 
         writer.reset()
         routes = msgpack.loads(writer.get('/events/test_event/routes').data, raw=False)

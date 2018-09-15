@@ -150,17 +150,22 @@ async def start_tracker(app, tracker_name, server_name, device_unique_id, start,
     url = f'{server_url}/api/positions'
     # await (await session.delete(f'{server_url}/api/devices/0', json={})).json()
 
-    devices = await (await session.get(f'{server_url}/api/devices', params={'all': 'true'})).json()
+    devices_response = await session.get(f'{server_url}/api/devices', params={'all': 'true'})
+    devices = await devices_response.json()
     try:
         device = more_itertools.first((device for device in devices if device['uniqueId'] == device_unique_id))
         device_id = device['id']
         if device['name'] == device['uniqueId']:
             # Update name on traccar
-            await (await session.put(f'{server_url}/api/devices/{device_id}',
-                                     json={'name': tracker_name, 'uniqueId': device['uniqueId'], 'id': device['id']})).json()
+            set_name_response = await session.put(
+                f'{server_url}/api/devices/{device_id}',
+                json={'name': tracker_name, 'uniqueId': device['uniqueId'], 'id': device['id']})
+            await set_name_response.json()
     except ValueError:
-        device_id = (await (await session.post(f'{server_url}/api/devices',
-                                               json={'uniqueId': device_unique_id, 'name': tracker_name})).json())['id']
+        get_device_response = await session.post(
+            f'{server_url}/api/devices',
+            json={'uniqueId': device_unique_id, 'name': tracker_name})
+        device_id = (await get_device_response.json())['id']
     await session.post(f'{server_url}/api/permissions',
                        json={'userId': server['user_id'], 'deviceId': device_id})
 
@@ -170,11 +175,12 @@ async def start_tracker(app, tracker_name, server_name, device_unique_id, start,
     tracker.start = start
     tracker.end = end
     tracker.seen_ids = seen_ids = set()
-    positions = await (await session.get(url, params={
+    positions_response = await session.get(url, params={
         'deviceId': device_id,
         'from': start.isoformat(),
         'to': (end if end else datetime.datetime.now() + datetime.timedelta(days=1)).isoformat()
-    })).json()
+    })
+    positions = await positions_response.json()
     points = [traccar_position_translate(position) for position in positions]
     seen_ids.update([position['id'] for position in positions])
     tracker.position_recived = functools.partial(tracker_position_received, tracker)
