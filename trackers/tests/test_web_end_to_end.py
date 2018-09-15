@@ -46,7 +46,7 @@ class WebDriverService(testresources.TestResourceManager):
 
 
 @async_contextmanager
-async def tracker_web_server_fixture(loop, port=None):
+async def tracker_web_server_fixture():
 
     async with AsyncExitStack() as stack:
         repo = MemoryRepo()
@@ -88,8 +88,7 @@ async def tracker_web_server_fixture(loop, port=None):
 
         app = await make_aio_app(settings, app_setup=mock_app_setup, client_error_handler=client_error,
                                  exception_recorder=exception_recorder)
-        url = await stack.enter_context(web_server_fixture(loop, app, port))
-        yield app, url, client_errors, server_errors
+        yield app, client_errors, server_errors
 
 
 def wait_condition(condition, *args, delay=0.1, timeout=2, **kwargs):
@@ -117,19 +116,19 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
 
     scenarios = [
         # ('phantomjs', dict(
-        #     driver_resource_manager=WebDriverService(arsenic.services.PhantomJS(log_file=arsenic.services.DEVNULL)),
+        #     driver_resource_manager=WebDriverService(arsenic.services.PhantomJS(log_file=os.devnull)),
         #     browser=arsenic.browsers.PhantomJS(),
         # )),
         # ('firefox', dict(
-        #     driver_resource_manager=WebDriverService(arsenic.services.Geckodriver(log_file=arsenic.services.DEVNULL)),
+        #     driver_resource_manager=WebDriverService(arsenic.services.Geckodriver(log_file=os.devnull)),
         #     browser=arsenic.browsers.Firefox(),
         # )),
         # ('chrome', dict(
-        #     driver_resource_manager=WebDriverService(arsenic.services.Chromedriver(log_file=arsenic.services.DEVNULL)),
+        #     driver_resource_manager=WebDriverService(arsenic.services.Chromedriver(log_file=os.devnull)),
         #     browser=arsenic.browsers.Chrome(),
         # )),
         # ('firefox-headless', dict(
-        #     driver_resource_manager=WebDriverService(arsenic.services.Geckodriver(log_file=arsenic.services.DEVNULL)),
+        #     driver_resource_manager=WebDriverService(arsenic.services.Geckodriver(log_file=os.devnull)),
         #     browser=arsenic.browsers.Firefox(firefoxOptions={
         #         'args': ['-headless']
         #     }),
@@ -159,7 +158,8 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
         port = free_port()
 
         async with self.driver.session(self.browser) as session:
-            async with tracker_web_server_fixture(self.loop, port=port) as (app, url, client_errors, server_errors):
+            async with AsyncExitStack() as stack:
+                app, client_errors, server_errors = await stack.enter_context(tracker_web_server_fixture())
                 app['trackers.events']['test_event'] = event = Event(
                     app, 'test_event',
                     yaml.load("""
@@ -172,6 +172,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
                     """),
                     []
                 )
+                url = await stack.enter_context(web_server_fixture(self.loop, app, port))
                 await on_new_event(event)
                 await session.get(f'{url}/test_event')
                 await wait_condition(ws_ready_is, session, True)
@@ -179,7 +180,8 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
             await wait_condition(ws_ready_is, session, False)
 
             # Bring the server back up, reconnect
-            async with tracker_web_server_fixture(self.loop, port=port) as (app, url, client_errors, server_errors):
+            async with AsyncExitStack() as stack:
+                app, client_errors, server_errors = await stack.enter_context(tracker_web_server_fixture())
                 app['trackers.events']['test_event'] = event = Event(
                     app, 'test_event',
                     yaml.load("""
@@ -192,6 +194,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
                     """),
                     []
                 )
+                url = await stack.enter_context(web_server_fixture(self.loop, app, port))
                 await on_new_event(event)
                 await wait_condition(ws_ready_is, session, True, timeout=10)
 
@@ -200,11 +203,9 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
     async def test_tracker_points_show_and_change(self):
         step_sleep_time = 0.2
 
-        port = free_port()
         async with AsyncExitStack() as stack:
             session = await stack.enter_context(self.driver.session(self.browser))
-            app, url, client_errors, server_errors = await stack.enter_context(
-                tracker_web_server_fixture(self.loop, port=port))
+            app, client_errors, server_errors = await stack.enter_context(tracker_web_server_fixture())
 
             mock_tracker = Tracker('mock_tracker')
 
@@ -214,6 +215,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
             app['start_event_trackers'] = {
                 'mock': start_mock_event_tracker,
             }
+            url = await stack.enter_context(web_server_fixture(self.loop, app))
 
             app['trackers.events']['test_event'] = event = Event(
                 app, 'test_event',

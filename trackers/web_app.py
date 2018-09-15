@@ -144,8 +144,9 @@ async def shutdown(app):
     await cancel_and_wait_task(app['load_events_with_watcher_task'])
 
     logger.info('Stopping event trackers')
-    await asyncio.wait([event.stop_and_complete_trackers()
-                        for event in app['trackers.events'].values()])
+    stop_and_complete_trackers_fs = [event.stop_and_complete_trackers() for event in app['trackers.events'].values()]
+    if stop_and_complete_trackers_fs:
+        await asyncio.wait(stop_and_complete_trackers_fs)
     logger.info('Module cleanup')
     await app['trackers.app_setup_cm'].__aexit__(None, None, None)
 

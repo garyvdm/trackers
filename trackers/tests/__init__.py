@@ -4,6 +4,7 @@ import unittest
 import arsenic.services
 import structlog
 from aiocontext import async_contextmanager
+from aiohttp import web
 
 import trackers
 
@@ -39,18 +40,16 @@ def free_port():
 
 @async_contextmanager
 async def web_server_fixture(loop, app, port=None):
-    handler = app.make_handler(debug=True)
     if not port:
         port = free_port()
-    srv = await loop.create_server(handler, '127.0.0.1', port)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, 'localhost', port)
+    await site.start()
     try:
-        yield f'http://127.0.0.1:{port}'
+        yield f'http://localhost:{port}'
     finally:
-        srv.close()
-        await srv.wait_closed()
-        await app.shutdown()
-        await handler.shutdown(10)
-        await app.cleanup()
+        await runner.cleanup()
 
 
 # To make arsenic quite
