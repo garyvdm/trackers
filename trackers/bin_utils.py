@@ -8,6 +8,7 @@ import os
 import sys
 from functools import partial, wraps
 from math import floor, sqrt
+from os.path import join, relpath
 
 import aiohttp
 import dulwich.repo
@@ -33,10 +34,9 @@ from trackers.combined import Combined
 from trackers.dulwich_helpers import TreeWriter
 from trackers.general import json_dumps, json_encode
 
-defaults_yaml = """
-    data_path: data
-    cache_path: cache
-
+defaults_yaml = f"""
+    data_path: {relpath(join(__file__, '../../data'))}
+    cache_path: {relpath(join(__file__, '../../cache'))}
     logging:
         version: 1
         disable_existing_loggers: false
@@ -64,7 +64,7 @@ defaults_yaml = """
 def get_base_argparser(*args, **kwargs):
     parser = argparse.ArgumentParser()
     parser.add_argument('settings_file', action='store', nargs='?',
-                        default='/etc/trackers.yaml',
+                        default=None,
                         help='File to load settings from.')
     parser.add_argument('--google-api-key', action='store',
                         help='Google api key. ')
@@ -92,12 +92,28 @@ def get_combined_settings(specific_defaults_yaml=None, args=None):
         settings.update(settings_from_file)
 
     if args:
-        try:
-            with open(args.settings_file) as f:
-                settings_from_file = yaml.load(f)
-        except FileNotFoundError:
-            settings_from_file = {}
-        settings.update(settings_from_file)
+        settings_file = args.settings_file
+        if settings_file is None:
+            paths = (
+                '/etc/trackers.yaml',
+                'settings.yaml',
+                relpath(join(__file__, '../../settings.yaml', ))
+            )
+
+            for path in paths:
+                if os.path.exists(path):
+                    settings_file = path
+                    break
+
+        if settings_file is None:
+            logging.warn(f'Settings file not specified, and no defaults not exist ({paths}).')
+        else:
+            try:
+                with open(settings_file) as f:
+                    settings_from_file = yaml.load(f)
+            except FileNotFoundError:
+                settings_from_file = {}
+            settings.update(settings_from_file)
 
     logging.config.dictConfig(settings['logging'])
     if args and args.debug:
@@ -112,7 +128,7 @@ def get_combined_settings(specific_defaults_yaml=None, args=None):
         logging.config.dictConfig(defaults['logging'])
 
     # settings_dump = yaml.dump(settings)
-    # logging.getLogger('trackers').debug('Combined Settings: \n{}'.format(settings_dump))
+    # logging.getLogger('trackers').info('Combined Settings: \n{}'.format(settings_dump))
 
     return settings
 
@@ -163,6 +179,15 @@ def event_command_parser(*args, **kwargs):
     return parser
 
 
+def event_name_clean(event_name, settings):
+    if os.path.split(event_name)[0] != '':
+        events_path = join(settings['data_path'], 'events')
+        events_rel_path = relpath(event_name, start=events_path)
+        if os.path.split(events_rel_path)[0] == '':
+            return events_rel_path
+    return event_name
+
+
 def convert_to_static_parser():
     parser = get_base_argparser(description="Convert live trackers to static data.")
     parser.add_argument('event_name', action='store')
@@ -175,7 +200,8 @@ def convert_to_static_parser():
 async def convert_to_static(app, settings, args):
     tree_writer = TreeWriter(app['trackers.data_repo'])
 
-    event = await trackers.events.Event.load(app, args.event_name, tree_writer)
+    event_name = event_name_clean(args.event_name, settings)
+    event = await trackers.events.Event.load(app, event_name, tree_writer)
     await event.start_trackers(analyse=False)
 
     for rider in event.config['riders']:
@@ -195,13 +221,14 @@ async def convert_to_static(app, settings, args):
     event.config['analyse'] = False
     event.config['live'] = False
     if not args.dry_run:
-        await event.save('convert_to_static: {}'.format(args.event_name), tree_writer=tree_writer)
+        await event.save('convert_to_static: {}'.format(event_name), tree_writer=tree_writer)
 
 
 @async_command(partial(event_command_parser, description="Assigns unique colors to riders"), basic=True)
 async def assign_rider_colors(app, settings, args):
+    event_name = event_name_clean(args.event_name, settings)
     tree_writer = TreeWriter(app['trackers.data_repo'])
-    event = await trackers.events.Event.load(app, args.event_name, tree_writer)
+    event = await trackers.events.Event.load(app, event_name, tree_writer)
     num_riders = len(event.config['riders'])
     hues = [round(i * 360 / num_riders) for i in range(num_riders)]
     alternating_chunks = floor(sqrt(num_riders))
@@ -210,7 +237,7 @@ async def assign_rider_colors(app, settings, args):
     for rider, hue in zip(event.config['riders'], alternating_hues):
         rider['color'] = 'hsl({}, 100%, 50%)'.format(hue)
         rider['color_marker'] = 'hsl({}, 100%, 60%)'.format(hue)
-    await event.save('assign_rider_colors: {}'.format(args.event_name), tree_writer=tree_writer)
+    await event.save('assign_rider_colors: {}'.format(event_name), tree_writer=tree_writer)
 
 
 def add_gpx_to_event_routes_parser():
@@ -250,14 +277,15 @@ async def add_gpx_to_event_routes(app, settings, args):
     for key in ('no_elevation', 'split_at_dist', 'split_point_range', 'rdp_epsilon', 'circular_range'):
         route[key] = getattr(args, key)
 
+    event_name = event_name_clean(args.event_name, settings)
     if not args.print:
         writer = TreeWriter(app['trackers.data_repo'])
-        event = await trackers.events.Event.load(app, args.event_name, writer)
+        event = await trackers.events.Event.load(app, event_name, writer)
         await process_route(settings, route)
         event.routes.append(route)
         process_secondary_route_details(event.routes)
         # TODO - add gpx file to repo
-        await event.save('add_gpx_to_event_routes: {} - {}'.format(args.event_name, args.gpx_file),
+        await event.save('add_gpx_to_event_routes: {} - {}'.format(event_name, args.gpx_file),
                          tree_writer=writer, save_routes=True)
     else:
         original_points = route['original_points']
@@ -269,16 +297,22 @@ async def add_gpx_to_event_routes(app, settings, args):
 
 @async_command(partial(event_command_parser, description="Open and save event. Side effect is convert to new formats."), basic=True)
 async def reformat_event(app, settings, args):
+    event_name = event_name_clean(args.event_name, settings)
     writer = TreeWriter(app['trackers.data_repo'])
-    event = await trackers.events.Event.load(app, args.event_name, writer)
-    await event.save('reformat_event: {}'.format(args.event_name), tree_writer=writer, save_routes=True)
+    event = await trackers.events.Event.load(app, event_name, writer)
+    for route in event.routes:
+        for key in ('start_distance', 'end_distance', 'dist_factor'):
+            if key in route:
+                route[key] = float(route[key])
+    await event.save('reformat_event: {}'.format(event_name), tree_writer=writer, save_routes=True)
 
 
 @async_command(partial(event_command_parser, description="Update bounds for event"), basic=True)
 async def update_bounds(app, settings, args):
+    event_name = event_name_clean(args.event_name, settings)
     writer = TreeWriter(app['trackers.data_repo'])
 
-    event = await trackers.events.Event.load(app, args.event_name, writer)
+    event = await trackers.events.Event.load(app, event_name, writer)
     points = list(itertools.chain.from_iterable(
         [((marker['position']['lat'], marker['position']['lng']), ) for marker in event.config.get('markers', ())] +
         [route['points'] for route in event.routes]
@@ -293,7 +327,7 @@ async def update_bounds(app, settings, args):
         'west': min(lngs),
     }
 
-    await event.save('update_bounds: {}'.format(args.event_name), tree_writer=writer)
+    await event.save('update_bounds: {}'.format(event_name), tree_writer=writer)
 
 
 def process_event_routes_parser(*args, **kwargs):
@@ -305,14 +339,15 @@ def process_event_routes_parser(*args, **kwargs):
 
 @async_command(partial(process_event_routes_parser, description="Reprocess event routes."), basic=True)
 async def process_event_routes(app, settings, args):
+    event_name = event_name_clean(args.event_name, settings)
     writer = TreeWriter(app['trackers.data_repo'])
-    event = await trackers.events.Event.load(app, args.event_name, writer)
+    event = await trackers.events.Event.load(app, event_name, writer)
     for route in event.routes:
         if args.rdp_epsilon:
             route['rdp_epsilon'] = args.rdp_epsilon
         await process_route(settings, route)
     process_secondary_route_details(event.routes)
-    await event.save('process_event_routes: {}'.format(args.event_name), tree_writer=writer, save_routes=True)
+    await event.save('process_event_routes: {}'.format(event_name), tree_writer=writer, save_routes=True)
 
 
 def process_secondary_route_details(routes):
@@ -324,12 +359,12 @@ def process_secondary_route_details(routes):
             start_closest = find_closest_point_pair_route(main_route, route_points[0], 2000)
             prev_point = start_closest.point_pair[0]
             route['prev_point'] = prev_point.index
-            route['start_distance'] = start_distance = prev_point.distance + distance(prev_point, route_points[0])
+            route['start_distance'] = start_distance = float(prev_point.distance + distance(prev_point, route_points[0]))
             end_closest = find_closest_point_pair_route(main_route, route_points[-1], 2000)
             next_point = end_closest.point_pair[1]
             route['next_point'] = next_point.index
-            route['end_distance'] = end_distance = next_point.distance - distance(next_point, route_points[-1])
-            route['dist_factor'] = (end_distance - start_distance) / route_points[-1].distance
+            route['end_distance'] = end_distance = float(next_point.distance - distance(next_point, route_points[-1]))
+            route['dist_factor'] = float((end_distance - start_distance) / route_points[-1].distance)
         else:
             route['main'] = True
 
@@ -338,6 +373,10 @@ async def process_route(settings, route):
     original_points = route['original_points']
     filtered_points = (point for last_point, point in zip([None] + original_points[:-1], original_points) if point != last_point)
     point_points = route_with_distance_and_index(filtered_points)
+
+    if 'rdp_epsilon' not in route:
+        route['rdp_epsilon'] = 2
+
     if not route.get('split_at_dist'):
         points = ramer_douglas_peucker(point_points, route['rdp_epsilon'])
     else:
@@ -385,8 +424,9 @@ async def get_elevation_for_points(settings, points):
 
 @async_command(partial(event_command_parser, description="Loads csv from stdin, writes to riders in config"), basic=True)
 async def load_riders_from_csv(app, settings, args):
+    event_name = event_name_clean(args.event_name, settings)
     tree_writer = TreeWriter(app['trackers.data_repo'])
-    event = await trackers.events.Event.load(app, args.event_name, tree_writer)
+    event = await trackers.events.Event.load(app, event_name, tree_writer)
 
     import csv
     reader = csv.DictReader(sys.stdin)
@@ -399,4 +439,4 @@ async def load_riders_from_csv(app, settings, args):
         for row in reader
     ]
 
-    await event.save('load_riders_from_csv: {}'.format(args.event_name), tree_writer=tree_writer)
+    await event.save('load_riders_from_csv: {}'.format(event_name), tree_writer=tree_writer)
