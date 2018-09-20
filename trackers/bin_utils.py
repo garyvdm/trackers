@@ -356,11 +356,11 @@ def process_secondary_route_details(routes):
         if i > 0:
             route['main'] = False
             route_points = route_with_distance_and_index(route['points'])
-            start_closest = find_closest_point_pair_route(main_route, route_points[0], 2000, None, None)
+            start_closest = find_closest_point_pair_route(main_route, route_points[0], None, None)
             prev_point = start_closest.point_pair[0]
             route['prev_point'] = prev_point.index
             route['start_distance'] = start_distance = float(prev_point.distance + distance(prev_point, route_points[0]))
-            end_closest = find_closest_point_pair_route(main_route, route_points[-1], 2000, None, None)
+            end_closest = find_closest_point_pair_route(main_route, route_points[-1], None, None)
             next_point = end_closest.point_pair[1]
             route['next_point'] = next_point.index
             route['end_distance'] = end_distance = float(next_point.distance - distance(next_point, route_points[-1]))

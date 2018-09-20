@@ -1304,10 +1304,10 @@ function on_new_rider_points_graph(rider_name, list_name, items, new_items, old_
                 items.filter(function(item) {return item.hasOwnProperty('dist_route')})
                 .map(function (item) {return [item.time * 1000, item.dist_route/1000]})
             );
-            graph_chart.get(rider_name + 'speed').setData(
-                items.filter(function(item) {return item.hasOwnProperty('speed_from_last')})
-                .map(function (item) {return [item.time * 1000, item.speed_from_last]})
-            );
+//            graph_chart.get(rider_name + 'speed').setData(
+//                items.filter(function(item) {return item.hasOwnProperty('speed_from_last')})
+//                .map(function (item) {return [item.time * 1000, item.speed_from_last]})
+//            );
         }
         if (graph_selected == 'battery') {
             graph_chart.get(rider_name + 'battery').setData(
