@@ -101,5 +101,6 @@ class TestAddGpxToEventRoutes(asynctest.TestCase, TestEventWithMockTracker):
                 'no_elevation': True,
                 'simplified_points_indexes': [0, 1],
                 'circular_range': None,
+                'gpx_file': f.name,
             }
         ])
