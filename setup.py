@@ -48,6 +48,7 @@ setuptools.setup(
             'process_event_routes=trackers.bin_utils:process_event_routes',
             'update_bounds=trackers.bin_utils:update_bounds',
             'load_riders_from_csv=trackers.bin_utils:load_riders_from_csv',
+            'run_analyse=trackers.bin_utils:analyse',
 
             'run_qunit_tests=trackers.client_test_tools:qunit_runner',
             'gen_key=trackers.auth:gen_key',

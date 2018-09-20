@@ -190,10 +190,14 @@ async def connection(app, settings, points_received_observables, send_queue,
         while True:
             try:
                 logger.debug(f'Connecting to {path}')
-                _, proto = await loop.create_unix_connection(
-                    aiomsgpack.make_msgpack_protocol_factory(loop=loop, unpacker_args={'raw': False},),
-                    path=path,
-                )
+                try:
+                    _, proto = await loop.create_unix_connection(
+                        aiomsgpack.make_msgpack_protocol_factory(loop=loop, unpacker_args={'raw': False},),
+                        path=path,
+                    )
+                except FileNotFoundError as e:
+                    logger.error(f'{e}: {path}')
+                    break
                 try:
                     reconnect_sleep_time = 1
                     proto.write({'start': app['tkstorage.all_points_len']})

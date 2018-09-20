@@ -440,3 +440,12 @@ async def load_riders_from_csv(app, settings, args):
     ]
 
     await event.save(f'{event_name}: load_riders_from_csv', tree_writer=tree_writer)
+
+
+@async_command(partial(event_command_parser, description="Runs analyse trackers. Just for testing."))
+async def analyse(app, settings, args):
+    event_name = event_name_clean(args.event_name, settings)
+    tree_writer = TreeWriter(app['trackers.data_repo'])
+    event = await trackers.events.Event.load(app, event_name, tree_writer)
+    await event.start_trackers(analyse=True)
+    await event.stop_and_complete_trackers()
