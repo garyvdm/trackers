@@ -225,7 +225,7 @@ function on_new_state_received(new_state) {
                 }
 
                 if (update.hasOwnProperty('partial_block') && update.partial_block) {
-                    update.partial_block = points_pb_decode(atob(update.partial_block));
+                    update.partial_block = points_pb_decode(Uint8Array.from(atob(update.partial_block),(x)=>x.charCodeAt(0)));
                 }
 
                 process_update_list(fetch_block, list, update).then(function (rider_points) {
