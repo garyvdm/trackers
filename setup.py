@@ -28,7 +28,6 @@ setuptools.setup(
         'nvector',
         'numpy<1.15.0',
         'polyline',
-        'protobuf',
         'python-slugify',
         'pyyaml',
         'tap.py',

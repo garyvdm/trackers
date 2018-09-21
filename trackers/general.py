@@ -9,9 +9,7 @@ from datetime import datetime, timedelta
 
 import attr
 import msgpack
-from google.protobuf.internal import type_checkers as pb_type_checkers
 
-from trackers import trackers_pb2
 from trackers.base import Tracker
 from trackers.dulwich_helpers import TreeReader
 
@@ -107,40 +105,6 @@ async def cropped_tracker_newpoints(cropped_tracker, start, end, org_tracker, ne
         await cropped_tracker.new_points(points)
 
 
-def points_2_pb(points):
-    pb_points = trackers_pb2.Points()
-    for point in points:
-        pb_point = pb_points.points.add()
-        point_2_pb_point(point, pb_point)
-    return pb_points.SerializeToString()
-
-
-def point_2_pb_point(point, pb_point):
-    for field in pb_point.DESCRIPTOR.fields:
-        if field.name == 'position':
-            position = point.get('position')
-            if position:
-                pb_point.position.lat = int(position[0] * 1000000)
-                pb_point.position.lng = int(position[1] * 1000000)
-                if len(position) > 2:
-                    pb_point.position.elevation = int(position[2])
-        else:
-            value = point.get(field.name)
-            if value is not None:
-                if isinstance(value, datetime):
-                    value = value.timestamp()
-                if isinstance(value, timedelta):
-                    value = value.total_seconds()
-                type_checker = pb_type_checkers.GetTypeChecker(field)
-                if isinstance(type_checker, pb_type_checkers.IntValueChecker):
-                    value = int(value)
-                try:
-                    setattr(pb_point, field.name, value)
-                except Exception as e:
-                    raise Exception(f'Error setting {field.name}') from e
-    return pb_point
-
-
 async def index_and_hash_tracker(org_tracker, hasher=None):
     ih_tracker = Tracker('indexed_and_hashed.{}'.format(org_tracker.name), org_tracker.completed)
     ih_tracker.stop = org_tracker.stop
@@ -160,9 +124,9 @@ async def index_and_hash_tracker(org_tracker, hasher=None):
 
 def index_and_hash_list(points, start, hasher):
     ih_points = [copy(point) for point in points]
-    for i, ih_point in enumerate(ih_points, start=start):
+    for i, (ih_point, org_point) in enumerate(zip(ih_points, points), start=start):
         ih_point['index'] = i
-        hasher.update(point_2_pb_point(ih_point, trackers_pb2.Point()).SerializeToString())
+        hasher.update(json_dumps(org_point).encode())
         ih_point['hash'] = urlsafe_b64encode(hasher.digest()[:3]).decode('ascii')
     return ih_points
 

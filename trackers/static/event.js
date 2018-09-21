@@ -21,41 +21,6 @@ function get(url) {
         .catch(promise_catch);
 }
 
-function get_pb(url, decode) {
-    return fetch(location.pathname + url)
-        .catch(promise_catch)
-        .then( function(response) {
-            if (response.ok) {
-                return response.arrayBuffer();
-            } else {
-                response.text().then(function (error) {
-                    console.log(error);
-                    errors.push(error);
-                    update_status();
-                });
-            }
-        })
-        .then( function(buffer) {
-            return decode(buffer);
-        })
-        .catch(promise_catch);
-}
-
-function routes_pb_decode(buffer){
-    return protobuf.roots["default"].trackers.Routes.decode(new Uint8Array(buffer));
-}
-
-function points_pb_decode(buffer){
-    var points = protobuf.roots["default"].trackers.Points.decode(new Uint8Array(buffer)).points;
-    points.forEach(function (point) {
-        if (point.position) {
-            point.position.lat = point.position.lat / 1000000;
-            point.position.lng = point.position.lng / 1000000;
-        }
-    });
-    return points
-}
-
 function load_state(){
     set_status(loader_html + 'Loading');
     var new_state = JSON.parse(window.localStorage.getItem(location.pathname))
@@ -182,8 +147,8 @@ function on_new_state_received(new_state) {
         elevation_chart.series.forEach(function (series) { series.remove(false) });
 
         state.routes_hash = new_state.routes_hash;
-        get_pb('/routes?hash=' + state.routes_hash, routes_pb_decode).then(function (response){
-            routes = response.routes;
+        get('/routes?hash=' + state.routes_hash).then(function (new_routes){
+            routes = new_routes;
             // console.log('routes loaded');
             on_new_routes();
         }).catch(promise_catch);
@@ -218,14 +183,8 @@ function on_new_state_received(new_state) {
                 var list = list_container[name] || [];
 
                 function fetch_block(block) {
-                    return get_pb(
-                        '/' + list_name + '?name=' + name + '&start_index=' + block.start_index +
-                        '&end_index=' + block.end_index + '&end_hash=' + block.end_hash,
-                        points_pb_decode)
-                }
-
-                if (update.hasOwnProperty('partial_block') && update.partial_block) {
-                    update.partial_block = points_pb_decode(Uint8Array.from(atob(update.partial_block),function (x) { x.charCodeAt(0) }));
+                    return get('/' + list_name + '?name=' + name + '&start_index=' + block.start_index +
+                               '&end_index=' + block.end_index + '&end_hash=' + block.end_hash);
                 }
 
                 process_update_list(fetch_block, list, update).then(function (rider_points) {
@@ -567,7 +526,7 @@ function on_new_routes(){
             i ++;
             return new google.maps.Polyline({
                 map: map,
-                path: route.points.map(function (point) {return new google.maps.LatLng(point.lat/1000000, point.lng/1000000)}),
+                path: route.points.map(function (point) {return new google.maps.LatLng(point[0], point[1])}),
                 geodesic: false,
                 strokeColor: (i==1?'black':'#444444'),
                 strokeOpacity: 0.7,
@@ -589,9 +548,9 @@ function on_new_routes(){
             }
             var elevation_points = route.elevation.map(function (point) {
                 return {
-                    latlng: new google.maps.LatLng(point.lat/1000000, point.lng/1000000),
-                    dist: (point.distance * dist_factor) + start_distance,
-                    elevation: point.elevation / 100,
+                    latlng: new google.maps.LatLng(point[0], point[1]),
+                    dist: (point[3] * dist_factor) + start_distance,
+                    elevation: point[2],
                 }
             });
             all_route_points.extend(elevation_points);
@@ -716,7 +675,7 @@ function on_new_rider_points(rider_name, list_name, items, new_items, old_items)
                     visible: show_route_for_rider(list_name, rider_name),
                     zIndex: (list_name == 'riders_points'? 1: 0),
                 }))).getPath()
-                path.push(new google.maps.LatLng(point.position.lat, point.position.lng));
+                path.push(new google.maps.LatLng(point.position[0], point.position[1]));
             }
         });
 
@@ -778,8 +737,8 @@ function on_new_rider_values(rider_name){
         var series = elevation_chart.get(rider_name);
         if (values.hasOwnProperty('dist_route')) {
             var elevation = 0;
-            if (values.hasOwnProperty('position') && values.position.elevation) {
-                elevation = values.position.elevation
+            if (values.hasOwnProperty('position') && values.position.length > 2) {
+                elevation = values.position[2]
             } else if (values.hasOwnProperty('route_elevation')) {
                 elevation = values.route_elevation;
             }
@@ -1042,7 +1001,7 @@ function update_selected_rider_point_markers(){
             Object.values(rider_items.point_markers).forEach(function (marker) {marker.setVisible(true)});
             riders_points[selected_rider].forEach(function (point){
                 if (!rider_items.point_markers.hasOwnProperty(point.index) && point.hasOwnProperty('position')) {
-                    var position = new google.maps.LatLng(point.position.lat, point.position.lng);
+                    var position = new google.maps.LatLng(point.position[0], point.position[1]);
                     if (bounds.contains(position)){
                         var marker = new google.maps.Marker({
                             icon: {
@@ -1081,14 +1040,14 @@ function point_marker_onclick(marker, point) {
         }
     }
     content += sprintf('<tr><td style="font-weight: bold;">Position:</td><td>%.6f, %.6f</td></tr>',
-                       point.position.lat, point.position.lng);
+                       point.position[0], point.position[1]);
     if (point.hasOwnProperty('accuracy')) {
         content += sprintf('<tr><td style="font-weight: bold;">Accuracy:</td><td>%.1f m</td></tr>',
                            point.accuracy);
     }
-    if (point.position.elevation) {
+    if (point.position.length == 3) {
         content += sprintf('<tr><td style="font-weight: bold;">Elevation:</td><td>%.0f m</td></tr>',
-                           point.position.elevation);
+                           point.position[2]);
     }
     if (point.hasOwnProperty('dist_route')) {
         content += sprintf('<tr><td style="font-weight: bold;">Dist on Route:</td><td>%.1f km</td></tr>',

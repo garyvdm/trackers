@@ -1,7 +1,6 @@
 import asyncio
 import base64
 import contextlib
-import copy
 import csv
 import datetime
 import hashlib
@@ -23,11 +22,10 @@ from more_itertools import chunked
 import trackers.auth
 import trackers.bin_utils
 import trackers.events
-from trackers import trackers_pb2
 from trackers.analyse import AnalyseTracker
 from trackers.auth import ensure_authorized, get_git_author, show_identity
 from trackers.base import cancel_and_wait_task, list_register, Observable
-from trackers.general import hash_bytes, json_dumps, points_2_pb
+from trackers.general import hash_bytes, json_dumps
 from trackers.web_helpers import (
     coro_partial,
     etag_query_hash_response,
@@ -79,9 +77,6 @@ async def make_aio_app(settings,
     static_manager.add_resource('/static/highcharts.js', charset='utf8', content_type='text/javascript')
     static_manager.add_resource('/static/highcharts.js.map', charset='utf8', content_type='text/javascript')
     static_manager.add_resource('/static/highcharts.src.js', charset='utf8', content_type='text/javascript')
-    static_manager.add_resource('/static/protobuf.min.js', charset='utf8', content_type='text/javascript')
-    static_manager.add_resource('/static/protobuf.min.js.map', charset='utf8', content_type='text/javascript')
-    static_manager.add_resource('/static/trackers_pb.js', charset='utf8', content_type='text/javascript')
 
     static_manager.add_resource('/static/instructions.html', '/instructions', charset='utf8', content_type='text/html')
     static_manager.add_resource('/static/tkstorage_admin.js', charset='utf8', content_type='text/javascript')
@@ -316,8 +311,8 @@ async def blocked_lists(request, event, list_attr_name):
         if points and points[-1]['hash'] != end_hash:
             raise web.HTTPInternalServerError(text='Wrong end_hash')
 
-        response = web.Response(body=points_2_pb(points), content_type='application/protobuf')
-        return etag_response(request, response, end_hash, cache_control=immutable_cache_control)
+        return etag_response(request, json_response(points), end_hash,
+                             cache_control=immutable_cache_control)
 
 
 @say_error_handler
@@ -372,34 +367,25 @@ async def on_removed_event(event):
     pass
 
 
+web_route_keys = (
+    'points',
+    'elevation',
+    'main',
+    'dist_factor',
+    'start_distance',
+    'end_distance',
+)
+
+
 async def on_event_config_routes_change(event):
     event.client_config_body = json_dumps(event.config)
     event.client_config_body_hash = hash_bytes(event.client_config_body.encode())
+    filtered_routes = [
+        {key: value for key, value in route.items() if key in web_route_keys}
+        for route in event.routes]
 
-    pb_routes = trackers_pb2.Routes()
-    for route in event.routes:
-        pb_route = pb_routes.routes.add()
-        pb_route.main = route.get('main', False)
-
-        if not pb_route.main:
-            pb_route.dist_factor = route.get('dist_factor', 1)
-            pb_route.start_distance = route.get('start_distance', 0)
-            pb_route.end_distance = route.get('end_distance', 0)
-
-        for point in route.get('points', ()):
-            pb_point = pb_route.points.add()
-            pb_point.lat = int(point[0] * 1000000)
-            pb_point.lng = int(point[1] * 1000000)
-
-        for elevation_point in route.get('elevation', ()):
-            pb_elevation_point = pb_route.elevation.add()
-            pb_elevation_point.lat = int(elevation_point[0] * 1000000)
-            pb_elevation_point.lng = int(elevation_point[1] * 1000000)
-            pb_elevation_point.elevation = int(elevation_point[2] * 100)
-            pb_elevation_point.distance = int(elevation_point[3])
-
-    event.client_routes_body = pb_routes.SerializeToString()
-    event.client_routes_body_hash = hash_bytes(event.client_routes_body)
+    event.client_routes_body = json_dumps(filtered_routes)
+    event.client_routes_body_hash = hash_bytes(event.client_routes_body.encode())
 
     await message_to_multiple_wss(
         event.app,
@@ -427,7 +413,7 @@ async def on_event_rider_blocked_list_update(event, rider_name, blocked_list, up
     await message_to_multiple_wss(
         event.app,
         event_wss,
-        {'riders_points': {rider_name: blocked_list_pb_points(update)}},
+        {'riders_points': {rider_name: update}},
         filter_ws=lambda ws: 'riders_points' in ws.subscriptions or f'riders_points.{rider_name}' in ws.subscriptions,
     )
 
@@ -436,7 +422,7 @@ async def on_event_rider_off_route_blocked_list_update(event, rider_name, blocke
     await message_to_multiple_wss(
         event.app,
         event.app['trackers.event_ws_sessions'][event.name],
-        {'riders_off_route': {rider_name: blocked_list_pb_points(update)}},
+        {'riders_off_route': {rider_name: update}},
         filter_ws=lambda ws: 'riders_off_route' in ws.subscriptions,
     )
 
@@ -455,13 +441,6 @@ def get_rider_blocked_list(event, list_name):
         (rider_objects.rider_name, getattr(rider_objects, list_name))
         for rider_objects in event.riders_objects.values())
     return ((rider_name, list.full) for rider_name, list in unfiltered if list)
-
-
-def blocked_list_pb_points(full):
-    full = copy.copy(full)
-    if 'partial_block' in full:
-        full['partial_block'] = base64.b64encode(points_2_pb(full['partial_block'])).decode('ascii')
-    return full
 
 
 async def event_ws(request):
@@ -501,17 +480,17 @@ async def event_ws(request):
                             ws.subscriptions = set(data['subscriptions'])
                             added_subscriptions = ws.subscriptions - old_subscriptions
                             if 'riders_points' in added_subscriptions:
-                                await send({'riders_points': {rider_name: blocked_list_pb_points(list_full)
+                                await send({'riders_points': {rider_name: list_full
                                                               for rider_name, list_full in get_rider_blocked_list(event, 'blocked_list')}})
                             else:
-                                selected_rider_points = {rider_name: blocked_list_pb_points(list_full)
+                                selected_rider_points = {rider_name: list_full
                                                          for rider_name, list_full in get_rider_blocked_list(event, 'blocked_list')
                                                          if f'riders_points.{rider_name}' in added_subscriptions}
                                 if selected_rider_points:
                                     await send({'riders_points': selected_rider_points})
 
                             if 'riders_off_route' in added_subscriptions:
-                                await send({'riders_off_route': {rider_name: blocked_list_pb_points(list_full)
+                                await send({'riders_off_route': {rider_name: list_full
                                                                  for rider_name, list_full in get_rider_blocked_list(event, 'off_route_blocked_list')}})
 
                             if 'riders_predicted' in added_subscriptions:
