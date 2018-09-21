@@ -320,7 +320,8 @@ def msg_item_to_point(msg_item):
             lng = parse_coordinate(data[5], 'W')
             alt = float(data[9])
             point['time'] = parse_date_time(data[2], data[7])
-            point['position'] = (lat, lng, alt)
+            point['position'] = (lat, lng, alt) if alt else (lat, lng)
+
             point['num_sat'] = int(data[10])
         if msg_code == 'ZC03':
             point['time'] = parse_date_time(data[2], data[3])
