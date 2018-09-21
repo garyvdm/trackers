@@ -275,6 +275,15 @@ MESSAGE_SENT = 1
 DISCONNECT = 2
 CANCELED = 3
 
+zc20_battery_levels = {
+    '6': 100,
+    '5': 80,
+    '4': 50,
+    '3': 20,
+    '2': 10,
+    '1': 0,
+}
+
 
 def msg_item_to_point(msg_item):
     correct_len = more_itertools.first(more_itertools.windowed(msg_item, 5))
@@ -294,8 +303,18 @@ def msg_item_to_point(msg_item):
         assert data[-1] == ')'
         data = data_split(data[1:-1])
         msg_code = data[1]
-        # if msg_code == 'ZC20':
-        #     point['time'] = parse_date_time(data[2], data[3])
+        if msg_code == 'ZC20':
+            point['time'] = parse_date_time(data[2], data[3])
+            battery_level = zc20_battery_levels.get(data[4])
+            battery_voltage = int(data[5])
+            # power_voltage = int(data[6])
+            # installed = int(data[7])
+
+            if battery_level is not None:
+                point['battery'] = battery_level
+            if battery_voltage != 65535:
+                point['battery_voltage'] = battery_voltage * 0.01
+
         if msg_code[:3] == 'DW3' and data[3] == 'A':
             lat = parse_coordinate(data[4], 'S')
             lng = parse_coordinate(data[5], 'W')

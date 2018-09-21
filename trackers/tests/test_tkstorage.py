@@ -27,15 +27,17 @@ class TestToPoint(unittest.TestCase):
             None,
         )
 
-    # def test_battery(self):
-    #     self.assertEqual(
-    #         msg_item_to_point([1, 1525366678, 1, [b'864768011199921', b'ZC20', b'030518', b'165713', b'6', b'402', b'65535', b'255'], b'TK00']),
-    #         {
-    #             'tk_id': 'TK00',
-    #             'server_time': datetime.datetime(2018, 5, 3, 18, 57, 58),
-    #             'time': datetime.datetime(2018, 5, 3, 16, 57, 13),
-    #         },  # We going to use *status* updates for better accuracy.
-    #     )
+    def test_battery(self):
+        self.assertEqual(
+            msg_item_to_point([1, 1525366678, 1, '(864768011199921,ZC20,030518,165713,6,402,65535,255)', 'TK00']),
+            {
+                'tk_id': 'TK00',
+                'server_time': datetime.datetime(2018, 5, 3, 18, 57, 58),
+                'time': datetime.datetime(2018, 5, 3, 18, 57, 13),
+                'battery': 100,
+                'battery_voltage': 4.0200000000000005,
+            },
+        )
 
     def test_pos1(self):
         self.assertEqual(
