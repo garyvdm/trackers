@@ -269,7 +269,7 @@ class Event(object):
             tracker = await Combined.start(f'combined.{rider_name}', [objects.data_tracker] + objects.source_trackers)
             if replay:
                 tracker = await start_replay_tracker(tracker, **replay_kwargs)
-            if analyse:
+            if analyse and rider.get('type', 'rider') == 'rider':
                 objects.analyse_tracker = tracker = await AnalyseTracker.start(
                     tracker, self.event_start, analyse_routes, find_closest_cache=find_closest_cache)
                 objects.off_route_tracker = off_route_tracker = await index_and_hash_tracker(tracker.off_route_tracker)

@@ -665,7 +665,8 @@ function on_new_rider_points(rider_name, list_name, items, new_items, old_items)
 
         new_items.forEach(function (point) {
             if (point.hasOwnProperty('position')) {
-                var path = (paths[point.track_id] || (paths[point.track_id] = new google.maps.Polyline({
+                var track_id = (point.hasOwnProperty('track_id')? point.track_id : 0);
+                var path = (paths[track_id] || (paths[track_id] = new google.maps.Polyline({
                     map: map,
                     path: [],
                     geodesic: false,
