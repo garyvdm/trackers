@@ -848,8 +848,7 @@ function update_rider_table(){
                        '<td class="name">' + rider.name + '</td>' +
                        '<td style="text-align: right">' + (last_position_time || '') + '</td>' +
                        '<td style="text-align: right">' + (last_server_time || '') + '</td>' +
-                       '<td style="text-align: right">' + (values.battery ? sprintf('%i %%', values.battery) : '') +
-                                                          (values.battery_voltage ? ' ' + sprintf('%.2f v', values.battery_voltage) : '') + '</td>' +
+                       '<td style="text-align: right">' + (values.battery ? sprintf('%i %%', values.battery) : '') + '</td>' +
                        '<td>' + (values.hasOwnProperty('tk_config')? values.tk_config : '') + '</td>' +
                        '</tr>';
             }
@@ -1221,11 +1220,6 @@ function update_graph() {
                             min: 0,
                             endOnTick: false, startOnTick: false,
                         },
-                        {
-                            title: {text: 'Battery Voltage' },
-                            id: 'battery_voltage',
-                            opposite: true,
-                        },
                     ],
                     credits: { enabled: false },
                     series: config.riders.map(function (rider) {return {
@@ -1236,16 +1230,7 @@ function update_graph() {
                             headerFormat: '<b>' + rider.name +'</b><br>',
                             pointFormat: '{point.x:%H:%M:%S %e %b}: {point.y} %'
                         },
-                    } }).concat(config.riders.map(function (rider) {return {
-                        id: rider['name'] + 'battery_voltage',
-                        name: rider['name']+ ' Voltage',
-                        color: rider['color'],
-                        yAxis: 'battery_voltage',
-                        tooltip: {
-                            headerFormat: '<b>' + rider.name +'</b><br>',
-                            pointFormat: '{point.x:%H:%M:%S %e %b}: {point.y:.2f}v'
-                        },
-                    }})),
+                    } }),
                 });
             }
 
@@ -1274,11 +1259,7 @@ function on_new_rider_points_graph(rider_name, list_name, items, new_items, old_
                 items.filter(function(item) {return item.hasOwnProperty('battery')})
                 .map(function (item) {return [item.time * 1000, item.battery]})
             );
-            graph_chart.get(rider_name + 'battery_voltage').setData(
-                items.filter(function(item) {return item.hasOwnProperty('battery_voltage')})
-                .map(function (item) {return [item.time * 1000, item.battery_voltage]})
-            );
-            graph_chart.get(rider_name + 'battery_voltage')
+
         }
     }
 }
