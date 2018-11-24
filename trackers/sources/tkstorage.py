@@ -305,15 +305,15 @@ def msg_item_to_point(msg_item):
         msg_code = data[1]
         if msg_code == 'ZC20':
             point['time'] = parse_date_time(data[2], data[3])
-            battery_level = zc20_battery_levels.get(data[4])
+            # battery_level = zc20_battery_levels.get(data[4])
             battery_voltage = int(data[5])
             # power_voltage = int(data[6])
             # installed = int(data[7])
-
-            if battery_level is not None:
-                point['battery'] = battery_level
+            # if battery_level is not None:
+            #     point['battery'] = battery_level
             if battery_voltage != 65535:
                 point['battery_voltage'] = battery_voltage * 0.01
+                point['battery'] = ((battery_voltage * 0.01) - 3.4) / 0.75 * 100
 
         if msg_code[:3] == 'DW3' and data[3] == 'A':
             lat = parse_coordinate(data[4], 'S')

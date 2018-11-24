@@ -34,7 +34,7 @@ class TestToPoint(unittest.TestCase):
                 'tk_id': 'TK00',
                 'server_time': datetime.datetime(2018, 5, 3, 18, 57, 58),
                 'time': datetime.datetime(2018, 5, 3, 18, 57, 13),
-                'battery': 100,
+                'battery': 82.66666666666674,
                 'battery_voltage': 4.0200000000000005,
             },
         )
