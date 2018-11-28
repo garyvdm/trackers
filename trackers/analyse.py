@@ -68,7 +68,7 @@ seterr(all='raise')
 class AnalyseTracker(Tracker):
 
     @classmethod
-    async def start(cls, org_tracker, analyse_start_time, routes, track_break_time=datetime.timedelta(minutes=15),
+    async def start(cls, org_tracker, analyse_start_time, routes, track_break_time=datetime.timedelta(minutes=30),
                     track_break_dist=10000, find_closest_cache=None):
         self = cls('analysed.{}'.format(org_tracker.name))
         self.org_tracker = org_tracker
