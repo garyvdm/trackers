@@ -174,7 +174,10 @@ async def get_points(logger, session, name, event):
     for position_m in position_re.finditer(text):
         points[position_m.group('id')]['position'] = (float(position_m.group('lat')), float(position_m.group('lng')))
     for time_m in time_re.finditer(text):
-        points[time_m.group('id')]['time'] = datetime_parse(time_m.group('time'))
+        if 'Your SPOT Trace has been powered off' in time_m.group(0):
+            del points[time_m.group('id')]
+        else:
+            points[time_m.group('id')]['time'] = datetime_parse(time_m.group('time'))
     sorted_points = list(sorted(points.values(), key=lambda point: point['time']))
     logger.debug(f'Done http://trackleaders.com/spot/{event}/{name}.js')
 
@@ -224,23 +227,23 @@ async def main():
 
     app = {}
     settings = {}
-    # async with aiohttp.ClientSession() as session:
-    #     print(await get_points(logger, session,'Rob_Walker', 'munga18'))
-    async with config(app, settings):
-        tracker = await start_tracker(
-            app, 'foobar', 'Rob_Walker', 'munga18')
-        print_tracker(tracker)
-
-        run_fut = asyncio.Future()
-        for signame in ('SIGINT', 'SIGTERM'):
-            loop.add_signal_handler(getattr(signal, signame), run_fut.set_result, None)
-        try:
-            await run_fut
-        finally:
-            for signame in ('SIGINT', 'SIGTERM'):
-                loop.remove_signal_handler(getattr(signal, signame))
-        tracker.stop()
-        await tracker.complete()
+    async with aiohttp.ClientSession() as session:
+        print(await get_points(logger, session, 'Fietie_Rocher', 'munga18'))
+    # async with config(app, settings):
+    #     tracker = await start_tracker(
+    #         app, 'foobar', 'Rob_Walker', 'munga18')
+    #     print_tracker(tracker)
+    #
+    #     run_fut = asyncio.Future()
+    #     for signame in ('SIGINT', 'SIGTERM'):
+    #         loop.add_signal_handler(getattr(signal, signame), run_fut.set_result, None)
+    #     try:
+    #         await run_fut
+    #     finally:
+    #         for signame in ('SIGINT', 'SIGTERM'):
+    #             loop.remove_signal_handler(getattr(signal, signame))
+    #     tracker.stop()
+    #     await tracker.complete()
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
