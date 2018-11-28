@@ -263,7 +263,7 @@ async def event_config(request, event):
 @say_error_handler
 @event_handler
 async def event_routes(request, event):
-    response = web.Response(body=event.client_routes_body, content_type='application/protobuf')
+    response = web.Response(body=event.client_routes_body, content_type='application/json')
     return etag_query_hash_response(request, response, event.client_routes_body_hash)
 
 
