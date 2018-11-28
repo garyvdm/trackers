@@ -163,27 +163,22 @@ def datetime_parse(str):
     return localized.replace(tzinfo=None)
 
 
+position_re = re.compile(r'imarker(?P<id>\d+) = L.marker\(\[(?P<lat>.+?),(?P<lng>.+?)\]')
+time_re = re.compile(r'imarker(?P<id>\d+)\.bindPopup\(\'.+<br />Point #\d+? received at: (?P<time>.*?) <br />')
+
+
 async def get_points(logger, session, name, event):
     logger.debug(f'Getting http://trackleaders.com/spot/{event}/{name}.js')
     text = await get(session, f'http://trackleaders.com/spot/{event}/{name}.js')
-    js = es5(text)
     points = defaultdict(dict)
-    nodes = js.children()
-    if nodes:
-        for node in nodes[0].elements:
-            if isinstance(node, ExprStatement):
-                if isinstance(node.expr, Assign):
-                    id = node.expr.left.value
-                    if id.startswith('imarker'):
-                        points[id]['position'] = [float(str(loc_node)) for loc_node in node.expr.right.identifier.node.args.items[0].items]
-                if isinstance(node.expr, FunctionCall):
-                    id = node.expr.identifier.node.value
-                    if id.startswith('imarker') and node.expr.identifier.identifier.value == 'bindPopup':
-                        point_popup_text = node.expr.args.items[0].value[4:-5]
-                        recived_at_m = recived_at_re.search(point_popup_text)
-                        points[id]['time'] = datetime_parse(recived_at_m.group(1))
+    for position_m in position_re.finditer(text):
+        points[position_m.group('id')]['position'] = (float(position_m.group('lat')), float(position_m.group('lng')))
+    for time_m in time_re.finditer(text):
+        points[time_m.group('id')]['time'] = datetime_parse(time_m.group('time'))
+    sorted_points = list(sorted(points.values(), key=lambda point: point['time']))
+    logger.debug(f'Done http://trackleaders.com/spot/{event}/{name}.js')
 
-    return sorted(points.values(), key=lambda point: point['time'])
+    return sorted_points
 
 
 async def monitor_feed(app, tracker, name, event):
