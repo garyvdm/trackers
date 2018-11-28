@@ -17,6 +17,7 @@ setuptools.setup(
         'asynctest',
         'attrs',
         'beautifulsoup4',
+        'calmjs.parse',
         'dulwich',
         'filemagic',
         'fixtures',
@@ -28,6 +29,7 @@ setuptools.setup(
         'nvector',
         'numpy<1.15.0',
         'polyline',
+        'python-dateutil',
         'python-slugify',
         'pyyaml',
         'tap.py',
@@ -52,6 +54,7 @@ setuptools.setup(
             'run_qunit_tests=trackers.client_test_tools:qunit_runner',
             'gen_key=trackers.auth:gen_key',
 
+            'trackleaders_get_config=trackers.sources.trackleaders:get_config',
         ],
     },
     test_suite='trackers.tests.suite',

@@ -9,6 +9,7 @@ async def config_modules(app, settings):
     import trackers.sources.traccar
     import trackers.sources.spot
     import trackers.sources.tkstorage
+    import trackers.sources.trackleaders
 
     exit_stack = AsyncExitStack()
 
@@ -17,6 +18,7 @@ async def config_modules(app, settings):
         trackers.sources.traccar.config,
         trackers.sources.spot.config,
         trackers.sources.tkstorage.config,
+        trackers.sources.trackleaders.config,
     )
 
     for module in modules:
@@ -30,5 +32,6 @@ async def config_modules(app, settings):
         'static': trackers.general.static_start_event_tracker,
         'cropped': partial(trackers.general.wrapped_tracker_start_event, trackers.general.cropped_tracker_start),
         'filter_inaccurate': partial(trackers.general.wrapped_tracker_start_event, trackers.general.filter_inaccurate_tracker_start),
+        'trackleaders': trackers.sources.trackleaders.start_event_tracker
     }
     return exit_stack

@@ -229,6 +229,11 @@ async def assign_rider_colors(app, settings, args):
     event_name = event_name_clean(args.event_name, settings)
     tree_writer = TreeWriter(app['trackers.data_repo'])
     event = await trackers.events.Event.load(app, event_name, tree_writer)
+    assign_rider_colors_inner(event)
+    await event.save(f'{event_name}: assign_rider_colors', tree_writer=tree_writer)
+
+
+def assign_rider_colors_inner(event):
     num_riders = len(event.config['riders'])
     hues = [round(i * 360 / num_riders) for i in range(num_riders)]
     alternating_chunks = floor(sqrt(num_riders))
@@ -237,7 +242,6 @@ async def assign_rider_colors(app, settings, args):
     for rider, hue in zip(event.config['riders'], alternating_hues):
         rider['color'] = 'hsl({}, 100%, 50%)'.format(hue)
         rider['color_marker'] = 'hsl({}, 100%, 60%)'.format(hue)
-    await event.save(f'{event_name}: assign_rider_colors', tree_writer=tree_writer)
 
 
 def add_gpx_to_event_routes_parser():
@@ -311,8 +315,12 @@ async def reformat_event(app, settings, args):
 async def update_bounds(app, settings, args):
     event_name = event_name_clean(args.event_name, settings)
     writer = TreeWriter(app['trackers.data_repo'])
-
     event = await trackers.events.Event.load(app, event_name, writer)
+    update_bounds_inner(event)
+    await event.save(f'{event_name}: update_bounds', tree_writer=writer)
+
+
+def update_bounds_inner(event):
     points = list(itertools.chain.from_iterable(
         [((marker['position']['lat'], marker['position']['lng']), ) for marker in event.config.get('markers', ())] +
         [route['points'] for route in event.routes]
@@ -326,8 +334,6 @@ async def update_bounds(app, settings, args):
         'east': max(lngs),
         'west': min(lngs),
     }
-
-    await event.save(f'{event_name}: update_bounds', tree_writer=writer)
 
 
 def process_event_routes_parser(*args, **kwargs):
@@ -393,6 +399,7 @@ async def process_route(settings, route):
     logging.info(f"Original point count: {len(route['original_points'])}, point count: {len(points)}, simplified point count: {len(simplified_points)}")
 
     if not route.get('no_elevation', False):
+        logging.info('Getting Elevation')
         elevation_points = list(get_equal_spaced_points(points, 500))
         elevations = await get_elevation_for_points(settings, [point for point, distance in elevation_points])
         route['elevation'] = [(round(point.lat, 6), round(point.lng, 6), elevation, dist) for elevation, (point, dist) in zip(elevations, elevation_points)]
