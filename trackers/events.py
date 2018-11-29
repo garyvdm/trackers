@@ -341,11 +341,12 @@ class Event(object):
         return not finished, time_to_finish, not has_dist_on_route, 0 - dist_on_route
 
     async def predicted(self):
-        inactive_time = datetime.timedelta(minutes=15)
+        inactive_time = datetime.timedelta(minutes=30)
 
         while True:
-            with suppress(asyncio.TimeoutError):
-                await asyncio.wait_for(self.new_points.wait(), 10)
+            await asyncio.sleep(10)
+            # with suppress(asyncio.TimeoutError):
+            #     await asyncio.wait_for(self.new_points.wait(), 10)
 
             try:
                 time = datetime.datetime.now()

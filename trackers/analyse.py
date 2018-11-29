@@ -144,7 +144,7 @@ class AnalyseTracker(Tracker):
                 if not self.finished and self.analyse_start_time and self.analyse_start_time <= point['time']:
                     if self.prev_route_dist_time:
                         time_from_prev_route_dist = point['time'] - self.prev_route_dist_time
-                        max_travel_dist = 400000 / 3600 * max(time_from_prev_route_dist.total_seconds(), 20)
+                        max_travel_dist = 200000 * max(time_from_prev_route_dist.total_seconds(), 20) / 3600
                     else:
                         max_travel_dist = None
 
@@ -220,7 +220,7 @@ class AnalyseTracker(Tracker):
                             self.off_route_track_id += 1
 
                     # self.logger.info((not self.routes, not closest, closest.dist > 500 if closest else None, not self.going_forward and point.get('dist_from_last', 0)))
-                    if not self.routes or not closest or closest.dist > 200 or (not self.going_forward and point.get('dist_from_last', 0) > 200):
+                    if not self.routes or not closest or closest.dist > 1000 or (not self.going_forward and point.get('dist_from_last', 0) > 1000):
                         # self.logger.info('off_route')
                         if not self.is_off_route and self.prev_point_with_position and self.prev_point_with_position['track_id'] == self.current_track_id:
                             new_off_route_points.append({'position': self.prev_point_with_position['position'], 'track_id': self.off_route_track_id})
