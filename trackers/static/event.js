@@ -727,6 +727,7 @@ function on_new_rider_values(rider_name){
                         path: google.maps.SymbolPath.CIRCLE,
                         scale: 4,
                         strokeColor: marker_color,
+                        strokeOpacity: 1,
                         fillColor: marker_color,
                         fillOpacity: 0.8,
                     },
@@ -1006,14 +1007,14 @@ function select_rider(rider_name, rider_list_scroll, map_scroll) {
             if (rider_items.marker) selected_position = rider_items.marker.getPosition();
         } else if (selected_rider && selected_rider!=rider.name){
             zIndex = 1;
-            opacity = 0.3;
+            opacity = 0.5;
         } else {
             zIndex = 1;
             opacity = 1;
         }
         if (rider_items.marker) {
             rider_items.marker.setZIndex(zIndex);
-//            rider_items.marker.markerContent_.style.opacity = opacity;
+            rider_items.marker.setOpacity(opacity);
         }
         Object.keys(rider_items.paths).forEach(function (list_name) {
             var paths = rider_items.paths[list_name];
