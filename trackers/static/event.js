@@ -406,12 +406,12 @@ var elevation_chart = Highcharts.chart('elevation', {
     },
     yAxis: { title: {text: null}, endOnTick: false, startOnTick: false, labels: {format: '{value} m'} },
     credits: { enabled: false },
+    series: [],
     tooltip: {
         formatter: function() {
-            return (Math.round(this.x / 100) / 10).toString() + " km : " +  Math.round(this.y).toString() + ' m';
+            return this.key || (Math.round(this.x / 100) / 10).toString() + " km : " +  Math.round(this.y).toString() + ' m';
         }
     },
-    series: [],
 });
 
 
@@ -557,7 +557,7 @@ function on_new_routes(){
             i ++;
 
             elevation_chart.addSeries({
-                marker: {enabled: false, symbol: 'circle'},
+                marker: {enabled: false, symbol: 'circle', radius: 2},
                 color: (i==1?'black':'#444444'),
                 turboThreshold: 5000,
                 data: elevation_points.map(function (item) { return {
@@ -577,7 +577,8 @@ function on_new_routes(){
                     mouseOut: function () {
                       route_marker.setVisible(false);
                     },
-                }
+                },
+                zIndex: -1,
 
             }, false, false);
         });
@@ -666,17 +667,21 @@ function on_new_rider_points(rider_name, list_name, items, new_items, old_items)
         new_items.forEach(function (point) {
             if (point.hasOwnProperty('position')) {
                 var track_id = (point.hasOwnProperty('track_id')? point.track_id : 0);
-                var path = (paths[track_id] || (paths[track_id] = new google.maps.Polyline({
-                    map: map,
-                    path: [],
-                    geodesic: false,
-                    strokeColor: path_color,
-                    strokeOpacity: 1.0,
-                    strokeWeight: 2,
-                    visible: show_route_for_rider(list_name, rider_name),
-                    zIndex: (list_name == 'riders_points'? 1: 0),
-                }))).getPath()
-                path.push(new google.maps.LatLng(point.position[0], point.position[1]));
+                var path = paths[track_id];
+                if (!path) {
+                    path = paths[track_id] = new google.maps.Polyline({
+                        map: map,
+                        path: [],
+                        geodesic: false,
+                        strokeColor: path_color,
+                        strokeOpacity: 1.0,
+                        strokeWeight: 2,
+                        visible: show_route_for_rider(list_name, rider_name),
+                        zIndex: (list_name == 'riders_points'? 1: 0),
+                    });
+                    path.addListener('click', select_rider.bind(null, rider_name));
+                }
+                path.getPath().push(new google.maps.LatLng(point.position[0], point.position[1]));
             }
         });
 
@@ -713,27 +718,60 @@ function on_new_rider_values(rider_name){
         }
 
         var marker_color = rider.color_marker || 'white';
-        var marker_html = '<div class="rider-marker" style="background: ' + marker_color + ';">' + (rider.name_short || rider.name)+ '</div>' +
-                          '<div class="rider-marker-pointer" style="border-color: transparent ' + marker_color + ' ' + marker_color + ' transparent;"></div>';
 
         if (values.hasOwnProperty('position')) {
             var position = new google.maps.LatLng(values.position[0], values.position[1])
             if (!rider_items.marker) {
-//                console.log('add marker for '+rider_name);
-                rider_items.marker = new RichMarker({
+                rider_items.marker = new google.maps.Marker({
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 4,
+                        strokeColor: marker_color,
+                        fillColor: marker_color,
+                        fillOpacity: 0.8,
+                    },
+                    draggable: false,
                     map: map,
                     position: position,
-                    flat: true,
-                    content: marker_html
-                })
+                    title: rider.name
+                });
+                rider_items.marker.addListener('click', select_rider.bind(null, rider_name));
+
+
             } else {
                 rider_items.marker.setPosition(position);
+            }
+            if (rider_name == selected_rider) {
+                if (!rider_items.rich_marker) {
+                    var marker_html = '<div class="rider-marker" style="background: ' + marker_color + ';">' + (rider.name_short || rider.name)+ '</div>' +
+                                      '<div class="rider-marker-pointer" style="border-color: transparent ' + marker_color + ' ' + marker_color + ' transparent;"></div><div style="height:2px;"></div>';
+
+                    rider_items.rich_marker = new RichMarker({
+                        map: map,
+                        position: position,
+                        flat: true,
+                        content: marker_html
+                    })
+//                    rider_items.rich_marker.addListener('click', select_rider.bind(null, rider_name));
+                } else {
+                    rider_items.rich_marker.setPosition(position);
+                }
+            } else {
+                if (rider_items.rich_marker) {
+                    rider_items.rich_marker.setMap(null);
+                    rider_items.rich_marker = null;
+                }
             }
         } else {
             if (rider_items.marker) {
                 rider_items.marker.setMap(null);
                 rider_items.marker = null;
             }
+            if (rider_items.rich_marker) {
+                rider_items.rich_marker.setMap(null);
+                rider_items.rich_marker = null;
+            }
+
         }
         var series = elevation_chart.get(rider_name);
         if (values.hasOwnProperty('dist_route')) {
@@ -747,26 +785,30 @@ function on_new_rider_values(rider_name){
             if (!series) {
                 elevation_chart.addSeries({
                     id: rider_name,
-                    marker: { symbol: 'circle'},
+                    name: rider_name,
+                    marker: { symbol: 'circle', radius: 6},
                     color: marker_color,
                     data: [],
-                    turboThreshold: 1000,
+                    events: {
+                        click: select_rider.bind(null, rider_name),
+                    },
                 }, false);
                 series = elevation_chart.get(rider_name);
             }
             series.setData([{
                 x: values['dist_route'],
                 y: elevation,
-                dataLabels: {
-                    enabled: true,
-                    format: rider.name_short || rider.name,
-                    allowOverlap: true,
-                    shape: 'callout',
-                    backgroundColor: rider.color_marker || 'white',
-                    style: {
-                        textOutline: 'none'
-                    }
-                },
+                name: rider_name,
+//                dataLabels: {
+//                    enabled: true,
+//                    format: rider.name_short || rider.name,
+//                    allowOverlap: true,
+//                    shape: 'callout',
+//                    backgroundColor: rider.color_marker || 'white',
+//                    style: {
+//                        textOutline: 'none'
+//                    }
+//                },
             }], true, false);
         } else {
             if (series) series.remove();
@@ -920,21 +962,41 @@ riders_detail_level_el.onchange = update_rider_table;
 
 var selected_rider = null;
 function rider_onclick(row, rider_name, event) {
+    select_rider(rider_name);
+    if (event.ctrlKey) {
+        var values = riders_values[rider_name] || {};
+        if (values.hasOwnProperty('position')) {
+            window.open('https://www.google.com/maps/place/' + values.position[0] + ',' + values.position[1], '_blank');
+        }
+    }
+}
+
+function select_rider(rider_name) {
     point_info_window.close();
-    if (selected_rider) subscriptions['riders_points.'+selected_rider] = Math.max((subscriptions['rider_points.'+selected_rider] || 0) - 1, 0);
+    var old_select_rider = selected_rider;
 
     Array.prototype.forEach.call(riders_el, function (el){
         el.classList.remove('selected');
     });
+
     if (selected_rider == rider_name) {
         selected_rider = null;
     } else {
         selected_rider = rider_name;
-        row.classList.add('selected');
     }
+
+    if (old_select_rider) {
+        subscriptions['riders_points.'+old_select_rider] = Math.max((subscriptions['rider_points.'+old_select_rider] || 0) - 1, 0);
+        on_new_rider_values(old_select_rider);
+    }
+
     var selected_position;
     config.riders.forEach(function (rider){
-        var rider_items = riders_client_items[rider.name] || {'paths': {}, 'marker': null};
+        var rider_items = riders_client_items[rider.name] || {
+            'paths': {},
+            'marker': null,
+            'rich_marker': null,
+        };
 
         var zIndex;
         var opacity;
@@ -951,7 +1013,7 @@ function rider_onclick(row, rider_name, event) {
         }
         if (rider_items.marker) {
             rider_items.marker.setZIndex(zIndex);
-            rider_items.marker.markerContent_.style.opacity = opacity;
+//            rider_items.marker.markerContent_.style.opacity = opacity;
         }
         Object.keys(rider_items.paths).forEach(function (list_name) {
             var paths = rider_items.paths[list_name];
@@ -962,22 +1024,21 @@ function rider_onclick(row, rider_name, event) {
         update_rider_paths_visible(rider.name);
     });
     if (selected_rider) {
-        setTimeout(function(){
+        var row = document.getElementById('riders_actual').querySelector(".rider[rider_name='"+selected_rider+"']");
+        row.classList.add('selected');
+        row.scrollIntoView();
+        on_new_rider_values(selected_rider);
 
-            apply_mobile_selected('map');
-            if (selected_position) {
-                map.panTo(selected_position);
-            }
-        });
+//        setTimeout(function(){
+//            apply_mobile_selected('map');
+//            if (selected_position) {
+//                map.panTo(selected_position);
+//            }
+//        });
     }
     event_markers.forEach(function (marker) { if (marker.hasOwnProperty('setOpacity')) {marker.setOpacity((selected_rider ? 0.5 : 1))} });
 
-    if (event.ctrlKey) {
-        var values = riders_values[rider_name] || {};
-        if (values.hasOwnProperty('position')) {
-            window.open('https://www.google.com/maps/place/' + values.position[0] + ',' + values.position[1], '_blank');
-        }
-    }
+
     if (selected_rider) subscriptions['riders_points.'+selected_rider] = Math.max((subscriptions['rider_points.'+selected_rider] || 0) + 1, 0);
     subscriptions_updated();
     update_selected_rider_point_markers();
@@ -1008,6 +1069,8 @@ function update_selected_rider_point_markers(){
                                 path: google.maps.SymbolPath.CIRCLE,
                                 scale: 3,
                                 strokeColor: color,
+                                fillColor: color,
+                                fillOpacity: 1,
                             },
                             draggable: false,
                             map: map,
