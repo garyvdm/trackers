@@ -155,22 +155,26 @@ function on_new_state_received(new_state) {
         need_save = true;
     }
     if (new_state.hasOwnProperty('riders_values')) {
-        Object.entries(new_state.riders_values).forEach(function (entry){
-            var name = entry[0];
-            var values = entry[1];
-            riders_values[name] = values;
-            if (!predicted_el.checked || !riders_predicted.hasOwnProperty(name)) on_new_rider_values(name);
-        });
-        if (!predicted_el.checked || !riders_predicted.length) update_rider_table();
+        config_loaded.promise.then( function () {
+            Object.entries(new_state.riders_values).forEach(function (entry){
+                var name = entry[0];
+                var values = entry[1];
+                riders_values[name] = values;
+                if (!predicted_el.checked || !riders_predicted.hasOwnProperty(name)) on_new_rider_values(name);
+            });
+            if (!predicted_el.checked || !riders_predicted.length) update_rider_table();
+        }).catch(promise_catch);
+
     }
     if (new_state.hasOwnProperty('riders_predicted')) {
-        riders_predicted = new_state.riders_predicted;
-
-        var changed = {};
-        Object.assign(changed, riders_predicted);
-        Object.assign(changed, riders_values);
-        Object.keys(changed).forEach(on_new_rider_values);
-        update_rider_table();
+        config_loaded.promise.then( function () {
+            riders_predicted = new_state.riders_predicted;
+            var changed = {};
+            Object.assign(changed, riders_predicted);
+            Object.assign(changed, riders_values);
+            Object.keys(changed).forEach(on_new_rider_values);
+            update_rider_table();
+        }).catch(promise_catch);
     }
     [['riders_points', riders_points], ['riders_off_route', riders_off_route]].forEach(function(item){
         var list_name = item[0];
@@ -495,6 +499,7 @@ function on_new_config(){
             map.fitBounds(bounds);
         }
 
+
         // console.log('set riders_client_items');
         config.riders.forEach(function (rider) {
             riders_by_name[rider.name] = rider
@@ -512,6 +517,7 @@ function on_new_config(){
         });
         elevation_chart.redraw(false);
         update_rider_table();
+
     }
 }
 
@@ -705,7 +711,6 @@ predicted_el.onclick();
 
 
 function on_new_rider_values(rider_name){
-    config_loaded.promise.then( function () {
 
         var rider = riders_by_name[rider_name]
         if (!rider) return;
@@ -815,7 +820,6 @@ function on_new_rider_values(rider_name){
             if (series) series.remove();
         }
 
-    }).catch(promise_catch);
 }
 
 var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -958,7 +962,7 @@ function update_rider_table(){
         });
     }
 }
-setInterval(update_rider_table());
+setInterval(update_rider_table(), 20000);
 riders_detail_level_el.onchange = update_rider_table;
 
 var selected_rider = null;
