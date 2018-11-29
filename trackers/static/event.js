@@ -679,7 +679,7 @@ function on_new_rider_points(rider_name, list_name, items, new_items, old_items)
                         visible: show_route_for_rider(list_name, rider_name),
                         zIndex: (list_name == 'riders_points'? 1: 0),
                     });
-                    path.addListener('click', select_rider.bind(null, rider_name));
+                    path.addListener('click', select_rider.bind(null, rider_name, true, false));
                 }
                 path.getPath().push(new google.maps.LatLng(point.position[0], point.position[1]));
             }
@@ -735,7 +735,7 @@ function on_new_rider_values(rider_name){
                     position: position,
                     title: rider.name
                 });
-                rider_items.marker.addListener('click', select_rider.bind(null, rider_name));
+                rider_items.marker.addListener('click', select_rider.bind(null, rider_name, true, false));
 
 
             } else {
@@ -752,7 +752,7 @@ function on_new_rider_values(rider_name){
                         flat: true,
                         content: marker_html
                     })
-//                    rider_items.rich_marker.addListener('click', select_rider.bind(null, rider_name));
+//                    rider_items.rich_marker.addListener('click', select_rider.bind(null, rider_name, true));
                 } else {
                     rider_items.rich_marker.setPosition(position);
                 }
@@ -790,7 +790,7 @@ function on_new_rider_values(rider_name){
                     color: marker_color,
                     data: [],
                     events: {
-                        click: select_rider.bind(null, rider_name),
+                        click: select_rider.bind(null, rider_name, true, false),
                     },
                 }, false);
                 series = elevation_chart.get(rider_name);
@@ -962,7 +962,7 @@ riders_detail_level_el.onchange = update_rider_table;
 
 var selected_rider = null;
 function rider_onclick(row, rider_name, event) {
-    select_rider(rider_name);
+    select_rider(rider_name, false, true);
     if (event.ctrlKey) {
         var values = riders_values[rider_name] || {};
         if (values.hasOwnProperty('position')) {
@@ -971,7 +971,7 @@ function rider_onclick(row, rider_name, event) {
     }
 }
 
-function select_rider(rider_name) {
+function select_rider(rider_name, rider_list_scroll, map_scroll) {
     point_info_window.close();
     var old_select_rider = selected_rider;
 
@@ -1026,15 +1026,17 @@ function select_rider(rider_name) {
     if (selected_rider) {
         var row = document.getElementById('riders_actual').querySelector(".rider[rider_name='"+selected_rider+"']");
         row.classList.add('selected');
-        row.scrollIntoView();
+        if (rider_list_scroll) {
+            row.scrollIntoView({'behavior': 'smooth'});
+        }
         on_new_rider_values(selected_rider);
 
-//        setTimeout(function(){
-//            apply_mobile_selected('map');
-//            if (selected_position) {
-//                map.panTo(selected_position);
-//            }
-//        });
+        setTimeout(function(){
+            apply_mobile_selected('map');
+            if (selected_position && map_scroll) {
+                map.panTo(selected_position);
+            }
+        });
     }
     event_markers.forEach(function (marker) { if (marker.hasOwnProperty('setOpacity')) {marker.setOpacity((selected_rider ? 0.5 : 1))} });
 
