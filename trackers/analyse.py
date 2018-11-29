@@ -293,15 +293,16 @@ class AnalyseTracker(Tracker):
                     point['route_elevation'] = round(route_elevation(closest.route, dist_route))
 
                 return point
-            elif self.prev_unit_vector is not None:
-                # Just keep going in the direction that they were going on.
-                pv = (self.prev_unit_vector * dist_moved_from_last) + self.prev_point_with_position_point.pv
-                nv = p_EB_E2n_EB_E(pv)
-                new_point = Point.from_nv(nv[0])
-                new_position = (new_point.lat, new_point.lng, pp['position'][2]) if len(pp['position']) == 3 else (new_point.lat, new_point.lng)
-                return {
-                    'position': new_position,
-                }
+
+        if pp:
+            point = {
+                'position': pp['position'],
+            }
+            if 'dist_route' in pp:
+                point['dist_route'] = pp['dist_route']
+            if 'route_elevation' in pp:
+                point['route_elevation'] = pp['route_elevation']
+            return point
 
 
 @attr.s(slots=True)

@@ -344,9 +344,11 @@ class Event(object):
         inactive_time = datetime.timedelta(minutes=30)
 
         while True:
-            await asyncio.sleep(10)
-            # with suppress(asyncio.TimeoutError):
-            #     await asyncio.wait_for(self.new_points.wait(), 10)
+            # Sleep at least 5 secs
+            await asyncio.sleep(5)
+            # Sleep another 15 sec or when new points are available.
+            with suppress(asyncio.TimeoutError):
+                await asyncio.wait_for(self.new_points.wait(), 15)
 
             try:
                 time = datetime.datetime.now()
@@ -375,7 +377,7 @@ class Event(object):
                     for rider_name in rider_names_sorted[1:]:
                         rider_predicted_points = riders_predicted_points.get(rider_name)
                         rider_values = self.riders_current_values.get(rider_name)
-                        if rider_values and 'position_time' in rider_values and time - rider_values['position_time'] < inactive_time:
+                        if rider_values and 'position_time' in rider_values:
                             rider_dist_route = None
                             rider_time = None
                             if rider_predicted_points and 'dist_route' in rider_predicted_points:
