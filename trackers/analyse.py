@@ -169,6 +169,8 @@ class AnalyseTracker(Tracker):
                             self.finished = True
                             point['finished_time'] = point['time']
                             point['rider_status'] = 'Finished'
+                        if 'elevation' in closest.route:
+                            point['route_elevation'] = round(route_elevation(closest.route, point['dist_route']))
                     else:
                         self.going_forward = None
                         self.prev_route_dist_time = None
