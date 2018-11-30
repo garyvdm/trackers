@@ -58,7 +58,7 @@ except ImportError:
         return n_EB_E_ti
 
 
-from trackers.base import Tracker
+from trackers.base import cancel_and_wait_task, Tracker
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +89,7 @@ class AnalyseTracker(Tracker):
 
         self.off_route_tracker = Tracker(f'offroute.{self.name}', completed=self.completed)
         self.reset()
+        self.do_est_finish_fut = None
 
         await self.on_new_points(org_tracker, org_tracker.points)
         org_tracker.new_points_observable.subscribe(self.on_new_points)
@@ -111,10 +112,18 @@ class AnalyseTracker(Tracker):
         self.total_dist = 0
 
     def stop(self):
+        if self.do_est_finish_fut:
+            self.do_est_finish_fut.cancel()
+
         self.org_tracker.stop()
 
     async def _completed(self):
         await self.org_tracker.complete()
+        if self.do_est_finish_fut:
+            try:
+                await self.do_est_finish_fut
+            except asyncio.CancelledError:
+                pass
 
     async def on_reset_points(self, tracker):
         await self.reset_points()
@@ -123,6 +132,8 @@ class AnalyseTracker(Tracker):
 
     async def on_new_points(self, tracker, new_points):
         self.logger.debug('analyse_tracker_new_points ({} points)'.format(len(new_points)))
+        if self.do_est_finish_fut:
+            cancel_and_wait_task(self.do_est_finish_fut)
 
         new_new_points = []
         new_off_route_points = []
@@ -164,7 +175,9 @@ class AnalyseTracker(Tracker):
                         self.prev_route_dist_time = point['time']
                         if 'elevation' in closest.route and closest.dist > 250:
                             point['route_elevation'] = round(route_elevation(closest.route, route_dist))
+
                         if closest.route_i == 0 and abs(route_dist - last_route_point.distance) < 100:
+                            # This is for when we get a point at the finish.
                             self.logger.debug('Finished')
                             self.finished = True
                             point['finished_time'] = point['time']
@@ -221,6 +234,12 @@ class AnalyseTracker(Tracker):
                             self.current_track_id += 1
                             self.off_route_track_id += 1
 
+                        if i == last_point_i and closest and closest.route_i == 0 and abs(route_dist - last_route_point.distance) < 1000:
+                            # This is for when they are near to the finish, and the tracker turns off too soon.
+                            seconds_to_finish = abs(route_dist - last_route_point.distance) / (dist_from_last / seconds)
+                            est_finish_time = point['time'] + timedelta(seconds=seconds_to_finish)
+                            self.do_est_finish_fut = asyncio.ensure_future(self.do_est_finish(est_finish_time))
+
                     # self.logger.info((not self.routes, not closest, closest.dist > 500 if closest else None, not self.going_forward and point.get('dist_from_last', 0)))
                     if not self.routes or not closest or closest.dist > 1000 or (not self.going_forward and point.get('dist_from_last', 0) > 1000):
                         # self.logger.info('off_route')
@@ -261,13 +280,21 @@ class AnalyseTracker(Tracker):
                         await self.off_route_tracker.new_points(new_off_route_points)
                         new_off_route_points = []
 
-            if self.finished:
-                break
-
         if new_new_points:
             await self.new_points(new_new_points)
         if new_off_route_points:
             await self.off_route_tracker.new_points(new_off_route_points)
+
+    async def do_est_finish(self, time):
+        delay = (time - datetime.now() + timedelta(minutes=5)).total_seconds()
+        if delay > 0:
+            await asyncio.sleep(delay)
+        point = {
+            'finished_time': time,
+            'time': time,
+            'rider_status': 'Finished',
+        }
+        await self.new_points([point])
 
     def get_predicted_position(self, time):
         # TODO if time > a position received - then interpolate between those positions.
