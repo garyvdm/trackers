@@ -2,9 +2,9 @@ import asyncio
 import bisect
 import collections
 import copy
-import datetime
 import logging
 import operator
+from datetime import datetime, timedelta
 from functools import partial
 from itertools import chain
 from operator import itemgetter
@@ -68,7 +68,7 @@ seterr(all='raise')
 class AnalyseTracker(Tracker):
 
     @classmethod
-    async def start(cls, org_tracker, analyse_start_time, routes, track_break_time=datetime.timedelta(minutes=30),
+    async def start(cls, org_tracker, analyse_start_time, routes, track_break_time=timedelta(minutes=30),
                     track_break_dist=10000, find_closest_cache=None):
         self = cls('analysed.{}'.format(org_tracker.name))
         self.org_tracker = org_tracker
@@ -126,7 +126,7 @@ class AnalyseTracker(Tracker):
 
         new_new_points = []
         new_off_route_points = []
-        log_time = datetime.datetime.now()
+        log_time = datetime.now()
         log_i = 0
         last_route_point = self.routes[0]['points'][-1] if self.routes else None
 
@@ -245,7 +245,7 @@ class AnalyseTracker(Tracker):
 
             is_last_point = i == last_point_i
             if i % 10 == 9 or is_last_point:
-                now = datetime.datetime.now()
+                now = datetime.now()
                 log_time_delta = (now - log_time).total_seconds()
                 if log_time_delta >= 1 or (is_last_point and did_slow_log):
                     self.logger.info('{}/{} ({:.1f}%) points analysed at {:.2f} points/second.'.format(
