@@ -199,7 +199,7 @@ def event_handler(func):
         event = request.app['trackers.events'].get(event_name)
         if event is None:
             raise web.HTTPNotFound()
-        await event.start_trackers()
+        event.start_trackers_without_wait()
         return await func(request, event, **kwargs)
     return event_handler_inner
 
@@ -210,7 +210,7 @@ def get_event_state(app, event):
         'live': event.config.get('live', False),
         'config_hash': event.client_config_body_hash,
         'routes_hash': event.client_routes_body_hash,
-        'riders_values': event.riders_current_values,
+        'riders_values': getattr(event, 'riders_current_values', {}),
         'client_hash': event.page[1],
         'server_time': datetime.datetime.now(),
     }
@@ -397,7 +397,7 @@ async def on_event_config_routes_change(event):
         },
     )
     if event.config.get('live', False):
-        await event.start_trackers()
+        event.start_trackers_without_wait()
 
 
 async def on_event_rider_new_values(event, rider_name, values):
@@ -465,7 +465,7 @@ async def event_ws(request):
                 await ws.close(message='Event not live. Use rest api')
                 return ws
 
-            await event.start_trackers()
+            event.start_trackers_without_wait()
 
             await send(get_event_state(request.app, event))
             exit_stack.enter_context(list_register(request.app['trackers.event_ws_sessions'][event_name], ws))

@@ -194,15 +194,17 @@ class Event(object):
         await self.config_routes_change_observable(self)
 
     async def start_trackers(self, analyse=True):
+        self.start_trackers_without_wait(analyse)
         if self.starting_fut:
             await self.starting_fut
 
-        if not self.trackers_started:
+    def start_trackers_without_wait(self, analyse=True):
+        if not self.trackers_started and not self.starting_fut:
             self.starting_fut = asyncio.ensure_future(self._start_trackers(analyse))
-            try:
-                await self.starting_fut
-            finally:
-                self.starting_fut = None
+            self.starting_fut.add_done_callback(self._start_done)
+
+    def _start_done(self, fut):
+        self.starting_fut = None
 
     async def _start_trackers(self, analyse):
         self.logger.info('Starting {}'.format(self.name))
