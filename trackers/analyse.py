@@ -234,7 +234,7 @@ class AnalyseTracker(Tracker):
                             self.current_track_id += 1
                             self.off_route_track_id += 1
 
-                        if i == last_point_i and closest and closest.route_i == 0 and abs(route_dist - last_route_point.distance) < 1000:
+                        if i == last_point_i and closest and closest.route_i == 0 and abs(route_dist - last_route_point.distance) < 2000:
                             # This is for when they are near to the finish, and the tracker turns off too soon.
                             seconds_to_finish = abs(route_dist - last_route_point.distance) / (dist_from_last / seconds)
                             est_finish_time = point['time'] + timedelta(seconds=seconds_to_finish)
