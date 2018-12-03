@@ -8,11 +8,12 @@ from contextlib import asynccontextmanager
 from functools import partial
 
 import aiohttp
+import dateutil.tz
 import more_itertools
 from aiohttp.web import Application as WebApplication
 from aniso8601 import parse_datetime
 
-from trackers.base import Observable, Tracker
+from trackers.base import Observable, print_tracker, Tracker
 
 logger = logging.getLogger(__name__)
 
@@ -147,8 +148,6 @@ async def start_tracker(app, tracker_name, server_name, device_unique_id, start,
     server = app['trackers.traccar_servers'][server_name]
     server_url = server['url']
     session = server['session']
-    url = f'{server_url}/api/positions'
-    # await (await session.delete(f'{server_url}/api/devices/0', json={})).json()
 
     devices_response = await session.get(f'{server_url}/api/devices', params={'all': 'true'})
     devices = await devices_response.json()
@@ -172,14 +171,15 @@ async def start_tracker(app, tracker_name, server_name, device_unique_id, start,
     tracker = Tracker('traccar.{}.{}-{}'.format(server_name, device_unique_id, tracker_name))
     tracker.server = server
     tracker.device_id = device_id
-    tracker.start = start
-    tracker.end = end
+    tracker.start = (start if start else (datetime.datetime.now() - datetime.timedelta(days=2)).replace(microsecond=0))
+    tracker.end = (end if end else (datetime.datetime.now() + datetime.timedelta(days=1)).replace(microsecond=0))
     tracker.seen_ids = seen_ids = set()
-    positions_response = await session.get(url, params={
+
+    positions_response = await session.get(f'{server_url}/api/positions', params={
         'deviceId': device_id,
-        'from': start.isoformat(),
-        'to': (end if end else datetime.datetime.now() + datetime.timedelta(days=1)).isoformat()
-    })
+        'from': tracker.start.astimezone(dateutil.tz.UTC).isoformat(),
+        'to': tracker.end.astimezone(dateutil.tz.UTC).isoformat()
+    }, headers={'Accept': 'application/json'})
     positions = await positions_response.json()
     points = [traccar_position_translate(position) for position in positions]
     seen_ids.update([position['id'] for position in positions])
@@ -254,7 +254,8 @@ async def main():
     import signal
     async with config(app, settings):
         tracker = await start_tracker(
-            app, 'gary', 'trackrace_tk', '864768011193999', datetime.datetime(2018, 4, 25), datetime.datetime(2018, 4, 26))
+            app, 'gary', 'trackrace_tk', 'garyvdm', None, None)
+        print_tracker(tracker)
         # await tracker.finish()
         run_fut = asyncio.Future()
         for signame in ('SIGINT', 'SIGTERM'):
