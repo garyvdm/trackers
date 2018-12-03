@@ -1,20 +1,32 @@
 import asyncio
 import json
-import os
 import sys
 
-import arsenic
 import asynctest
 import pkg_resources
+import testresources
+import testscenarios
 import yaml
 from aiohttp import web
 
-from trackers.tests_client import web_server_fixture
+from trackers.tests_client import browser_scenarios, web_server_fixture
 
 
-class TestQunit(asynctest.TestCase):
+def load_tests(loader, tests, pattern):
+    scenarios = testscenarios.generate_scenarios(tests)
+    return testresources.OptimisingTestSuite(scenarios)
+
+
+class TestQunit(testresources.ResourcedTestCase, asynctest.TestCase):
+    use_default_loop = True
+    scenarios = browser_scenarios
+
+    @property
+    def resources(self):
+        return [("browser_session", self.browser_session_resource_manager)]
 
     async def test_lib(self):
+        print(self.browser_session)
 
         app = web.Application()
         app.router.add_static('/static', pkg_resources.resource_filename('trackers', '/static'))
@@ -46,19 +58,10 @@ class TestQunit(asynctest.TestCase):
 
         async with web_server_fixture(self.loop, app) as url:
 
-            # service = arsenic.services.PhantomJS(log_file=arsenic.services.DEVNULL)
-            # browser = arsenic.browsers.PhantomJS()
-            # service = arsenic.services.Geckodriver(log_file=arsenic.services.DEVNULL)
-            # browser = arsenic.browsers.Firefox()
-            service = arsenic.services.Chromedriver(log_file=os.devnull)
-            browser = arsenic.browsers.Chrome(chromeOptions={'args': ['--headless', '--disable-gpu']})
+            await self.browser_session.get(f'{url}/static/tests/test-lib.html#post_results')
 
-            async with arsenic.get_session(service, browser) as driver:
-
-                await driver.get(f'{url}/static/tests/test-lib.html#post_results')
-
-                # result_text = await asyncio.wait_for(result_received_fut, 10)
-                result = await result_received_fut
+            # result_text = await asyncio.wait_for(result_received_fut, 10)
+            result = await result_received_fut
         print(yaml.dump(result))
         if result['failed']:
             self.fail()
