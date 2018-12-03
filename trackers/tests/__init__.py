@@ -2,7 +2,6 @@ import socket
 import unittest
 from contextlib import asynccontextmanager
 
-import arsenic.services
 import structlog
 from aiohttp import web
 
@@ -58,11 +57,3 @@ def dropper(logger, method_name, event_dict):
 
 
 structlog.configure(processors=[dropper])
-
-
-# Monkey patch arsenic to fix DeprecationWarning. Remove when https://github.com/HDE/arsenic/pull/23 is done
-def sync_factory(func):
-    return func
-
-
-arsenic.services.sync_factory = sync_factory
