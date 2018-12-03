@@ -343,8 +343,6 @@ class Event(object):
         return not finished, time_to_finish, not has_dist_on_route, 0 - dist_on_route
 
     async def predicted(self):
-        inactive_time = datetime.timedelta(minutes=30)
-
         while True:
             # Sleep at least 5 secs
             await asyncio.sleep(5)

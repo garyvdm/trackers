@@ -25,7 +25,6 @@ from nvector import (
     lat_lon2n_E,
     n_E2lat_lon,
     n_EB_E2p_EB_E,
-    p_EB_E2n_EB_E,
     unit,
 )
 

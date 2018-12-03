@@ -14,7 +14,7 @@ from calmjs.parse import es5
 from calmjs.parse.asttypes import Assign, ExprStatement, FunctionCall
 
 import trackers.events
-from trackers.base import print_tracker, Tracker
+from trackers.base import Tracker
 from trackers.bin_utils import (
     assign_rider_colors_inner,
     async_command,
@@ -223,12 +223,13 @@ async def monitor_feed(app, tracker, name, event):
 
 
 async def main():
-    import signal
-
-    app = {}
-    settings = {}
     async with aiohttp.ClientSession() as session:
         print(await get_points(logger, session, 'Fietie_Rocher', 'munga18'))
+
+    # import signal
+    # from trackers.base import print_tracker
+    # app = {}
+    # settings = {}
     # async with config(app, settings):
     #     tracker = await start_tracker(
     #         app, 'foobar', 'Rob_Walker', 'munga18')
