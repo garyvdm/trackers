@@ -115,7 +115,8 @@ class TreeWriter(TreeReader):
         commit = Commit()
         commit.tree = self.tree.id
         if author is None:
-            author = self.repo._get_user_identity()
+            config = self.repo.get_config_stack()
+            author = self.repo._get_user_identity(config)
         else:
             author = author.encode(self.encoding)
         commit.author = commit.committer = author
