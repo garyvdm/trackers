@@ -9,7 +9,7 @@ import pkg_resources
 import yaml
 from aiohttp import web
 
-from trackers.tests import web_server_fixture
+from trackers.tests_client import web_server_fixture
 
 
 class TestQunit(asynctest.TestCase):

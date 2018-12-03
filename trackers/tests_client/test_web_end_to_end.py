@@ -17,7 +17,7 @@ from dulwich.repo import MemoryRepo
 
 from trackers.base import Tracker
 from trackers.events import Event
-from trackers.tests import free_port, TEST_GOOGLE_API_KEY, web_server_fixture
+from trackers.tests_client import free_port, TEST_GOOGLE_API_KEY, web_server_fixture
 from trackers.web_app import convert_client_urls_to_paths, make_aio_app, on_new_event
 
 # import logging
