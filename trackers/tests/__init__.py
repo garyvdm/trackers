@@ -1,9 +1,9 @@
 import socket
 import unittest
+from contextlib import asynccontextmanager
 
 import arsenic.services
 import structlog
-from aiocontext import async_contextmanager
 from aiohttp import web
 
 import trackers
@@ -38,7 +38,7 @@ def free_port():
     return port
 
 
-@async_contextmanager
+@asynccontextmanager
 async def web_server_fixture(loop, app, port=None):
     if not port:
         port = free_port()

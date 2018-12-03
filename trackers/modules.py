@@ -1,6 +1,5 @@
+from contextlib import AsyncExitStack
 from functools import partial
-
-from trackers.async_exit_stack import AsyncExitStack
 
 
 async def config_modules(app, settings):
@@ -22,7 +21,7 @@ async def config_modules(app, settings):
     )
 
     for module in modules:
-        await exit_stack.enter_context(module(app, settings))
+        await exit_stack.enter_async_context(module(app, settings))
 
     app['start_event_trackers'] = {
         'mapmytracks': trackers.sources.map_my_tracks.start_event_tracker,

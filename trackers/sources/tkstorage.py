@@ -5,6 +5,7 @@ import json
 import logging
 import re
 from collections import Counter, defaultdict
+from contextlib import asynccontextmanager
 from copy import copy
 from functools import partial
 from itertools import groupby
@@ -12,7 +13,6 @@ from itertools import groupby
 import aiomsgpack
 import attr
 import more_itertools
-from aiocontext import async_contextmanager
 from aiohttp import web, WSMsgType
 
 from trackers.analyse import distance, Point
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 web_app = None
 
 
-@async_contextmanager
+@asynccontextmanager
 async def config(app, settings):
     app['tkstorage.points_received_observables'] = points_received_observables = defaultdict(partial(Observable, logger))
     app['tkstorage.send_queue'] = send_queue = asyncio.Queue()

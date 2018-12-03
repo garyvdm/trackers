@@ -3,13 +3,13 @@ import datetime
 import logging
 import re
 from collections import defaultdict
+from contextlib import asynccontextmanager
 from urllib.parse import parse_qs, urlparse
 
 import aiohttp
 import bs4
 import dateutil.parser
 import dateutil.tz
-from aiocontext import async_contextmanager
 from calmjs.parse import es5
 from calmjs.parse.asttypes import Assign, ExprStatement, FunctionCall
 
@@ -30,7 +30,7 @@ from trackers.dulwich_helpers import TreeWriter
 logger = logging.getLogger(__name__)
 
 
-@async_contextmanager
+@asynccontextmanager
 async def config(app, settings):
     app['trackleaders.session'] = session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=4))
     # app['trackleaders.rate_limit_sem'] = asyncio.Semaphore()

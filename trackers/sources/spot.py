@@ -2,9 +2,9 @@ import asyncio
 import datetime
 import functools
 import logging
+from contextlib import asynccontextmanager
 
 import aiohttp
-from aiocontext import async_contextmanager
 from aiohttp.web import Application as WebApplication
 from jsonpointer import resolve_pointer
 
@@ -13,7 +13,7 @@ from trackers.base import print_tracker, Tracker
 logger = logging.getLogger(__name__)
 
 
-@async_contextmanager
+@asynccontextmanager
 async def config(app, settings):
     app['spot.session'] = session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=1))
     app['spot.rate_limit_sem'] = asyncio.Semaphore()

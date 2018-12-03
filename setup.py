@@ -13,7 +13,6 @@ setuptools.setup(
         'aionotify',
         'aniso8601',
         'arsenic',
-        'asyncio-contextmanager',
         'asynctest',
         'attrs',
         'beautifulsoup4',

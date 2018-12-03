@@ -8,17 +8,15 @@ import signal
 import subprocess
 import sys
 import tempfile
-from contextlib import closing, suppress
+from contextlib import asynccontextmanager, AsyncExitStack, closing, suppress
 from functools import partial
 
 import aionotify
 import arsenic
 import pkg_resources
 import yaml
-from aiocontext import async_contextmanager
 from aiohttp import web
 
-from trackers.async_exit_stack import AsyncExitStack
 from trackers.tests import web_server_fixture
 from trackers.web_app import convert_client_urls_to_paths
 
@@ -26,7 +24,7 @@ from trackers.web_app import convert_client_urls_to_paths
 log = logging.getLogger(__name__)
 
 
-@async_contextmanager
+@asynccontextmanager
 async def watch_path(loop, path):
     watcher = aionotify.Watcher()
     watcher.watch(path=path, flags=aionotify.Flags.MODIFY)
@@ -40,7 +38,7 @@ async def watch_path(loop, path):
         watcher.close()
 
 
-@async_contextmanager
+@asynccontextmanager
 async def on_signals_set_event(loop, signals):
     event = asyncio.Event()
 
@@ -71,7 +69,7 @@ async def qunit_runner_async(args, loop):
 
         org_static_path = pkg_resources.resource_filename('trackers', '/static')
         if args.coverage:
-            static_path = os.path.join(await stack.enter_context(tempfile.TemporaryDirectory()), 'static')
+            static_path = os.path.join(await stack.enter_async_context(tempfile.TemporaryDirectory()), 'static')
             os.mkdir(static_path)
         else:
             static_path = org_static_path
@@ -107,17 +105,17 @@ async def qunit_runner_async(args, loop):
 
         app.router.add_route('POST', '/error', handler=receive_error, name='receive_error')
 
-        url = await stack.enter_context(web_server_fixture(loop, app))
+        url = await stack.enter_async_context(web_server_fixture(loop, app))
 
         service = arsenic.services.Geckodriver(log_file=os.devnull)
         browser = arsenic.browsers.Firefox()
 
-        driver = await stack.enter_context(arsenic.get_session(service, browser))
+        driver = await stack.enter_async_context(arsenic.get_session(service, browser))
         if args.coverage:
-            app['coverage_driver'] = await stack.enter_context(arsenic.get_session(service, browser))
+            app['coverage_driver'] = await stack.enter_async_context(arsenic.get_session(service, browser))
 
-        watcher = await stack.enter_context(watch_path(loop, org_static_path))
-        stop_event = await stack.enter_context(on_signals_set_event(loop, ('SIGINT', 'SIGTERM')))
+        watcher = await stack.enter_async_context(watch_path(loop, org_static_path))
+        stop_event = await stack.enter_async_context(on_signals_set_event(loop, ('SIGINT', 'SIGTERM')))
 
         stop_event_wait = asyncio.ensure_future(stop_event.wait())
 

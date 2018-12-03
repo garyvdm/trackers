@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 import traceback
+from contextlib import asynccontextmanager, AsyncExitStack
 
 import arsenic
 import asynctest
@@ -11,11 +12,9 @@ import pkg_resources
 import testresources
 import testscenarios
 import yaml
-from aiocontext import async_contextmanager
 from aiohttp import web
 from dulwich.repo import MemoryRepo
 
-from trackers.async_exit_stack import AsyncExitStack
 from trackers.base import Tracker
 from trackers.events import Event
 from trackers.tests import free_port, TEST_GOOGLE_API_KEY, web_server_fixture
@@ -45,12 +44,11 @@ class WebDriverService(testresources.TestResourceManager):
         loop.run_until_complete(driver.close())
 
 
-@async_contextmanager
+@asynccontextmanager
 async def tracker_web_server_fixture():
 
-    async with AsyncExitStack() as stack:
+    with tempfile.TemporaryDirectory() as cache_path:
         repo = MemoryRepo()
-        cache_path = await stack.enter_context(tempfile.TemporaryDirectory())
         settings = {
             'google_api_key': TEST_GOOGLE_API_KEY,
             'cache_path': cache_path,
@@ -159,7 +157,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
 
         async with self.driver.session(self.browser) as session:
             async with AsyncExitStack() as stack:
-                app, client_errors, server_errors = await stack.enter_context(tracker_web_server_fixture())
+                app, client_errors, server_errors = await stack.enter_async_context(tracker_web_server_fixture())
                 app['trackers.events']['test_event'] = event = Event(
                     app, 'test_event',
                     yaml.load("""
@@ -172,7 +170,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
                     """),
                     []
                 )
-                url = await stack.enter_context(web_server_fixture(self.loop, app, port))
+                url = await stack.enter_async_context(web_server_fixture(self.loop, app, port))
                 await on_new_event(event)
                 await session.get(f'{url}/test_event')
                 await wait_condition(ws_ready_is, session, True)
@@ -181,7 +179,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
 
             # Bring the server back up, reconnect
             async with AsyncExitStack() as stack:
-                app, client_errors, server_errors = await stack.enter_context(tracker_web_server_fixture())
+                app, client_errors, server_errors = await stack.enter_async_context(tracker_web_server_fixture())
                 app['trackers.events']['test_event'] = event = Event(
                     app, 'test_event',
                     yaml.load("""
@@ -194,7 +192,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
                     """),
                     []
                 )
-                url = await stack.enter_context(web_server_fixture(self.loop, app, port))
+                url = await stack.enter_async_context(web_server_fixture(self.loop, app, port))
                 await on_new_event(event)
                 await wait_condition(ws_ready_is, session, True, timeout=10)
 
@@ -204,8 +202,8 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
         step_sleep_time = 0.2
 
         async with AsyncExitStack() as stack:
-            session = await stack.enter_context(self.driver.session(self.browser))
-            app, client_errors, server_errors = await stack.enter_context(tracker_web_server_fixture())
+            session = await stack.enter_async_context(self.driver.session(self.browser))
+            app, client_errors, server_errors = await stack.enter_async_context(tracker_web_server_fixture())
 
             mock_tracker = Tracker('mock_tracker')
 
@@ -215,7 +213,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
             app['start_event_trackers'] = {
                 'mock': start_mock_event_tracker,
             }
-            url = await stack.enter_context(web_server_fixture(self.loop, app))
+            url = await stack.enter_async_context(web_server_fixture(self.loop, app))
 
             app['trackers.events']['test_event'] = event = Event(
                 app, 'test_event',

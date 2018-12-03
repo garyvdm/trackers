@@ -1,11 +1,11 @@
 import argparse
 import asyncio
-import contextlib
 import copy
 import itertools
 import logging.config
 import os
 import sys
+from contextlib import AsyncExitStack, closing
 from functools import partial, wraps
 from math import floor, sqrt
 from os.path import join, relpath
@@ -29,7 +29,6 @@ from trackers.analyse import (
     ramer_douglas_peucker_sections,
     route_with_distance_and_index,
 )
-from trackers.async_exit_stack import AsyncExitStack
 from trackers.combined import Combined
 from trackers.dulwich_helpers import TreeWriter
 from trackers.general import json_dumps, json_encode
@@ -136,8 +135,8 @@ def get_combined_settings(specific_defaults_yaml=None, args=None):
 async def app_setup(app, settings):
     stack = AsyncExitStack()
 
-    await stack.enter_context(await app_setup_basic(app, settings))
-    await stack.enter_context(await trackers.modules.config_modules(app, settings))
+    await stack.enter_async_context(await app_setup_basic(app, settings))
+    await stack.enter_async_context(await trackers.modules.config_modules(app, settings))
 
     return stack
 
@@ -146,7 +145,7 @@ async def app_setup_basic(app, settings):
     stack = AsyncExitStack()
 
     app['trackers.settings'] = settings
-    app['trackers.data_repo'] = await stack.enter_context(dulwich.repo.Repo(settings['data_path']))
+    app['trackers.data_repo'] = await stack.enter_async_context(dulwich.repo.Repo(settings['data_path']))
     app['trackers.events'] = {}
 
     return stack
@@ -165,7 +164,7 @@ def async_command(get_parser_func, basic=False):
             parser = get_parser_func()
             args = parser.parse_args()
             settings = get_combined_settings(args=args)
-            with contextlib.closing(asyncio.get_event_loop()) as loop:
+            with closing(asyncio.get_event_loop()) as loop:
                 loop.set_debug(settings['debug'])
                 loop.run_until_complete(run_with_app(settings, args))
 

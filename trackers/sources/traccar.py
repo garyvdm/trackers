@@ -4,11 +4,11 @@ import functools
 import logging
 import time
 from collections import defaultdict
+from contextlib import asynccontextmanager
 from functools import partial
 
 import aiohttp
 import more_itertools
-from aiocontext import async_contextmanager
 from aiohttp.web import Application as WebApplication
 from aniso8601 import parse_datetime
 
@@ -17,7 +17,7 @@ from trackers.base import Observable, Tracker
 logger = logging.getLogger(__name__)
 
 
-@async_contextmanager
+@asynccontextmanager
 async def config(app, settings):
     app['trackers.traccar_servers'] = servers = {}
     for server_name, server in settings['traccar_servers'].items():
