@@ -118,7 +118,7 @@ def get_combined_settings(specific_defaults_yaml=None, args=None):
     if args and args.debug:
         logging.getLogger('trackers').setLevel(logging.DEBUG)
         logging.getLogger('web_app').setLevel(logging.DEBUG)
-        logging.getLogger('asyncio').setLevel(logging.DEBUG)
+        # logging.getLogger('asyncio').setLevel(logging.DEBUG)
 
     settings['debug'] = args and args.debug
 
@@ -165,7 +165,7 @@ def async_command(get_parser_func, basic=False):
             args = parser.parse_args()
             settings = get_combined_settings(args=args)
             with closing(asyncio.get_event_loop()) as loop:
-                loop.set_debug(settings['debug'])
+                # loop.set_debug(settings['debug'])
                 loop.run_until_complete(run_with_app(settings, args))
 
         return async_command_wrapper
