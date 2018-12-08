@@ -10,7 +10,7 @@ import logging
 import re
 from base64 import urlsafe_b64encode
 from collections import defaultdict
-from contextlib import suppress
+from contextlib import asynccontextmanager, suppress
 from functools import partial, wraps
 
 import pkg_resources
@@ -138,10 +138,14 @@ async def shutdown(app):
     logger.info('Stopping load_events_with_watcher_task')
     await cancel_and_wait_task(app['load_events_with_watcher_task'])
 
-    logger.info('Stopping event trackers')
-    stop_and_complete_trackers_fs = [event.stop_and_complete_trackers() for event in app['trackers.events'].values()]
+    logger.info('Stopping event and individual trackers')
+    stop_and_complete_trackers_fs = \
+        [event.stop_and_complete_trackers() for event in app['trackers.events'].values()] + \
+        [individual_discard_tracker(app, tracker_info) for tracker_info in app['trackers.individual_trackers'].values()]
+
     if stop_and_complete_trackers_fs:
         await asyncio.wait(stop_and_complete_trackers_fs)
+
     logger.info('Module cleanup')
     await app['trackers.app_setup_cm'].__aexit__(None, None, None)
 
@@ -546,7 +550,7 @@ async def individual_ws(get_key, get_tracker, request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
     try:
-        with contextlib.ExitStack() as exit_stack:
+        async with contextlib.AsyncExitStack() as exit_stack:
             async def send(msg):
                 logger.debug('send: {}'.format(str(msg)[:1000]))
                 await ws.send_str(json_dumps(msg))
@@ -555,26 +559,8 @@ async def individual_ws(get_key, get_tracker, request):
                 'server_time': datetime.datetime.now()
             })
 
-            tracker_key = get_key(request)
-            tracker_info = request.app['trackers.individual_trackers'].get(tracker_key)
-
-            if tracker_info is None:
-                tracker = await get_tracker(request)
-                tracker = await AnalyseTracker.start(tracker, None, ())
-                tracker_info = {
-                    'key': tracker_key,
-                    'tracker': tracker,
-                    'ws_sessions': [],
-                    'discard_task': None
-                }
-                request.app['trackers.individual_trackers'][tracker_key] = tracker_info
-            else:
-                if tracker_info['discard_task']:
-                    cancel_and_wait_task(tracker_info['discard_task'])
-                    tracker_info['discard_task'] = None
-
-                tracker = tracker_info['tracker']
-
+            tracker_info = await exit_stack.enter_async_context(get_individual_tracker(request, get_key, get_tracker))
+            tracker = tracker_info['tracker']
             exit_stack.enter_context(list_register(request.app['trackers.ws_sessions'], ws))
             exit_stack.enter_context(list_register(tracker_info['ws_sessions'], ws))
 
@@ -609,11 +595,41 @@ async def individual_ws(get_key, get_tracker, request):
         await ws.send_str(json_dumps({'error': 'Error getting tracker: {}'.format(e)}))
         logger.exception('')
         await ws.close(message='Server Error')
+
     return ws
 
 
-def start_individual_discard_tracker_wait(app, tracker_info):
-    tracker_info['discard_task'] = asyncio.ensure_future(individual_discard_tracker_wait(app, tracker_info))
+@asynccontextmanager
+async def get_individual_tracker(request, get_key, get_tracker):
+    tracker_key = get_key(request)
+    tracker_info = request.app['trackers.individual_trackers'].get(tracker_key)
+
+    if tracker_info is None:
+        logger.debug(f'Starting individual tracker: {tracker_key}')
+        tracker = await get_tracker(request)
+        tracker = await AnalyseTracker.start(tracker, None, ())
+        tracker_info = {
+            'key': tracker_key,
+            'tracker': tracker,
+            'ws_sessions': [],
+            'discard_task': None
+        }
+        request.app['trackers.individual_trackers'][tracker_key] = tracker_info
+    else:
+        logger.debug(f'Using existing individual tracker: {tracker_key}')
+
+        if tracker_info['discard_task']:
+            await cancel_and_wait_task(tracker_info['discard_task'])
+            tracker_info['discard_task'] = None
+    try:
+        yield tracker_info
+    finally:
+        if tracker_info['discard_task']:
+            cancel_and_wait_task(tracker_info['discard_task'])
+            tracker_info['discard_task'] = None
+        if not tracker_info['ws_sessions']:
+            logger.debug(f'No more ws_sessions for {tracker_key}. Will discard in 60 min.')
+            tracker_info['discard_task'] = asyncio.ensure_future(individual_discard_tracker_wait(request.app, tracker_info))
 
 
 async def individual_discard_tracker_wait(app, tracker_info):
@@ -622,10 +638,13 @@ async def individual_discard_tracker_wait(app, tracker_info):
 
 
 async def individual_discard_tracker(app, tracker_info):
+    logger.debug(f'Stoping individual tracker: {tracker_info["key"]}')
     try:
         tracker = tracker_info['tracker']
         tracker.stop()
         await tracker.complete()
+        if tracker_info['discard_task']:
+            await cancel_and_wait_task(tracker_info['discard_task'])
     finally:
         del app['trackers.individual_trackers'][tracker_info['key']]
 

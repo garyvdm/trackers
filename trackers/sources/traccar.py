@@ -172,13 +172,14 @@ async def start_tracker(app, tracker_name, server_name, device_unique_id, start,
     tracker.server = server
     tracker.device_id = device_id
     tracker.start = (start if start else (datetime.datetime.now() - datetime.timedelta(days=2)).replace(microsecond=0))
-    tracker.end = (end if end else (datetime.datetime.now() + datetime.timedelta(days=1)).replace(microsecond=0))
+    tracker.end = end
     tracker.seen_ids = seen_ids = set()
 
+    initial_query_end = (end if end else (datetime.datetime.now() + datetime.timedelta(days=1)).replace(microsecond=0))
     positions_response = await session.get(f'{server_url}/api/positions', params={
         'deviceId': device_id,
         'from': tracker.start.astimezone(dateutil.tz.UTC).isoformat(),
-        'to': tracker.end.astimezone(dateutil.tz.UTC).isoformat()
+        'to': initial_query_end.astimezone(dateutil.tz.UTC).isoformat()
     }, headers={'Accept': 'application/json'})
     positions = await positions_response.json()
     points = [traccar_position_translate(position) for position in positions]
