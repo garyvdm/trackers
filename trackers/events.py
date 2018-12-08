@@ -308,7 +308,10 @@ class Event(object):
             for riders_objects in self.riders_objects.values():
                 try:
                     if riders_objects.tracker:
-                        await riders_objects.tracker.complete()
+                        try:
+                            await riders_objects.tracker.complete()
+                        except asyncio.CancelledError:
+                            pass
                 except Exception:
                     self.logger.exception('Unhandled tracker error: ')
 

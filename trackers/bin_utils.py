@@ -4,6 +4,7 @@ import copy
 import itertools
 import logging.config
 import os
+import signal
 import sys
 from contextlib import AsyncExitStack, closing
 from functools import partial, wraps
@@ -157,7 +158,20 @@ def async_command(get_parser_func, basic=False):
             app = {}
             setup = app_setup_basic if basic else app_setup
             async with await setup(app, settings):
-                await func(app, settings, args)
+                loop = asyncio.get_event_loop()
+                run_fut = asyncio.ensure_future(func(app, settings, args))
+
+                def cancel(signal):
+                    logging.info('Canceling')
+                    run_fut.cancel()
+
+                for signame in ('SIGINT', 'SIGTERM'):
+                    loop.add_signal_handler(getattr(signal, signame), cancel, None)
+                try:
+                    await run_fut
+                finally:
+                    for signame in ('SIGINT', 'SIGTERM'):
+                        loop.remove_signal_handler(getattr(signal, signame))
 
         @wraps(func)
         def async_command_wrapper():
@@ -166,7 +180,10 @@ def async_command(get_parser_func, basic=False):
             settings = get_combined_settings(args=args)
             with closing(asyncio.get_event_loop()) as loop:
                 # loop.set_debug(settings['debug'])
-                loop.run_until_complete(run_with_app(settings, args))
+                try:
+                    loop.run_until_complete(run_with_app(settings, args))
+                except asyncio.CancelledError:
+                    logging.error('CancelledError.')
 
         return async_command_wrapper
     return async_command_decorator
@@ -202,25 +219,27 @@ async def convert_to_static(app, settings, args):
     event_name = event_name_clean(args.event_name, settings)
     event = await trackers.events.Event.load(app, event_name, tree_writer)
     await event.start_trackers(analyse=False)
+    try:
+        for rider in event.config['riders']:
+            rider_name = rider['name']
+            tackers = event.riders_objects[rider_name].source_trackers
+            tracker = await Combined.start(rider_name, tackers)
+            if tracker:
+                await tracker.complete()
+                path = os.path.join('events', event.name, rider_name)
+                if args.format == 'msgpack':
+                    tree_writer.set_data(path, msgpack.dumps(tracker.points, default=json_encode))
 
-    for rider in event.config['riders']:
-        rider_name = rider['name']
-        tackers = event.riders_objects[rider_name].source_trackers
-        tracker = await Combined.start(rider_name, tackers)
-        if tracker:
-            await tracker.complete()
-            path = os.path.join('events', event.name, rider_name)
-            if args.format == 'msgpack':
-                tree_writer.set_data(path, msgpack.dumps(tracker.points, default=json_encode))
+                if args.format == 'json':
+                    tree_writer.set_data(path, json_dumps(tracker.points).encode())
 
-            if args.format == 'json':
-                tree_writer.set_data(path, json_dumps(tracker.points).encode())
-
-            rider['tracker'] = {'type': 'static', 'name': rider_name, 'format': args.format}
-    event.config['analyse'] = False
-    event.config['live'] = False
-    if not args.dry_run:
-        await event.save(f'{event_name}: convert_to_static', tree_writer=tree_writer)
+                rider['tracker'] = {'type': 'static', 'name': rider_name, 'format': args.format}
+        event.config['analyse'] = False
+        event.config['live'] = False
+        if not args.dry_run:
+            await event.save(f'{event_name}: convert_to_static', tree_writer=tree_writer)
+    finally:
+        await event.stop_and_complete_trackers()
 
 
 @async_command(partial(event_command_parser, description="Assigns unique colors to riders"), basic=True)

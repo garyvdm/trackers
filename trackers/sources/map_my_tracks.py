@@ -243,7 +243,7 @@ async def monitor_user(client_session, user, start_date, end_date, cache_path, t
 
             await asyncio.sleep(30)
         except asyncio.CancelledError:
-            break
+            raise
         except aiohttp.client_exceptions.ClientError as e:
             tracker.logger.error('Error in monitor_user: {!r}'.format(e))
         except Exception:

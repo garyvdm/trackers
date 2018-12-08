@@ -175,7 +175,10 @@ class TestAnalyseTracker(asynctest.TestCase):
 
         await asyncio.sleep(0.05)
         analyse_tracker.stop()
-        await analyse_tracker.complete()
+        try:
+            await analyse_tracker.complete()
+        except asyncio.CancelledError:
+            pass
 
     @unittest.expectedFailure
     async def test_with_circular_route(self):

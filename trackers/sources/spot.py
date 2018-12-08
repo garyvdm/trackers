@@ -127,7 +127,7 @@ async def monitor_feed(app, tracker, feed_id, start, end):
                 if end and now >= end:
                     break
             except asyncio.CancelledError:
-                break
+                raise
             except (aiohttp.client_exceptions.ClientError, RuntimeError) as e:
                 tracker.logger.error('Error in monitor_feed: {!r}'.format(e))
             except Exception:
@@ -135,7 +135,7 @@ async def monitor_feed(app, tracker, feed_id, start, end):
             await asyncio.sleep(60)
 
     except asyncio.CancelledError:
-        pass
+        raise
     except Exception:
         tracker.logger.exception('Error in monitor_feed:')
 

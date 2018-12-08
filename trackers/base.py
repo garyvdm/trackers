@@ -44,7 +44,7 @@ class Tracker(object):
         try:
             await self.completed
         except asyncio.CancelledError:
-            pass
+            raise
 
 
 class Observable(object):

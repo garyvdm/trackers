@@ -198,7 +198,7 @@ async def monitor_feed(app, tracker, name, event):
                     await tracker.reset_points()
                     await tracker.new_points(new_all_points)
             except asyncio.CancelledError:
-                break
+                raise
             except (aiohttp.client_exceptions.ClientError, RuntimeError) as e:
                 tracker.logger.error('Error in monitor_feed: {!r}'.format(e))
             except Exception:
@@ -217,7 +217,7 @@ async def monitor_feed(app, tracker, name, event):
             await asyncio.sleep(next_check_sec)
 
     except asyncio.CancelledError:
-        pass
+        raise
     except Exception:
         tracker.logger.exception('Error in monitor_feed:')
 

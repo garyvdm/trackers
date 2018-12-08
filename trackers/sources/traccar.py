@@ -108,7 +108,7 @@ async def server_ws_task(app, settings, session, server_name, server, position_r
                         elif msg.type == aiohttp.WSMsgType.ERROR:
                             break
             except asyncio.CancelledError:
-                break
+                raise
             except aiohttp.client_exceptions.ClientError as e:
                 logger.error('Error in ws_task: {!r}'.format(e))
                 await logout(app, server_name)
@@ -118,7 +118,7 @@ async def server_ws_task(app, settings, session, server_name, server, position_r
             await asyncio.sleep(reconnect_sleep_time)
             reconnect_sleep_time = min((reconnect_sleep_time * 2, 30))
     except asyncio.CancelledError:
-        pass
+        raise
     except Exception:
         logger.exception('Error in ws_task: ')
 
