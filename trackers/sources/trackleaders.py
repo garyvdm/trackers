@@ -26,6 +26,7 @@ from trackers.bin_utils import (
 )
 from trackers.dulwich_helpers import TreeWriter
 
+# TODO: proper start/end filtering.
 
 logger = logging.getLogger(__name__)
 
@@ -136,12 +137,12 @@ async def get_config(app, settings, args):
 
 
 async def start_event_tracker(app, event, rider_name, tracker_data):
-    return await start_tracker(app, rider_name, tracker_data['name'], tracker_data['event'])
+    return await start_tracker(app, rider_name, tracker_data['name'], tracker_data['event'], event.config['tracker_end'])
 
 
-async def start_tracker(app, tracker_name, name, event):
+async def start_tracker(app, tracker_name, name, event, end):
     tracker = Tracker(f'trackleaders.{tracker_name}')
-    monitor_task = asyncio.ensure_future(monitor_feed(app, tracker, name, event))
+    monitor_task = asyncio.ensure_future(monitor_feed(app, tracker, name, event, end))
     tracker.stop = monitor_task.cancel
     tracker.completed = monitor_task
     return tracker
@@ -184,7 +185,7 @@ async def get_points(logger, session, name, event):
     return sorted_points
 
 
-async def monitor_feed(app, tracker, name, event):
+async def monitor_feed(app, tracker, name, event, end):
     try:
         while True:
             try:
@@ -197,6 +198,8 @@ async def monitor_feed(app, tracker, name, event):
                     tracker.logger.debug('Reset points')
                     await tracker.reset_points()
                     await tracker.new_points(new_all_points)
+                if datetime.datetime.now() > end:
+                    break
             except asyncio.CancelledError:
                 raise
             except (aiohttp.client_exceptions.ClientError, RuntimeError) as e:
