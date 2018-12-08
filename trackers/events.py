@@ -1,12 +1,12 @@
 import asyncio
 import copy
-import datetime
 import logging
 import os
 from bisect import bisect
 from collections import defaultdict
 from contextlib import closing, suppress
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from functools import partial
 from itertools import chain
 from typing import List
@@ -19,7 +19,7 @@ from trackers.analyse import AnalyseTracker, get_analyse_routes
 from trackers.base import BlockedList, cancel_and_wait_task, Observable, Tracker
 from trackers.combined import Combined
 from trackers.dulwich_helpers import TreeReader, TreeWriter
-from trackers.general import hash_bytes, index_and_hash_tracker, start_replay_tracker
+from trackers.general import hash_bytes, index_and_hash_tracker, json_encode, start_replay_tracker
 from trackers.persisted_func_cache import PersistedFuncCache
 
 logger = logging.getLogger(__name__)
@@ -219,9 +219,11 @@ class Event(object):
         self.riders_current_values = {}
         self.riders_predicted_points = {}
 
-        if analyse:
-            self.rider_analyse_trackers = {}
+        tree_reader = TreeReader(self.app['trackers.data_repo'], treeish=self.git_hash) if self.git_hash else None
+        has_static = tree_reader.exists(os.path.join('static')) if tree_reader else False
+        has_static_analyse = has_static and self.config.get('static_analyse', False)
 
+        if analyse and not has_static_analyse:
             loop = asyncio.get_event_loop()
             analyse_routes = await loop.run_in_executor(None, get_analyse_routes, self.routes)
 
@@ -236,48 +238,65 @@ class Event(object):
         if replay:
             replay_config = replay if isinstance(replay, dict) else {}
             replay_kwargs = {
-                'replay_start': datetime.datetime.now(),
+                'replay_start': datetime.now(),
                 'speed_multiply': replay_config.get('speed_multiply', 2),
-                'offset': datetime.timedelta(**replay_config.get('offset', {})),
+                'offset': timedelta(**replay_config.get('offset', {})),
                 'event_start_time': self.event_start,
             }
             self.event_start = replay_kwargs['replay_start'] + replay_kwargs['offset']
-
-        rider_tracker_start_fs = defaultdict(list)
-        for rider in self.config['riders']:
-            rider_name = rider['name']
-
-            if 'tracker' in rider and rider['tracker']:
-                start_tracker = self.app['start_event_trackers'][rider['tracker']['type']]
-                start_fut = asyncio.ensure_future(start_tracker(self.app, self, rider_name, rider['tracker']))
-                rider_tracker_start_fs[rider_name].append(start_fut)
-
-            for tracker in rider.get('trackers', ()):
-                start_tracker = self.app['start_event_trackers'][tracker['type']]
-                start_fut = asyncio.ensure_future(start_tracker(self.app, self, rider_name, tracker))
-                rider_tracker_start_fs[rider_name].append(start_fut)
-
-        all_start_fs = list(chain.from_iterable(rider_tracker_start_fs.values()))
-        if all_start_fs:
-            await asyncio.wait(all_start_fs)
 
         for rider in self.config['riders']:
             rider_name = rider['name']
             self.riders_objects[rider_name] = objects = RiderObjects(rider_name, self)
             objects.data_tracker = await DataTracker.start(rider)
 
-            for start_fut in rider_tracker_start_fs[rider_name]:
-                objects.source_trackers.append(start_fut.result())
+        if has_static:
+            for rider in self.config['riders']:
+                rider_name = rider['name']
+                tracker = await start_implicit_static_event_tracker(self, rider_name, 'source', tree_reader)
+                self.riders_objects[rider_name].source_trackers.append(tracker)
+        else:
+            rider_tracker_start_fs = defaultdict(list)
+            for rider in self.config['riders']:
+                rider_name = rider['name']
+                rider_trackers = tuple(chain(
+                    (rider['tracker'], ) if 'tracker' in rider and rider['tracker'] else (),
+                    rider.get('trackers', ())
+                ))
+                for tracker in rider_trackers:
+                    start_tracker = self.app['start_event_trackers'][tracker['type']]
+                    start_fut = asyncio.ensure_future(start_tracker(self.app, self, rider_name, tracker))
+                    rider_tracker_start_fs[rider_name].append(start_fut)
 
-            tracker = await Combined.start(f'combined.{rider_name}', [objects.data_tracker] + objects.source_trackers)
+            all_start_fs = list(chain.from_iterable(rider_tracker_start_fs.values()))
+            if all_start_fs:
+                await asyncio.wait(all_start_fs)
+            for rider in self.config['riders']:
+                for start_fut in rider_tracker_start_fs[rider['name']]:
+                    tracker = start_fut.result()
+                    self.riders_objects[rider['name']].source_trackers.append(tracker)
+
+        for rider in self.config['riders']:
+            rider_name = rider['name']
+            objects = self.riders_objects[rider_name]
+            tracker = await Combined.start(f'combined.{rider_name}', tuple(chain((objects.data_tracker, ), objects.source_trackers)))
             if replay:
                 tracker = await start_replay_tracker(tracker, **replay_kwargs)
+
             if analyse and rider.get('type', 'rider') == 'rider':
-                objects.analyse_tracker = tracker = await AnalyseTracker.start(
-                    tracker, self.event_start, analyse_routes, find_closest_cache=find_closest_cache)
-                objects.off_route_tracker = off_route_tracker = await index_and_hash_tracker(tracker.off_route_tracker)
+                if has_static_analyse:
+                    objects.analyse_tracker = tracker = await start_implicit_static_event_tracker(
+                        self, rider_name, 'analyse', tree_reader)
+                    objects.off_route_tracker = await start_implicit_static_event_tracker(
+                        self, rider_name, 'off_route', tree_reader)
+
+                else:
+                    objects.analyse_tracker = tracker = await AnalyseTracker.start(
+                        tracker, self.event_start, analyse_routes, find_closest_cache=find_closest_cache)
+                    objects.off_route_tracker = await index_and_hash_tracker(tracker.off_route_tracker)
+
                 objects.off_route_blocked_list = BlockedList.from_tracker(
-                    off_route_tracker, entire_block=not is_live,
+                    objects.off_route_tracker, entire_block=not is_live,
                     new_update_callbacks=(partial(self.rider_off_route_blocked_list_update_observable, self, rider['name']), ))
 
             tracker = await index_and_hash_tracker(tracker)
@@ -290,6 +309,7 @@ class Event(object):
             objects.blocked_list = BlockedList.from_tracker(
                 tracker, entire_block=not is_live,
                 new_update_callbacks=(partial(self.rider_blocked_list_update_observable, self, rider['name']), ))
+
         if analyse and is_live:
             self.predicted_task = asyncio.ensure_future(self.predicted())
         self.trackers_started = True
@@ -355,7 +375,7 @@ class Event(object):
                 await asyncio.wait_for(self.new_points.wait(), 15)
 
             try:
-                time = datetime.datetime.now()
+                time = datetime.now()
                 riders_predicted_points = {rider_objects.rider_name: rider_objects.analyse_tracker.get_predicted_position(time) or {}
                                            for rider_objects in self.riders_objects.values() if rider_objects.analyse_tracker}
                 if not riders_predicted_points:
@@ -411,6 +431,68 @@ class Event(object):
             except Exception:
                 self.logger.exception('Error in predicted:')
             self.new_points.clear()
+
+    async def convert_to_static(self, tree_writer):
+        try:
+            await self.start_trackers(analyse=False)
+            for rider in self.config['riders']:
+                rider_name = rider['name']
+                tracker = await Combined.start(rider_name, self.riders_objects[rider_name].source_trackers)
+                await tracker.complete()
+
+                with suppress(KeyError):
+                    del rider['trackers']
+                with suppress(KeyError):
+                    del rider['tracker']
+                # Remove old static file.
+                with suppress(KeyError):
+                    tree_writer.remove(os.path.join('events', self.name, rider_name))
+
+                path = os.path.join('events', self.name, 'static', rider_name, 'source')
+                tree_writer.set_data(path, msgpack.dumps(tracker.points, default=json_encode))
+
+            self.config['live'] = False
+            await self.save(f'{self.name}: convert_to_static', tree_writer=tree_writer)
+        finally:
+            await self.stop_and_complete_trackers()
+
+    async def store_analyse(self, tree_writer):
+        assert tree_writer.exists(os.path.join('events', self.name, 'static'))
+        try:
+            self.config['static_analyse'] = False
+            await self.start_trackers(analyse=True)
+            for rider in self.config['riders']:
+                rider_name = rider['name']
+                trackers = (
+                    (self.riders_objects[rider_name].analyse_tracker, 'analyse'),
+                    (self.riders_objects[rider_name].off_route_tracker, 'off_route'),
+                )
+                for tracker, sub_tracker_type in trackers:
+                    if tracker:
+                        await tracker.complete()
+                        path = os.path.join('events', self.name, 'static', rider_name, sub_tracker_type)
+                        tree_writer.set_data(path, msgpack.dumps(tracker.points, default=json_encode))
+
+            self.config['static_analyse'] = True
+            await self.save(f'{self.name}: store static analyse', tree_writer=tree_writer)
+        finally:
+            await self.stop_and_complete_trackers()
+
+
+async def start_implicit_static_event_tracker(event, rider_name, sub_type, tree_reader):
+    tracker = Tracker(f'static.{rider_name}.{sub_type}')
+    path = os.path.join('static', rider_name, sub_type)
+    points = msgpack.loads(tree_reader.get(path).data, raw=False)
+    for point in points:
+        if 'time' in point:
+            point['time'] = datetime.fromtimestamp(point['time'])
+        if 'server_time' in point:
+            point['server_time'] = datetime.fromtimestamp(point['server_time'])
+    # print(event.name, rider_name, sub_type, len(points))
+
+    await tracker.new_points(points)
+    tracker.completed.set_result(None)
+    return tracker
 
 
 dict_key_order = {

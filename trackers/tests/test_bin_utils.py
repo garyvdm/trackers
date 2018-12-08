@@ -22,20 +22,16 @@ class TestConvertToStatic(asynctest.TestCase, TestEventWithMockTracker):
                 tracker: {type: mock}
         ''')
         await convert_to_static.__wrapped__(
-            app, settings, Namespace(event_name='test_event', format='json', dry_run=False))
+            app, settings, Namespace(event_name='test_event'))
 
         writer.reset()
         self.assertEqual(writer.get('events/test_event/data.yaml').data.decode(), dedent('''
             live: false
-            analyse: false
+            static_analyse: true
             riders:
             - name: foo
-              tracker:
-                type: static
-                name: foo
-                format: json
             ''').lstrip('\n'))
-        self.assertEqual(writer.get('events/test_event/foo').data.decode(), '[]')
+        self.assertEqual(writer.get('events/test_event/static/foo/source').data, b'\x90')
 
 
 class TestAssignRiderColors(asynctest.TestCase, TestEventWithMockTracker):

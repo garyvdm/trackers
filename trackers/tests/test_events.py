@@ -2,11 +2,13 @@ from textwrap import dedent
 
 import asynctest
 import fixtures
+import msgpack
 from dulwich.repo import MemoryRepo
 
 from trackers.base import Tracker
 from trackers.dulwich_helpers import TreeWriter
 from trackers.events import Event, load_events
+from trackers.general import json_encode
 from trackers.tests import get_test_app_and_settings
 
 
@@ -186,5 +188,33 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
         await event.start_trackers()
 
         self.assertEqual(len(event.riders_objects['foo'].source_trackers), 0)
+
+        await event.stop_and_complete_trackers()
+
+    async def test_implicit_static(self):
+        data = '''
+            riders:
+              - name: foo
+            static_analyse: True
+        '''
+        repo = MemoryRepo()
+        cache_dir = self.useFixture(fixtures.TempDir())
+        writer = TreeWriter(repo)
+        writer.set_data('events/test_event/data.yaml', dedent(data).encode())
+        writer.set_data('events/test_event/static/foo/source', msgpack.dumps([{'foo': 'bar'}], default=json_encode))
+        writer.set_data('events/test_event/static/foo/analyse', msgpack.dumps([{'foo': 'bar', 'speed': 1}], default=json_encode))
+        writer.set_data('events/test_event/static/foo/off_route', msgpack.dumps([], default=json_encode))
+
+        writer.commit('add test_event')
+
+        app, settings = get_test_app_and_settings(repo)
+        settings['cache_path'] = cache_dir.path
+
+        event = await Event.load(app, 'test_event', writer)
+        await event.start_trackers()
+
+        rider_objects = event.riders_objects['foo']
+        self.assertEqual(rider_objects.source_trackers[0].points, [{'foo': 'bar'}])
+        self.assertEqual(rider_objects.analyse_tracker.points, [{'foo': 'bar', 'speed': 1}])
 
         await event.stop_and_complete_trackers()

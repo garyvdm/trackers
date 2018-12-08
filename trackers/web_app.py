@@ -250,6 +250,7 @@ async def event_state(request, event):
     if event.config.get('live', False):
         state = {'live': True}
     else:
+        await event.start_trackers()
         state = get_event_state(request.app, event)
 
     response = json_response(state)

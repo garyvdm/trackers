@@ -1,16 +1,12 @@
 from contextlib import AsyncExitStack
-from functools import partial
 
 
 async def config_modules(app, settings):
-    import trackers.general
     import trackers.sources.map_my_tracks
     import trackers.sources.traccar
     import trackers.sources.spot
     import trackers.sources.tkstorage
     import trackers.sources.trackleaders
-
-    exit_stack = AsyncExitStack()
 
     modules = (
         trackers.sources.map_my_tracks.config,
@@ -20,17 +16,18 @@ async def config_modules(app, settings):
         trackers.sources.trackleaders.config,
     )
 
-    for module in modules:
-        await exit_stack.enter_async_context(module(app, settings))
-
-    app['start_event_trackers'] = {
+    source_trackers = {
         'mapmytracks': trackers.sources.map_my_tracks.start_event_tracker,
         'traccar': trackers.sources.traccar.start_event_tracker,
         'spot': trackers.sources.spot.start_event_tracker,
         'tkstorage': trackers.sources.tkstorage.start_event_tracker,
-        'static': trackers.general.static_start_event_tracker,
-        'cropped': partial(trackers.general.wrapped_tracker_start_event, trackers.general.cropped_tracker_start),
-        'filter_inaccurate': partial(trackers.general.wrapped_tracker_start_event, trackers.general.filter_inaccurate_tracker_start),
         'trackleaders': trackers.sources.trackleaders.start_event_tracker
     }
+
+    exit_stack = AsyncExitStack()
+
+    for module in modules:
+        await exit_stack.enter_async_context(module(app, settings))
+
+    app['start_event_trackers'].update(source_trackers)
     return exit_stack

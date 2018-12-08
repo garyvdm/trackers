@@ -13,12 +13,12 @@ from os.path import join, relpath
 
 import aiohttp
 import dulwich.repo
-import msgpack
 import polyline
 import yaml
 from more_itertools import chunked, interleave_longest
 
 import trackers.events
+import trackers.general
 import trackers.modules
 from trackers.analyse import (
     distance,
@@ -30,9 +30,7 @@ from trackers.analyse import (
     ramer_douglas_peucker_sections,
     route_with_distance_and_index,
 )
-from trackers.combined import Combined
 from trackers.dulwich_helpers import TreeWriter
-from trackers.general import json_dumps, json_encode
 
 defaults_yaml = f"""
     data_path: {relpath(join(__file__, '../../data'))}
@@ -145,6 +143,12 @@ async def app_setup(app, settings):
 async def app_setup_basic(app, settings):
     stack = AsyncExitStack()
 
+    app['start_event_trackers'] = {
+        'static': trackers.general.static_start_event_tracker,
+        'cropped': partial(trackers.general.wrapped_tracker_start_event, trackers.general.cropped_tracker_start),
+        'filter_inaccurate': partial(trackers.general.wrapped_tracker_start_event, trackers.general.filter_inaccurate_tracker_start),
+    }
+
     app['trackers.settings'] = settings
     app['trackers.data_repo'] = stack.enter_context(dulwich.repo.Repo(settings['data_path']))
     app['trackers.events'] = {}
@@ -204,42 +208,22 @@ def event_name_clean(event_name, settings):
     return event_name
 
 
-def convert_to_static_parser():
-    parser = get_base_argparser(description="Convert live trackers to static data.")
-    parser.add_argument('event_name', action='store')
-    parser.add_argument('--dry-run', '-d', action='store_true')
-    parser.add_argument('--format', '-f', choices=['msgpack', 'json'], default='msgpack')
-    return parser
-
-
-@async_command(convert_to_static_parser)
+@async_command(partial(event_command_parser, description="Convert live trackers to static data."))
 async def convert_to_static(app, settings, args):
     tree_writer = TreeWriter(app['trackers.data_repo'])
 
     event_name = event_name_clean(args.event_name, settings)
     event = await trackers.events.Event.load(app, event_name, tree_writer)
-    await event.start_trackers(analyse=False)
-    try:
-        for rider in event.config['riders']:
-            rider_name = rider['name']
-            tackers = event.riders_objects[rider_name].source_trackers
-            tracker = await Combined.start(rider_name, tackers)
-            if tracker:
-                await tracker.complete()
-                path = os.path.join('events', event.name, rider_name)
-                if args.format == 'msgpack':
-                    tree_writer.set_data(path, msgpack.dumps(tracker.points, default=json_encode))
+    await event.convert_to_static(tree_writer)
+    await event.store_analyse(tree_writer)
 
-                if args.format == 'json':
-                    tree_writer.set_data(path, json_dumps(tracker.points).encode())
 
-                rider['tracker'] = {'type': 'static', 'name': rider_name, 'format': args.format}
-        event.config['analyse'] = False
-        event.config['live'] = False
-        if not args.dry_run:
-            await event.save(f'{event_name}: convert_to_static', tree_writer=tree_writer)
-    finally:
-        await event.stop_and_complete_trackers()
+@async_command(partial(event_command_parser, description="Recalculate and store analyse trackers"), basic=True)
+async def store_analyse(app, settings, args):
+    tree_writer = TreeWriter(app['trackers.data_repo'])
+    event_name = event_name_clean(args.event_name, settings)
+    event = await trackers.events.Event.load(app, event_name, tree_writer)
+    await event.store_analyse(tree_writer)
 
 
 @async_command(partial(event_command_parser, description="Assigns unique colors to riders"), basic=True)
