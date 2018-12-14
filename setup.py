@@ -14,7 +14,6 @@ setuptools.setup(
         'aniso8601',
         'arsenic',
         'asynctest',
-        'attrs',
         'beautifulsoup4',
         'calmjs.parse',
         'dulwich',

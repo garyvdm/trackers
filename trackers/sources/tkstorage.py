@@ -7,11 +7,12 @@ import re
 from collections import Counter, defaultdict
 from contextlib import asynccontextmanager
 from copy import copy
+from dataclasses import dataclass, field
 from functools import partial
 from itertools import groupby
+from typing import Dict, List, Optional
 
 import aiomsgpack
-import attr
 import more_itertools
 from aiohttp import web, WSMsgType
 
@@ -71,17 +72,17 @@ def get_tracker_objects(app, tk_id):
     return tracker_objects
 
 
-@attr.s()
+@dataclass
 class TrackerObjects(object):
-    app = attr.ib()
-    tk_id = attr.ib()
+    app: any
+    tk_id: str
 
-    points = attr.ib(default=attr.Factory(list))
-    config = attr.ib(default=attr.Factory(dict))
-    values = attr.ib(default=attr.Factory(dict))
+    points: List[Dict] = field(default_factory=list)
+    config: Dict = field(default_factory=dict)
+    values: Dict = field(default_factory=dict)
 
-    desired_configs = attr.ib(default=attr.Factory(dict))
-    ensure_config_fut = attr.ib(default=None)
+    desired_configs: Dict = field(default_factory=dict)
+    ensure_config_fut: Optional[asyncio.Future] = field(default=None)
 
     def get_highest_rank_desired_config(self):
         sorted_configs = sorted(self.desired_configs.keys(),
@@ -170,11 +171,11 @@ class TrackerObjects(object):
             return commands
 
 
-@attr.s()
+@dataclass
 class DesiredConfig(object):
-    config_id = attr.ib()
-    config = attr.ib()
-    rank = attr.ib(default=0)
+    config_id: str
+    config: Dict
+    rank: int = field(default=0)
 
 
 tk_id_key = lambda point: point['tk_id']

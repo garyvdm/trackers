@@ -4,12 +4,13 @@ import collections
 import copy
 import logging
 import operator
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from functools import partial
 from itertools import chain
 from operator import itemgetter
+from typing import Any
 
-import attr
 from more_itertools import take
 from numpy import (
     arccos,
@@ -58,6 +59,7 @@ except ImportError:
 
 
 from trackers.base import cancel_and_wait_task, Tracker
+from trackers.contrib.dataclass_tools import add_slots
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +132,8 @@ class AnalyseTracker(Tracker):
         self.reset()
 
     async def on_new_points(self, tracker, new_points):
-        self.logger.debug('analyse_tracker_new_points ({} points)'.format(len(new_points)))
+        self.logger.debug(
+            'analyse_tracker_new_points ({} points)'.format(len(new_points)))
         if self.do_est_finish_fut:
             cancel_and_wait_task(self.do_est_finish_fut)
 
@@ -331,12 +334,13 @@ class AnalyseTracker(Tracker):
             return point
 
 
-@attr.s(slots=True)
+@add_slots
+@dataclass
 class Point(object):
-    lat = attr.ib()
-    lng = attr.ib()
-    _nv = attr.ib(default=None, repr=False, cmp=False)
-    _pv = attr.ib(default=None, repr=False, cmp=False)
+    lat: float
+    lng: float
+    _nv: Any = field(default=None, repr=False, compare=False)
+    _pv: Any = field(default=None, repr=False, compare=False)
 
     def to_point(self):
         return self
@@ -361,10 +365,11 @@ class Point(object):
         return point
 
 
-@attr.s(slots=True)
+@add_slots
+@dataclass
 class IndexedPoint(Point):
-    index = attr.ib(default=None)
-    distance = attr.ib(default=None)
+    index: int = field(default=None)
+    distance: float = field(default=None)
 
     def to_point(self):
         return Point(self.lat, self.lng)

@@ -6,11 +6,12 @@ import os
 from bisect import bisect
 from collections import defaultdict
 from contextlib import closing, suppress
+from dataclasses import dataclass, field
 from functools import partial
 from itertools import chain
+from typing import List
 
 import aionotify
-import attr
 import msgpack
 import yaml
 
@@ -452,17 +453,17 @@ class YamlEventDumper(yaml.Dumper):
 YamlEventDumper.add_representer(dict, yaml_represent_dict)
 
 
-@attr.s()
+@dataclass
 class RiderObjects(object):
-    rider_name = attr.ib()
-    event = attr.ib()
-    data_tracker = attr.ib(default=None)
-    source_trackers = attr.ib(default=attr.Factory(list))
-    analyse_tracker = attr.ib(default=None)
-    tracker = attr.ib(default=None)
-    off_route_tracker = attr.ib(default=None)
-    blocked_list = attr.ib(default=None)
-    off_route_blocked_list = attr.ib(default=None)
+    rider_name: str
+    event: Event
+    data_tracker: Tracker = field(default=None)
+    source_trackers: List[Tracker] = field(default_factory=list)
+    analyse_tracker: Tracker = field(default=None)
+    tracker: Tracker = field(default=None)
+    off_route_tracker: Tracker = field(default=None)
+    blocked_list: BlockedList = field(default=None)
+    off_route_blocked_list: BlockedList = field(default=None)
 
 
 class DataTracker(Tracker):
