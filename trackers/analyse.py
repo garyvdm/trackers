@@ -11,7 +11,7 @@ from itertools import chain
 from operator import itemgetter
 from typing import Any
 
-from more_itertools import take
+from more_itertools import spy, take
 from numpy import (
     arccos,
     array_equal,
@@ -157,7 +157,7 @@ class AnalyseTracker(Tracker):
                 if not self.finished and self.analyse_start_time and self.analyse_start_time <= point['time']:
                     if self.prev_route_dist_time:
                         time_from_prev_route_dist = point['time'] - self.prev_route_dist_time
-                        max_travel_dist = 200000 * max(time_from_prev_route_dist.total_seconds(), 20) / 3600
+                        max_travel_dist = 300000 * max(time_from_prev_route_dist.total_seconds(), 20) / 3600
                     else:
                         max_travel_dist = None
 
@@ -236,7 +236,7 @@ class AnalyseTracker(Tracker):
                             self.current_track_id += 1
                             self.off_route_track_id += 1
 
-                        if i == last_point_i and closest and closest.route_i == 0 and abs(route_dist - last_route_point.distance) < 2000:
+                        if not self.finished and i == last_point_i and closest and closest.route_i == 0 and abs(route_dist - last_route_point.distance) < 2000:
                             # This is for when they are near to the finish, and the tracker turns off too soon.
                             seconds_to_finish = abs(route_dist - last_route_point.distance) / (dist_from_last / seconds)
                             est_finish_time = point['time'] + timedelta(seconds=seconds_to_finish)
@@ -291,6 +291,7 @@ class AnalyseTracker(Tracker):
         delay = (time - datetime.now() + timedelta(minutes=5)).total_seconds()
         if delay > 0:
             await asyncio.sleep(delay)
+        self.finished = True
         point = {
             'finished_time': time,
             'time': time,
@@ -515,26 +516,26 @@ find_closest_point_pair_result = collections.namedtuple('closest_point_pair', ('
 
 
 def find_closest_point_pair_route(route, to_point, prev_dist, max_travel_dist):
+    if max_travel_dist:
+        min_route_dist = prev_dist - max_travel_dist
+        max_route_dist = prev_dist + max_travel_dist
+
     simplified_c_points = (
         find_closest_point_pair_result(point_pair[:2], *find_c_point_from_precalc(to_point, *point_pair))
         for point_pair in route['simplfied_point_pairs']
         if (
             not max_travel_dist or
-            abs(point_pair[0].distance - prev_dist) <= max_travel_dist or
-            abs(point_pair[1].distance - prev_dist) <= max_travel_dist
+            (point_pair[1].distance > min_route_dist and point_pair[0].distance <= max_route_dist)
         )
     )
-
     simplified_c_points_sorted = sorted(simplified_c_points, key=dist_attr_getter)
     simplified_c_points_top = take(4, simplified_c_points_sorted)
     simplified_c_points_filtered = filter(lambda closest: closest.dist < 100000, simplified_c_points_top)
 
-    simplified_c_points_filtered = list(simplified_c_points_filtered)
-
     route_point_pairs = route['point_pairs']
-    route_point_pairs_filtered = list(chain.from_iterable((
+    route_point_pairs_filtered = chain.from_iterable((
         route_point_pairs[simplified_c_point.point_pair[0].index: simplified_c_point.point_pair[1].index + 1]
-        for simplified_c_point in simplified_c_points_filtered)))
+        for simplified_c_point in simplified_c_points_filtered))
 
     return find_closest_point_pair(route, route_point_pairs_filtered, to_point, prev_dist, max_travel_dist)
 
@@ -544,18 +545,26 @@ def test_point_pair(point_pair, prev_dist, max_travel_dist):
 
 
 def find_closest_point_pair(route, point_pairs, to_point, prev_dist, max_travel_dist):
-    with_c_points = [
+    if max_travel_dist:
+        min_route_dist = prev_dist - max_travel_dist
+        max_route_dist = prev_dist + max_travel_dist
+
+    with_c_points = (
         find_closest_point_pair_result(point_pair[:2], *find_c_point_from_precalc(to_point, *point_pair))
         for point_pair in point_pairs
         if (
             not max_travel_dist or
-            abs(point_pair[0].distance - prev_dist) <= max_travel_dist or
-            abs(point_pair[1].distance - prev_dist) <= max_travel_dist
+            (point_pair[1].distance > min_route_dist and point_pair[0].distance <= max_route_dist)
         )
-    ]
-    # print(len(point_pairs) , len(with_c_points), max_travel_dist)
+    )
 
-    if with_c_points:
+    # if math.isclose(to_point.lat, -28.041518, rel_tol=0.000001) and math.isclose(to_point.lng, 27.911506, rel_tol=0.000001):
+    #     pprint.pprint(with_c_points)
+    #     print(len(point_pairs) , len(with_c_points), max_travel_dist)
+
+    head, with_c_points = spy(with_c_points)
+
+    if head:
         circular_range = route.get('circular_range')
         if prev_dist is not None and circular_range:
             def min_key(closest):
@@ -567,10 +576,11 @@ def find_closest_point_pair(route, point_pairs, to_point, prev_dist, max_travel_
                 if move_distance < 0:
                     move_distance = move_distance * -10
                 try:
-                    move_distance_penalty = pow(3, move_distance / 20000)
+                    move_distance_penalty = pow(3, move_distance / 5000)
                 except FloatingPointError:
                     move_distance_penalty = float("inf")
                 rank = closest.dist + min(move_distance_penalty, 100000)
+                # print(rank, move_distance, move_distance_penalty, closest, )
                 return rank
         else:
             min_key = dist_attr_getter
