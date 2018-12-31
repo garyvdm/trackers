@@ -69,6 +69,10 @@ function on_new_state_received_non_ws(new_state){
             ws_close();
         }
     }
+    if (new_state.loading) {
+        set_status(loader_html + 'Server processing data');
+        setTimeout(get_state, 1000)
+    }
 }
 
 var state = {}
@@ -278,7 +282,7 @@ function ws_onclose(event) {
 
 function ws_onmessage(event){
     set_status('&#x2713; Connected');
-    // console.log(event.data);
+    console.log(event.data);
 
     var data = JSON.parse(event.data);
     if (data.hasOwnProperty('sending')) {

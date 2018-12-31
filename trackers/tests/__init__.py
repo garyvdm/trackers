@@ -1,3 +1,4 @@
+import asyncio
 import os.path
 import unittest
 
@@ -24,4 +25,5 @@ def get_test_app_and_settings(repo):
     app['trackers.settings'] = settings
     app['trackers.data_repo'] = repo
     app['trackers.events'] = {}
+    app['analyse_processing_lock'] = asyncio.Lock()
     return app, settings

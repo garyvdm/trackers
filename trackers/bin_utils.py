@@ -152,6 +152,7 @@ async def app_setup_basic(app, settings):
     app['trackers.settings'] = settings
     app['trackers.data_repo'] = stack.enter_context(dulwich.repo.Repo(settings['data_path']))
     app['trackers.events'] = {}
+    app['analyse_processing_lock'] = asyncio.Lock()
 
     return stack
 

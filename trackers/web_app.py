@@ -251,7 +251,10 @@ async def event_state(request, event):
         state = {'live': True}
     else:
         await event.start_trackers()
-        state = get_event_state(request.app, event)
+        if all([rider_objs.tracker.completed.done() for rider_objs in event.riders_objects.values()]):
+            state = get_event_state(request.app, event)
+        else:
+            state = {'loading': True}
 
     response = json_response(state)
     etag = base64.urlsafe_b64encode(hashlib.sha1(response.body).digest()).decode('ascii')
@@ -470,7 +473,7 @@ async def event_ws(request):
                 await ws.close(message='Event not live. Use rest api')
                 return ws
 
-            event.start_trackers_without_wait()
+            await event.start_trackers()
 
             await send(get_event_state(request.app, event))
             exit_stack.enter_context(list_register(request.app['trackers.event_ws_sessions'][event_name], ws))

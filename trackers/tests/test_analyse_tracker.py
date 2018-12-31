@@ -59,6 +59,8 @@ class TestAnalyseTracker(asynctest.TestCase):
         ))
         tracker.completed.set_result(None)
         analyse_tracker = await AnalyseTracker.start(tracker, d('2017/01/01 05:00:00'), [], track_break_time=timedelta(minutes=20))
+        await analyse_tracker.complete()
+
         points = filter_keys(analyse_tracker.points, keys_to_keep=('track_id',))
         print_points(points)
         self.assertSequenceEqual(points, [
@@ -67,7 +69,6 @@ class TestAnalyseTracker(asynctest.TestCase):
             {'track_id': 1},
             {'track_id': 1},
         ])
-        await analyse_tracker.complete()
 
     async def test_with_route(self):
         tracker = Tracker('test')
@@ -277,6 +278,8 @@ class TestAnalyseTracker(asynctest.TestCase):
             # {'time': d('2017/01/01 05:31:00'), 'position': (-27.282870, 27.970620, 1800)},
         ))
         analyse_tracker = await AnalyseTracker.start(tracker, d('2017/01/01 05:00:00'), [])
+        await analyse_tracker.process_initial_points_fut
+
         print_points(analyse_tracker.points)
         self.assertSequenceEqual(analyse_tracker.points, [
             {'time': d('2017/01/01 05:00:00'), 'position': (-26.300822, 28.049444, 1800), 'track_id': 0},

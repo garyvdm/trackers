@@ -292,7 +292,8 @@ class Event(object):
 
                 else:
                     objects.analyse_tracker = tracker = await AnalyseTracker.start(
-                        tracker, self.event_start, analyse_routes, find_closest_cache=find_closest_cache)
+                        tracker, self.event_start, analyse_routes, find_closest_cache=find_closest_cache,
+                        processing_lock=self.app['analyse_processing_lock'])
                     objects.off_route_tracker = await index_and_hash_tracker(tracker.off_route_tracker)
 
                 objects.off_route_blocked_list = BlockedList.from_tracker(

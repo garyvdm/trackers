@@ -80,6 +80,15 @@ async def cancel_and_wait_task(task):
         pass
 
 
+def general_fut_done_callback(fut):
+    try:
+        fut.result()
+    except asyncio.CancelledError:
+        pass
+    except Exception:
+        logging.exception('')
+
+
 @contextlib.contextmanager
 def list_register(list, item, on_empty=None, yield_item=None):
     list.append(item)

@@ -44,6 +44,7 @@ async def tracker_web_server_fixture():
             app['trackers.settings'] = settings
             app['trackers.data_repo'] = repo
             app['trackers.events'] = {}
+            app['analyse_processing_lock'] = asyncio.Lock()
             app['start_event_trackers'] = {
                 'mock': None,
             }

@@ -63,7 +63,6 @@ class WebDriverSession(testresources.TestResourceManager):
         self.browser = browser
 
     def make(self, dependency_resources):
-        print('make')
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(self.amake(dependency_resources))
 
