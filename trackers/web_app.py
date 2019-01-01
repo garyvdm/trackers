@@ -97,6 +97,9 @@ async def make_aio_app(settings,
     static_manager.start_monitor_and_process_resources()
     await trackers.auth.config_aio_app(app, settings)
 
+    app.router.add_route('GET', '/', handler=home, name='home')
+    app['home_pages'] = {}
+
     app.router.add_route('GET', '/{event}', handler=event_page, name='event_page')
     app.router.add_route('GET', '/{event}/websocket', handler=event_ws, name='event_ws')
     app.router.add_route('GET', '/{event}/state', handler=event_state, name='event_state')
@@ -218,6 +221,64 @@ def get_event_state(app, event):
         'client_hash': event.page[1],
         'server_time': datetime.datetime.now(),
     }
+
+
+async def home(request):
+    host = request.headers.get('Host')
+    if host.endswith(':5234'):
+        host = 'trackrace.tk'
+    page = request.app['home_pages'].get('host')
+    if not page:
+        events = tuple(sorted(request.app['trackers.events'].values(),
+                              key=lambda event: event.config.get('event_start'),
+                              reverse=True))
+        if host != 'trackrace.tk':
+            events = [event for event in events if host in event.config.get('hosts', ())]
+        live_events = [event for event in events if event.config.get('live', False)]
+        past_events = [event for event in events if not event.config.get('live', False)]
+
+        # page_path = f'/static/home/{host}.html'
+        # event.page = app['static_manager'].get_static_processed_resource(
+        #     page_path,
+        #     body_processor=partial(
+        #         page_body_processor,
+        #         api_key=app['trackers.settings']['google_api_key'],
+        #         title=event.config['title'],
+        #     ),
+        # )
+        router = request.app.router
+        body = io.StringIO()
+        writer = Writer(body)
+        w = writer.w
+        c = writer.c
+
+        w(Markup('<!DOCTYPE html>'))
+        with c(Tag('html')):
+            with c(Tag('head')):
+                w(Tag('title'), host)
+            with c(Tag('body')):
+                w(Tag('h1'), host)
+                if live_events:
+                    w(Tag('h2'), 'Live Events')
+                    for event in live_events:
+                        w(Tag('li'),
+                          Tag('a', href=router['event_page'].url_for(event=event.name)),
+                          event.config.get('title', event.name))
+
+                w(Tag('h2'), 'Past Events')
+                for event in past_events:
+                    w(Tag('li'),
+                      Tag('a', href=router['event_page'].url_for(event=event.name)),
+                      event.config.get('title', event.name))
+        body = body.getvalue().encode()
+        hash = hashlib.sha1(body)
+        etag = base64.urlsafe_b64encode(hash.digest()).decode('ascii')
+        page = body, etag
+        request.app['home_pages'][host] = page
+
+    body, etag = page
+    response = web.Response(body=body, charset='utf8', content_type='text/html',)
+    return etag_response(request, response, etag)
 
 
 def ensure_event_page(app, event):
@@ -369,10 +430,11 @@ async def on_new_event(event):
     event.rider_off_route_blocked_list_update_observable.subscribe(on_event_rider_off_route_blocked_list_update)
     event.rider_predicted_updated_observable.subscribe(on_event_rider_predicted_updated)
     await on_event_config_routes_change(event)
+    event.app['home_pages'] = {}
 
 
 async def on_removed_event(event):
-    pass
+    event.app['home_pages'] = {}
 
 
 web_route_keys = (
@@ -404,6 +466,7 @@ async def on_event_config_routes_change(event):
             'routes_hash': event.client_routes_body_hash,
         },
     )
+    event.app['home_pages'] = {}
     if event.config.get('live', False):
         event.start_trackers_without_wait()
 
