@@ -206,7 +206,6 @@ def event_handler(func):
         event = request.app['trackers.events'].get(event_name)
         if event is None:
             raise web.HTTPNotFound()
-        event.start_trackers_without_wait()
         return await func(request, event, **kwargs)
     return event_handler_inner
 
@@ -356,6 +355,7 @@ def compress_point(point):
 @say_error_handler
 @event_handler
 async def blocked_lists(request, event, list_attr_name):
+    await event.start_trackers()
     rider_name = request.query.get('name')
     if not rider_name:
         hasher = hashlib.sha1()
@@ -387,6 +387,8 @@ async def blocked_lists(request, event, list_attr_name):
 @say_error_handler
 @event_handler
 async def riders_csv(request, event):
+    await event.start_trackers()
+
     rider_name = request.query.get('name')
     tracker = event.riders_objects[rider_name].tracker
 
