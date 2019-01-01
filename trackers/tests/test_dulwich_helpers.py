@@ -71,3 +71,12 @@ class TestTreeWriter(fixtures.TestWithFixtures):
         writer.remove('b/c')
         writer.commit('Remove b/c.')
         self.assertFalse(writer.exists('b/c'))
+
+    def test_rm_non_existant(self):
+        repo = MemoryRepo()
+        writer = TreeWriter(repo)
+        writer.set_data('a/b', b'b')
+        with self.assertRaises(KeyError):
+            writer.remove('a/c')
+
+        writer.set_data('a/d', b'd')

@@ -46,6 +46,8 @@ class TreeReader(object):
 
 class TreeWriter(TreeReader):
 
+    # TODO: changed_objects should have a ref count
+
     def __init__(self, repo, branch=b'HEAD', encoding="UTF-8"):
         self.repo = repo
         self.encoding = encoding
@@ -72,7 +74,7 @@ class TreeWriter(TreeReader):
     def set(self, path, obj, mode):
         path_items = path.encode(self.encoding).split(b'/')
         sub_tree = self.tree
-        trees = [sub_tree]
+        old_trees = [sub_tree]
         for name in path_items[:-1]:
             try:
                 _, sub_tree_sha = sub_tree[name]
@@ -80,27 +82,35 @@ class TreeWriter(TreeReader):
                 sub_tree = Tree()
             else:
                 sub_tree = self.lookup_obj(sub_tree_sha)
-            trees.append(sub_tree)
+            old_trees.append(sub_tree)
 
-        for sub_tree, name in reversed(list(zip(trees, path_items))):
-            with suppress(KeyError):
-                del self.changed_objects[sub_tree.id]
-
-            if obj is None:
-                del sub_tree[name]
+        new_objs = []
+        for old_tree, name in reversed(tuple(zip(old_trees, path_items))):
+            new_tree = old_tree.copy()
+            if obj is None or obj.id == b'4b825dc642cb6eb9a060e54bf8d69288fbee4904':
+                if name not in new_tree:
+                    raise KeyError(name)
+                del new_tree[name]
+                # print(f'del old: {old_tree} new: {new_tree} name: {name}')
             else:
                 obj_id = obj.id
-                self.changed_objects[obj_id] = obj
-                sub_tree[name] = (mode, obj_id)
+                new_objs.append(obj)
+                new_tree[name] = (mode, obj_id)
+                # print(f'set old: {old_tree} new: {new_tree} name: {name} obj_id: {obj_id}')
 
-            if len(sub_tree) == 0:
-                obj = None
-                mode = None
-            else:
-                obj = sub_tree
-                mode = stat.S_IFDIR
+            obj = new_tree
+            mode = stat.S_IFDIR
 
-        self.changed_objects[sub_tree.id] = sub_tree
+        new_objs.append(obj)
+        self.tree = obj
+
+        # print(f'old: {old_trees} new: {new_objs}')
+        for old_tree in old_trees:
+            if old_tree:
+                with suppress(KeyError):
+                    del self.changed_objects[old_tree.id]
+        for obj in new_objs:
+            self.changed_objects[obj.id] = obj
 
     def set_data(self, path, data, mode=stat.S_IFREG | 0o644):
         obj = Blob()
