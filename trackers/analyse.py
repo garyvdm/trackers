@@ -505,6 +505,12 @@ def find_closest_point_pair_routes_unpack(routes, packed):
 
 def find_closest_point_pair_routes(routes, to_point, min_search_complex_dist, prev_closest_route_i, break_out_dist, prev_dist, max_travel_dist):
     results = []
+
+    # import math
+    # debug = math.isclose(to_point.lat, -28.281551, rel_tol=0.000001) and math.isclose(to_point.lng, 28.93720, rel_tol=0.000001)
+    # if debug:
+    #     print('---------------------')
+
     if routes:
         special_routes = (0, )
         if prev_closest_route_i:
@@ -536,14 +542,19 @@ def find_closest_point_pair_route(route, to_point, prev_dist, max_travel_dist):
     if max_travel_dist:
         min_route_dist = prev_dist - max_travel_dist
         max_route_dist = prev_dist + max_travel_dist
+        if route['main']:
+            get_point_distance = lambda point: point.distance
+        else:
+            get_point_distance = lambda point: point.distance * route['dist_factor'] + route['start_distance']
+
+        test_point_pair = lambda point_pair: get_point_distance(point_pair[1]) > min_route_dist and get_point_distance(point_pair[0]) <= max_route_dist
+    else:
+        test_point_pair = lambda point_pair: True
 
     simplified_c_points = (
         find_closest_point_pair_result(point_pair[:2], *find_c_point_from_precalc(to_point, *point_pair))
         for point_pair in route['simplfied_point_pairs']
-        if (
-            not max_travel_dist or
-            (point_pair[1].distance > min_route_dist and point_pair[0].distance <= max_route_dist)
-        )
+        if test_point_pair(point_pair)
     )
     simplified_c_points_sorted = sorted(simplified_c_points, key=dist_attr_getter)
     simplified_c_points_top = take(4, simplified_c_points_sorted)
@@ -554,25 +565,10 @@ def find_closest_point_pair_route(route, to_point, prev_dist, max_travel_dist):
         route_point_pairs[simplified_c_point.point_pair[0].index: simplified_c_point.point_pair[1].index + 1]
         for simplified_c_point in simplified_c_points_filtered))
 
-    return find_closest_point_pair(route, route_point_pairs_filtered, to_point, prev_dist, max_travel_dist)
-
-
-def test_point_pair(point_pair, prev_dist, max_travel_dist):
-    return
-
-
-def find_closest_point_pair(route, point_pairs, to_point, prev_dist, max_travel_dist):
-    if max_travel_dist:
-        min_route_dist = prev_dist - max_travel_dist
-        max_route_dist = prev_dist + max_travel_dist
-
     with_c_points = (
         find_closest_point_pair_result(point_pair[:2], *find_c_point_from_precalc(to_point, *point_pair))
-        for point_pair in point_pairs
-        if (
-            not max_travel_dist or
-            (point_pair[1].distance > min_route_dist and point_pair[0].distance <= max_route_dist)
-        )
+        for point_pair in route_point_pairs_filtered
+        if test_point_pair(point_pair)
     )
 
     # if math.isclose(to_point.lat, -28.041518, rel_tol=0.000001) and math.isclose(to_point.lng, 27.911506, rel_tol=0.000001):
