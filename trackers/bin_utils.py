@@ -459,10 +459,11 @@ async def load_riders_from_csv(app, settings, args):
         {
             'name': row['Name'],
             'name_short': row['Short Name'],
-            'tracker': {'type': 'traccar', 'unique_id': row['Traccar Device Id']} if row['Traccar Device Id'] else None,
+            'trackers': [{'type': 'traccar', 'unique_id': row['Traccar Device Id']}] if row['Traccar Device Id'] else [],
         }
         for row in reader
     ]
+    assign_rider_colors_inner(event)
 
     await event.save(f'{event_name}: load_riders_from_csv', tree_writer=tree_writer)
 
