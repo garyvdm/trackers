@@ -230,7 +230,7 @@ class Event(object):
             find_closest_cache_dir = os.path.join(self.app['trackers.settings']['cache_path'], 'find_closest')
             os.makedirs(find_closest_cache_dir, exist_ok=True)
             if self.routes:
-                find_closest_cache = PersistedFuncCache(os.path.join(find_closest_cache_dir, self.routes_hash))
+                find_closest_cache = PersistedFuncCache(os.path.join(find_closest_cache_dir, f'1-{self.routes_hash}'))
                 logger.info(f'find_closest_cache: {find_closest_cache.path}')
             else:
                 find_closest_cache = None
