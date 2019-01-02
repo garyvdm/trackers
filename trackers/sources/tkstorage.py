@@ -186,6 +186,7 @@ async def connection(app, settings, points_received_observables, send_queue,
                      initial_download_done, trackers_objects, values_changed):
     try:
         reconnect_sleep_time = 5
+        connect_error_shown = False
         path = settings['tkstorage_path']
         loop = asyncio.get_event_loop()
         while True:
@@ -200,6 +201,7 @@ async def connection(app, settings, points_received_observables, send_queue,
                     logger.error(f'{e}: {path}')
                     break
                 try:
+                    connect_error_shown = False
                     reconnect_sleep_time = 1
                     proto.write({'start': app['tkstorage.all_points_len']})
                     write_fut = asyncio.ensure_future(write(app, proto, send_queue))
@@ -253,7 +255,11 @@ async def connection(app, settings, points_received_observables, send_queue,
             except asyncio.CancelledError:
                 raise
             except ConnectionRefusedError as e:
-                logger.error(f'Error in connection task: {e}')
+                if not connect_error_shown:
+                    logger.error(f'Error in connection task: {e}')
+                    connect_error_shown = True
+                else:
+                    logger.debug(f'Error in connection task: {e}')
             except Exception:
                 logger.exception('Error in connection task: ')
             logger.debug('Reconnecting in {} sec'.format(reconnect_sleep_time))
