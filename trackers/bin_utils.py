@@ -284,6 +284,18 @@ async def add_gpx_to_event_routes(app, settings, args):
     for key in ('no_elevation', 'split_at_dist', 'split_point_range', 'rdp_epsilon', 'circular_range', 'gpx_file'):
         route[key] = getattr(args, key)
 
+    markers = [
+        {
+            'title': wpt.find('gpx:name', gpx_ns).text,
+            'marker_text': wpt.find('gpx:name', gpx_ns).text,
+            'position': {
+                'lat': round(float(wpt.attrib['lat']), 6),
+                'lng': round(float(wpt.attrib['lon']), 6),
+            },
+        }
+        for wpt in xml_doc.findall('./gpx:wpt', gpx_ns)
+    ]
+
     event_name = event_name_clean(args.event_name, settings)
     if not args.print:
         writer = TreeWriter(app['trackers.data_repo'])
@@ -291,6 +303,9 @@ async def add_gpx_to_event_routes(app, settings, args):
         await process_route(settings, route)
         event.routes.append(route)
         process_secondary_route_details(event.routes)
+        if 'markers' not in event.config:
+            event.config['markers'] = []
+        event.config['markers'].extend(markers)
         # TODO - add gpx file to repo
         await event.save(f'{event_name}: add_gpx_to_event_routes {args.gpx_file}',
                          tree_writer=writer, save_routes=True)

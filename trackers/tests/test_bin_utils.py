@@ -60,12 +60,15 @@ class TestAssignRiderColors(asynctest.TestCase, TestEventWithMockTracker):
 
 class TestAddGpxToEventRoutes(asynctest.TestCase, TestEventWithMockTracker):
     async def test(self):
-        app, settings, writer = self.do_setup('')
+        app, settings, writer = self.do_setup('{}')
 
         with NamedTemporaryFile(delete=False) as f:
             f.write(dedent("""
                 <?xml version="1.0"?>
                 <gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+                <wpt lon="-26.09321" lat="-27.9813">
+                  <name>Start</name>
+                </wpt>
                 <trk>
                   <name>Test GPX route</name>
                   <trkseg>
@@ -100,3 +103,13 @@ class TestAddGpxToEventRoutes(asynctest.TestCase, TestEventWithMockTracker):
                 'gpx_file': f.name,
             }
         ])
+
+        self.assertAlmostEqual(event.config, {
+            'markers': [
+                {
+                    'title': 'Start',
+                    'marker_text': 'Start',
+                    'position': {'lat': -27.9813, 'lng': -26.09321},
+                }
+            ]
+        })
