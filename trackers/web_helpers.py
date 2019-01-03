@@ -116,8 +116,8 @@ class ProcessedStaticManager(object):
                     break
                 self.watcher_availible.clear()
                 self.current_watcher = None
-                await asyncio.sleep(0.2)
                 logger.info('Reprocessing static resources.')
+                await asyncio.sleep(1)
 
     async def process_resources(self, watcher=None):
         self.processed_resources = {}
