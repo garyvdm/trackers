@@ -71,6 +71,7 @@ class ProcessedStaticManager(object):
         self.urls = {}
         self.resources_processed = Observable(logger, resources_processed)
         self.monitor_task = None
+        self.watcher_availible = asyncio.Event()
 
     def add_resource(self, resource_name, route=None, route_name=None, body_processor=None, body_loader=None,
                      use_hased_url=True, cache_control=None, **response_kwarg):
@@ -99,6 +100,7 @@ class ProcessedStaticManager(object):
         while True:
             with closing(aionotify.Watcher()) as watcher:
                 self.current_watcher = watcher
+                self.watcher_availible.set()
                 try:
                     try:
                         await self.process_resources(watcher)
@@ -112,8 +114,9 @@ class ProcessedStaticManager(object):
                 except OSError as e:
                     logger.error(e)
                     break
+                self.watcher_availible.clear()
                 self.current_watcher = None
-                await asyncio.sleep(2)
+                await asyncio.sleep(0.2)
                 logger.info('Reprocessing static resources.')
 
     async def process_resources(self, watcher=None):
@@ -135,8 +138,8 @@ class ProcessedStaticManager(object):
 
         for resource in expanded_resources:
             response_kwarg = copy(resource.response_kwarg)
-            body, hash = self.get_static_processed_resource(resource.resource_name, resource.body_processor,
-                                                            resource.body_loader, watcher)
+            body, hash = await self.get_static_processed_resource(
+                resource.resource_name, resource.body_processor, resource.body_loader, watcher)
 
             if 'content_type' not in response_kwarg:
                 response_kwarg['content_type'] = self.magic.id_buffer(body)
@@ -169,11 +172,12 @@ class ProcessedStaticManager(object):
         else:
             return etag_response(request, response_factory, resource.hash, resource.cache_control)
 
-    def get_static_processed_resource(self, resource_name, body_processor=None, body_loader=None, watcher=None):
+    async def get_static_processed_resource(self, resource_name, body_processor=None, body_loader=None, watcher=None):
         if body_loader:
             body = body_loader(self, resource_name, watcher)
         else:
             if watcher is None:
+                await self.watcher_availible.wait()
                 watcher = self.current_watcher
             file_name = pkg_resources.resource_filename(self.package, resource_name)
             with open(file_name, 'rb') as f:

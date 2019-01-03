@@ -210,8 +210,8 @@ def event_handler(func):
     return event_handler_inner
 
 
-def get_event_state(app, event):
-    ensure_event_page(app, event)
+async def get_event_state(app, event):
+    await ensure_event_page(app, event)
     return {
         'live': event.config.get('live', False),
         'config_hash': event.client_config_body_hash,
@@ -280,10 +280,10 @@ async def home(request):
     return etag_response(request, response, etag)
 
 
-def ensure_event_page(app, event):
+async def ensure_event_page(app, event):
     if not hasattr(event, 'page'):
         page_path = event.config.get('page', '/static/event.html')
-        event.page = app['static_manager'].get_static_processed_resource(
+        event.page = await app['static_manager'].get_static_processed_resource(
             page_path,
             body_processor=partial(
                 page_body_processor,
@@ -298,7 +298,7 @@ async def event_page(request):
     event = request.app['trackers.events'].get(event_name)
     if event is None:
         raise web.HTTPNotFound()
-    ensure_event_page(request.app, event)
+    await ensure_event_page(request.app, event)
     body, etag = event.page
     response = web.Response(body=body, charset='utf8', content_type='text/html',)
     return etag_response(request, response, etag)
@@ -312,7 +312,7 @@ async def event_state(request, event):
     else:
         await event.start_trackers()
         if all([rider_objs.tracker.completed.done() for rider_objs in event.riders_objects.values()]):
-            state = get_event_state(request.app, event)
+            state = await get_event_state(request.app, event)
         else:
             state = {'loading': True}
 
@@ -417,7 +417,7 @@ async def on_static_processed(static_manager):
             del event.page
         event_wss = event.app['trackers.event_ws_sessions'][event.name]
         if event_wss:
-            ensure_event_page(app, event)
+            await ensure_event_page(app, event)
             await message_to_multiple_wss(
                 event.app,
                 event_wss,
@@ -540,7 +540,8 @@ async def event_ws(request):
 
             await event.start_trackers()
 
-            await send(get_event_state(request.app, event))
+            state = await get_event_state(request.app, event)
+            await send(state)
             exit_stack.enter_context(list_register(request.app['trackers.event_ws_sessions'][event_name], ws))
 
             async for msg in ws:
