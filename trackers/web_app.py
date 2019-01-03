@@ -79,6 +79,7 @@ async def make_aio_app(settings,
     static_manager.add_resource('/static/highcharts.src.js', charset='utf8', content_type='text/javascript')
 
     static_manager.add_resource('/static/instructions.html', '/instructions', charset='utf8', content_type='text/html')
+    static_manager.add_resource('/static/instructions_lgg2019.html', '/instructions_lgg2019', charset='utf8', content_type='text/html')
     static_manager.add_resource('/static/tkstorage_admin.js', charset='utf8', content_type='text/javascript')
     static_manager.add_resource('/static/tkstorage_admin.html', '/tkstorage_admin', charset='utf8', content_type='text/html',
                                 body_processor=page_body_processor, )

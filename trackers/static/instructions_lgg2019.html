@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Global site tag (gtag.js) - Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-118283643-1"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){{dataLayer.push(arguments);}}
+      gtag('js', new Date());
+
+      gtag('config', 'UA-118283643-1');
+    </script>
+
+    <title>Lindley Gravel Grind 2019 - Tracking Instructions</title>
+    <meta name="description" content="Live location tracking for ultra distance cycling.">
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#000000">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+</head>
+<body style="margin: 0;">
+  <div id="head-contain" style="
+      position: fixed;
+      top: 0;
+      width: 100%;
+      overflow: hidden;
+      z-index: 3;
+      ">
+    <div id="head-back" style="
+        position: absolute;
+        width: 100%; height: 400px;
+        background: #000000;
+        background-image: url(https://massiveadventures.co.za/wp-content/themes/massiveadv2017/images/dcdc1a78422c0b8a9e9841ae0c11cd0b_lindleygravelgrind.jpg);
+        background-size: cover;
+        background-position: center;
+        z-index: -1;
+        ">
+    </div>
+    <div id="head" style="
+        width: 100%;
+        padding-left: 24px;
+        padding-right: 24px;
+        min-height: 300px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.2); ">
+      <h4 style="color: white;">Lindley Gravel Grind 2019 - Tracking Instructions</h4>
+    </div>
+  </div>
+  <div style="
+        padding-left: 24px;
+        padding-right: 24px;
+        margin-top: -24px;
+        min-height: 300px;">
+      <h4 style="">Lindley Gravel Grind 2019 - Tracking Instructions</h4>
+  </div>
+
+  <div style="padding: 24px; width: 100%;">
+    <div style="margin: auto; max-width: 800px;">
+        <p> All competitors are required to have GPS tracking on at all times during the race. This can either be done
+            with your own phone, or there are a limited number of dedicated tracking devices available for rental. </p>
+        <p>Tracking will be viewable at the following links:<br>
+           <a href="https://track.massiveadventures.co.za/lindley_gravel_grind_2019" target="_blank">https://track.massiveadventures.co.za/lindley_gravel_grind_2019</a><br>
+           <a href="https://track.massiveadventures.co.za/lindley_gravel_grind_short_2019" target="_blank">https://track.massiveadventures.co.za/lindley_gravel_grind_short_2019</a><br>
+        </p>
+        <h4>Phone Tracking Setup Instructions</h4>
+
+        <p>Please try have this setup before the race. If you have any issues getting this working, please contact
+            Gary van der Merwe for assistance. </p>
+        <ul>
+            <li>Email: <a href="mailto:garyvdm+trackrace@gmail.com" target="_blank">garyvdm+trackrace@gmail.com</a></li>
+            <li>WhatsApp: <a href="tel:+27793405832">+27793405832</a></li>
+        </ul>
+
+        <h5>Android Phones</h5>
+        <ol>
+            <li>Install <a href="https://play.google.com/store/apps/details?id=tk.trackrace.client" target="_blank" >TrackRace Client</a> app.</li>
+            <li>Open app. </li>
+            <li>Note the Device identifier - Email this to <a href="mailto:garyvdm+trackrace@gmail.com" target="_blank">garyvdm+trackrace@gmail.com</a></li>
+        </ol>
+        <p><b>Note: </b>Battery saver modes often disable the GPS on the phone, which means the app won't work. If you
+            want to use your battery saver, please test that the app works with it before the race.</p>
+        <p><b>Note: </b>If you used the Traccar Client in the 2018 race, please uninstall it.<br></p>
+
+        <h5>Apple Phones</h5>
+        <ol>
+            <li>Install <a href="https://itunes.apple.com/us/app/traccar-client/id843156974" target="_blank">Traccar Client</a> app. </li>
+            <li>Open app.</li>
+            <li>Set the following settings:
+                <ul>
+                    <li><b>Server Url:</b> http://trackrace.tk:5055</li>
+                    <li><b>Accuracy:</b> High</li>
+                </ul>
+            </li>
+            <li>Note the Device identifier - Email this to <a href="mailto:garyvdm+trackrace@gmail.com" target="_blank">garyvdm+trackrace@gmail.com</a></li>
+        </ol>
+
+        <h4>Testing</h4>
+        <p>It is highly recommended that you test the tracking app on you phone on a long ride before the race.</p>
+        <ol>
+            <li>Start the service in the app.</li>
+            <li>Check the tracker is working in a browser. <b>(do this before you go on a ride)</b> <br>
+                Go to  https://trackrace.tk/traccar/DEVICEID or enter your device id below:
+                <div class="card">
+                    <form onsubmit="window.open('https://trackrace.tk/traccar/'+ document.getElementById('device_id').value, '_blank'); event.preventDefault();">
+                        <div class="card-content" style="display: flex; flex-wrap: wrap; justify-content:  space-evenly;">
+                            <input placeholder="Device Id" id="device_id" type="text" style="width: 8em;">
+                            <button class="btn waves-effect waves-light" type="submit" name="action">Submit</button>
+                        </div>
+                    </form>
+                </div>
+            </li>
+
+
+            <li>Go for a long ride, or just leave your phone on the window sill where it can get a GPS signal.</li>
+            <li>Check that the tracker recorded you ride correctly. </li>
+            <li>Stop the service in the app.</li>
+        </ol>
+
+        <h4>Use During Race</h4>
+        <ol>
+            <li>Start the service in the app before the start.</li>
+            <li>Stop the service in the app after you have finished.</li>
+        </ol>
+        <h4>Rental Tracking Devices</h4>
+        <p>If you do not have an Android or Apple phone, or your phones battery is poor, a limited number of dedicated
+            tracking devices are available for rental.The devices can be collected at the race briefing, and must be
+            returned to Gary after the race, before you leave Lindley. Please email
+            <a href="mailto:garyvdm+trackrace@gmail.com" target="_blank">garyvdm+trackrace@gmail.com</a> to book a device.</p>
+        <h5>Costs</h5>
+        <div>R50 Rental</div>
+        <div>R400 Deposit which will be refunded on return of the device.</div>
+    </div>
+  </div>
+
+    <script>
+;(function() {{
+    var throttle = function(type, name, obj) {{
+        var obj = obj || window;
+        var running = false;
+        var func = function() {{
+            if (running) {{ return; }}
+            running = true;
+            requestAnimationFrame(function() {{
+                obj.dispatchEvent(new CustomEvent(name));
+                running = false;
+            }});
+        }};
+        obj.addEventListener(type, func);
+    }};
+    throttle ("scroll", "optimizedScroll");
+}})();
+
+var head_contain = document.getElementById('head-contain');
+var head_back = document.getElementById('head-back');
+var head = document.getElementById('head');
+
+window.addEventListener("optimizedScroll", function(){{
+  console.log(window.pageYOffset);
+  change = 200 - Math.min(window.pageYOffset, 200);
+  head_back.style.height = (200 + change) + 'px';
+  head_back.style.top = (change / 2 - 100) + 'px';
+  head.style.minHeight = (100 + change) + 'px';
+  head.style.background = 'rgba(0.2, 0.2, 0.2, ' + ((200 - change)  / 200 + 0.1)  + ')';
+
+}})
+
+    </script>
+</body>
+</html>
