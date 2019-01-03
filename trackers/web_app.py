@@ -236,43 +236,33 @@ async def home(request):
         live_events = [event for event in events if event.config.get('live', False)]
         past_events = [event for event in events if not event.config.get('live', False)]
 
-        # page_path = f'/static/home/{host}.html'
-        # event.page = app['static_manager'].get_static_processed_resource(
-        #     page_path,
-        #     body_processor=partial(
-        #         page_body_processor,
-        #         api_key=app['trackers.settings']['google_api_key'],
-        #         title=event.config['title'],
-        #     ),
-        # )
         router = request.app.router
-        body = io.StringIO()
-        writer = Writer(body)
+        events_body = io.StringIO()
+        writer = Writer(events_body)
         w = writer.w
         c = writer.c
-
-        w(Markup('<!DOCTYPE html>'))
-        with c(Tag('html')):
-            with c(Tag('head')):
-                w(Tag('title'), host)
-            with c(Tag('body')):
-                w(Tag('h1'), host)
-                if live_events:
-                    w(Tag('h2'), 'Live Events')
-                    for event in live_events:
-                        w(Tag('li'),
-                          Tag('a', href=router['event_page'].url_for(event=event.name)),
-                          event.config.get('title', event.name))
-
-                w(Tag('h2'), 'Past Events')
-                for event in past_events:
-                    w(Tag('li'),
-                      Tag('a', href=router['event_page'].url_for(event=event.name)),
+        if live_events:
+            w(Tag('h2'), 'Live Events')
+            with c(Tag('ul', class_='collection')):
+                for event in live_events:
+                    w(Tag('a', class_='collection-item', href=router['event_page'].url_for(event=event.name)),
                       event.config.get('title', event.name))
-        body = body.getvalue().encode()
-        hash = hashlib.sha1(body)
-        etag = base64.urlsafe_b64encode(hash.digest()).decode('ascii')
-        page = body, etag
+
+        w(Tag('h2'), 'Past Events')
+        with c(Tag('div', class_='collection')):
+            for event in past_events:
+                w(Tag('a', class_='collection-item', href=router['event_page'].url_for(event=event.name)),
+                  event.config.get('title', event.name))
+
+        page_path = f'/static/home/{host}.html'
+        page = await request.app['static_manager'].get_static_processed_resource(
+            page_path,
+            body_processor=partial(
+                page_body_processor,
+                events=events_body.getvalue()
+            ),
+        )
+
         request.app['home_pages'][host] = page
 
     body, etag = page
