@@ -170,6 +170,7 @@ body {
 }
 
 #graph_contain {
+    @include display-flex-column;
     -ms-flex: 1 1 100%; flex: 1 1 100%;
     position: relative;
 }

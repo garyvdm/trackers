@@ -1198,64 +1198,98 @@ function geo_location_success(position){
 
 my_position_el.onclick();
 
-var graph_chart;
+var graph_charts = {};
 var graph_selected;
 
 function update_graph() {
     config_loaded.promise.then( function () {
+        graph_contain = document.getElementById('graph_contain');
         if (graph_selected != graph_select.value) {
-            if (graph_chart) {
-                graph_chart.destroy();
-                graph_chart = null;
-            }
+            Object.values(graph_charts).forEach(function (chart){ chart.destroy(); });
+            graph_charts = {}
             if (!graph_selected) {
                 subscriptions['riders_points'] = Math.max((subscriptions['riders_points'] || 0) + 1, 0);
                 subscriptions_updated();
             }
             graph_selected = graph_select.value;
             if (graph_selected == 'dist_speed_time') {
-                graph_chart = Highcharts.chart('graph', {
+                graph_contain.innerHTML = '<div id="graph_dist_time"></div><div id="graph_speed_time"></div>';
+                graph_charts.dist_time = Highcharts.chart('graph_dist_time', {
                     chart: { type: 'line', height: null, zoomType: 'xy', },
-                    title: { text: 'Distance & Speed / Time', style: {display: 'none'}},
+                    title: { text: 'Distance / Time', style: {display: 'none'}},
                     xAxis: { title: 'Time', type: 'datetime', endOnTick: false, startOnTick: false},
                     yAxis: [
                         {
                             title: {text: 'Distance (km)', },
                             id: 'dist',
                             endOnTick: false, startOnTick: false,
-                        },
-                        {
-                            title: {text: 'Speed (km/h)' },
-                            id: 'speed',
-                            opposite: true,
-                            endOnTick: false, startOnTick: false,
-                        },
+                        }
                     ],
                     credits: { enabled: false },
+                    legend:{ enabled: false },
                     series: config.riders.map(function (rider) {return {
-                        id: rider['name'] + 'dist',
-                        name: rider['name'] + ' Distance',
+                        id: rider['name'],
+                        name: rider['name'],
                         color: rider['color'],
                         tooltip: {
                             headerFormat: '<b>' + rider.name +'</b><br>',
                             pointFormat: '{point.x:%H:%M:%S %e %b}: {point.y:.2f} km'
                         },
-                    } }).concat(config.riders.map(function (rider) {return {
-                        id: rider['name'] + 'speed',
-                        name: rider['name']+ ' Speed',
+                    } }),
+                });
+                graph_charts.speed_time = Highcharts.chart('graph_speed_time', {
+                    chart: { type: 'line', height: null, zoomType: 'x', },
+                    title: { text: 'Speed / Time', style: {display: 'none'}},
+                    xAxis: { title: 'Time', type: 'datetime', endOnTick: false, startOnTick: false},
+                    yAxis: [
+                        {
+                            title: {text: 'Speed (km/h)' },
+                            id: 'speed',
+                            endOnTick: false, startOnTick: false,
+                        },
+                    ],
+                    credits: { enabled: false },
+                    legend:{ enabled: false },
+                    series: config.riders.map(function (rider) {return {
+                        id: rider['name'],
+                        name: rider['name'],
                         color: rider['color'],
                         yAxis: 'speed',
                         tooltip: {
                             headerFormat: '<b>' + rider.name +'</b><br>',
                             pointFormat: '{point.x:%H:%M:%S %e %b}: {point.y:.2f} km'
                         },
-                    }})),
+                    }}),
                 });
             }
             if (graph_selected == 'elevation_speed_distance') {
-                graph_chart = Highcharts.chart('graph', {
-                    chart: { type: 'line', height: null, zoomType: 'xy', },
-                    title: { text: 'Elevation & Speed / Distance', style: {display: 'none'}},
+                graph_contain.innerHTML = '<div id="graph_speed_dist"></div><div id="graph_elevation_dist"></div>';
+
+                graph_charts.speed_dist = Highcharts.chart('graph_speed_dist', {
+                    chart: { type: 'line', height: null, zoomType: 'x', },
+                    title: { text: 'Speed / Distance', style: {display: 'none'}},
+                    xAxis: { title: 'Distance', endOnTick: false, startOnTick: false, },
+                    yAxis: [
+                        {
+                            title: {text: 'Speed (km/h)' },
+                            id: 'speed',
+                        },
+                    ],
+                    credits: { enabled: false },
+                    legend:{ enabled: false },
+                    series: config.riders.map(function (rider) {return {
+                        id: rider['name'],
+                        name: rider['name'],
+                        color: rider['color'],
+                        tooltip: {
+                            headerFormat: '<b>' + rider.name +'</b><br>',
+                            pointFormat: '{point.x:.2f} km: {point.y:.2f} km/h',
+                        },
+                    }}),
+                });
+                graph_charts.elevation_dist = Highcharts.chart('graph_elevation_dist', {
+                    chart: { type: 'line', height: null, zoomType: 'x', },
+                    title: { text: 'Elevation Distance', },
                     xAxis: { title: 'Distance', endOnTick: false, startOnTick: false, },
                     yAxis: [
                         {
@@ -1263,26 +1297,40 @@ function update_graph() {
                             id: 'elev',
                             endOnTick: false, startOnTick: false,
                         },
-                        {
-                            title: {text: 'Speed (km/h)' },
-                            id: 'speed',
-                            opposite: true,
-                        },
                     ],
                     credits: { enabled: false },
-                    series: config.riders.map(function (rider) {return {
-                        id: rider['name'],
-                        name: rider['name'] + ' Level',
-                        color: rider['color'],
-                        tooltip: {
-                            headerFormat: '<b>' + rider.name +'</b><br>',
-                            pointFormat: '{point.x:%e %b}: {point.y} %'
-                        },
-                    }}),
+                    legend:{ enabled: false },
+                    series: routes.map(function (route, i) {
+                        var start_distance;
+                        var dist_factor;
+                        if (route.main) {
+                            start_distance = 0;
+                            dist_factor = 1;
+                        } else {
+                            start_distance = route.start_distance;
+                            dist_factor = route.dist_factor;
+                        }
+
+                        return {
+                            color: (i==0?'black':'#444444'),
+                            tooltip: {
+                                headerFormat: '',
+                                pointFormat: '{point.x:.2f} km: {point.y:.2f} m',
+                            },
+
+                            data: route.elevation.map(function (point) { return [
+                                ((point[3] * dist_factor) + start_distance) / 1000,
+                                point[2],
+                            ]}),
+                        }
+                    }),
                 });
+
             }
             if (graph_selected == 'battery') {
-                graph_chart = Highcharts.chart('graph', {
+                graph_contain.innerHTML = '<div id="graph_battery"></div>'
+
+                graph_charts.graph_battery = Highcharts.chart('graph_battery', {
                     chart: { type: 'line', height: null, zoomType: 'xy', },
                     title: { text: 'Tracker Battery Levels / Time', style: {display: 'none'}},
                     xAxis: { title: 'Time', type: 'datetime', endOnTick: false, startOnTick: false, },
@@ -1296,13 +1344,14 @@ function update_graph() {
                         },
                     ],
                     credits: { enabled: false },
+                    legend:{ enabled: false },
                     series: config.riders.map(function (rider) {return {
-                        id: rider['name'] + 'battery',
-                        name: rider['name'] + ' Level',
+                        id: rider['name'],
+                        name: rider['name'],
                         color: rider['color'],
                         tooltip: {
                             headerFormat: '<b>' + rider.name +'</b><br>',
-                            pointFormat: '{point.x:%H:%M:%S %e %b}: {point.y} %'
+                            pointFormat: '{point.x:%H:%M:%S %e %b}: {point.y:.0f} %'
                         },
                     } }),
                 });
@@ -1313,23 +1362,29 @@ function update_graph() {
                 if (rider_points) on_new_rider_points_graph(rider.name, 'riders_points', rider_points, rider_points, []);
             });
         }
-    });
+    }).catch(promise_catch);
 }
 
 function on_new_rider_points_graph(rider_name, list_name, items, new_items, old_items){
     if (list_name == 'riders_points') {
         if (graph_selected == 'dist_speed_time') {
-            graph_chart.get(rider_name + 'dist').setData(
+            graph_charts.dist_time.get(rider_name).setData(
                 items.filter(function(item) {return item.hasOwnProperty('dist_route')})
                 .map(function (item) {return [item.time * 1000, item.dist_route/1000]})
             );
-//            graph_chart.get(rider_name + 'speed').setData(
-//                items.filter(function(item) {return item.hasOwnProperty('speed_from_last')})
-//                .map(function (item) {return [item.time * 1000, item.speed_from_last]})
-//            );
+            graph_charts.speed_time.get(rider_name).setData(
+                items.filter(function(item) {return item.hasOwnProperty('speed_from_last')})
+                .map(function (item) {return [item.time * 1000, item.speed_from_last]})
+            );
+        }
+        if (graph_selected == 'elevation_speed_distance') {
+            graph_charts.speed_dist.get(rider_name).setData(
+                items.filter(function(item) {return item.hasOwnProperty('speed_from_last')})
+                .map(function (item) {return [item.dist_route / 1000, item.speed_from_last]})
+            );
         }
         if (graph_selected == 'battery') {
-            graph_chart.get(rider_name + 'battery').setData(
+            graph_charts.graph_battery.get(rider_name).setData(
                 items.filter(function(item) {return item.hasOwnProperty('battery')})
                 .map(function (item) {return [item.time * 1000, item.battery]})
             );
