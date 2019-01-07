@@ -120,3 +120,32 @@ function Deferred() {
 Array.prototype.extend = function (other_array) {
     other_array.forEach(function(v) {this.push(v)}, this);
 }
+
+function binary_search_closest(arr, searchElement) {
+    var minIndex = 0;
+    var maxIndex = arr.length - 1;
+    var currentIndex;
+    var currentElement;
+    var nextElement;
+
+    while (minIndex <= maxIndex) {
+        currentIndex = (minIndex + maxIndex) / 2 | 0;
+        currentElement = arr[currentIndex];
+        nextElement = arr[currentIndex + 1]
+
+        if (currentElement <= searchElement && searchElement < nextElement) {
+            return currentIndex;
+        }
+
+        if (currentElement < searchElement) {
+            minIndex = currentIndex + 1;
+        } else if (searchElement < nextElement) {
+            maxIndex = currentIndex;
+        }
+
+        if (minIndex == maxIndex) {
+            console.log(minIndex, maxIndex, currentElement, nextElement, searchElement)
+            return;
+        }
+    }
+}

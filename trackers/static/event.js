@@ -1200,10 +1200,50 @@ my_position_el.onclick();
 
 var graph_charts = {};
 var graph_selected;
+var graphs_block_link_event_state = false;
+
+function graphs_block_link_event(func, event){
+    if (!graphs_block_link_event_state) {
+        graphs_block_link_event_state = true;
+        try {
+            func(event);
+        } finally {
+            graphs_block_link_event_state = false;
+        }
+    }
+}
+
+function mouseover_other_chart(event, other_series){
+    var point = event.target;
+    var other_chart = other_series.chart;
+    var other_index = binary_search_closest(other_series.xData, point.x)
+    if (other_index  === undefined){
+        other_chart.pointer.reset();
+    } else {
+        var other_point = other_series.data[other_index];
+        other_chart.pointer.runPointActions(event, other_point);
+    }
+}
+
+function graphs_sync_other_extremes(event) {
+    var thisChart = event.target;
+    if (event.trigger !== 'syncExtremes') { // Prevent feedback loop
+        Object.values(graph_charts).forEach(function (chart) {
+            if (chart !== thisChart) {
+                var axis = chart.xAxis[0];
+                if (axis.setExtremes) { // It is null while updating
+                    axis.setExtremes(event.min, event.max, undefined, false, { trigger: 'syncExtremes' });
+                }
+            }
+        });
+    }
+}
+
+
+var graph_contain = document.getElementById('graph_contain');
 
 function update_graph() {
     config_loaded.promise.then( function () {
-        graph_contain = document.getElementById('graph_contain');
         if (graph_selected != graph_select.value) {
             Object.values(graph_charts).forEach(function (chart){ chart.destroy(); });
             graph_charts = {}
@@ -1217,7 +1257,14 @@ function update_graph() {
                 graph_charts.dist_time = Highcharts.chart('graph_dist_time', {
                     chart: { type: 'line', height: null, zoomType: 'xy', },
                     title: { text: 'Distance / Time', style: {display: 'none'}},
-                    xAxis: { title: 'Time', type: 'datetime', endOnTick: false, startOnTick: false},
+                    xAxis: {
+                        title: 'Time',
+                        type: 'datetime',
+                        endOnTick: false,
+                        startOnTick: false,
+                        crosshair: true,
+                        events: { setExtremes: graphs_sync_other_extremes },
+                    },
                     yAxis: [
                         {
                             title: {text: 'Distance (km)', },
@@ -1227,6 +1274,22 @@ function update_graph() {
                     ],
                     credits: { enabled: false },
                     legend:{ enabled: false },
+                    plotOptions: {
+                        series: {
+                            point: {
+                                events: {
+                                    mouseOver: graphs_block_link_event.bind(null, function (event) {
+                                        mouseover_other_chart(event, graph_charts.speed_time.series[event.target.series.index], );
+                                    }),
+                                },
+                            },
+                            events: {
+                                mouseOut: function (event) {
+                                    graph_charts.speed_time.pointer.reset();
+                                }
+                            },
+                        },
+                    },
                     series: config.riders.map(function (rider) {return {
                         id: rider['name'],
                         name: rider['name'],
@@ -1235,12 +1298,19 @@ function update_graph() {
                             headerFormat: '<b>' + rider.name +'</b><br>',
                             pointFormat: '{point.x:%H:%M:%S %e %b}: {point.y:.2f} km'
                         },
-                    } }),
+                    }}),
                 });
                 graph_charts.speed_time = Highcharts.chart('graph_speed_time', {
                     chart: { type: 'line', height: null, zoomType: 'x', },
                     title: { text: 'Speed / Time', style: {display: 'none'}},
-                    xAxis: { title: 'Time', type: 'datetime', endOnTick: false, startOnTick: false},
+                    xAxis: {
+                        title: 'Time',
+                        type: 'datetime',
+                        endOnTick: false,
+                        startOnTick: false,
+                        crosshair: true,
+                        events: { setExtremes: graphs_sync_other_extremes },
+                    },
                     yAxis: [
                         {
                             title: {text: 'Speed (km/h)' },
@@ -1250,6 +1320,22 @@ function update_graph() {
                     ],
                     credits: { enabled: false },
                     legend:{ enabled: false },
+                    plotOptions: {
+                        series: {
+                            point: {
+                                events: {
+                                    mouseOver: graphs_block_link_event.bind(null, function (event) {
+                                        mouseover_other_chart(event, graph_charts.speed_time.series[event.target.series.index], );
+                                    }),
+                                },
+                            },
+                            events: {
+                                mouseOut: function (event) {
+                                    graph_charts.dist_time.pointer.reset();
+                                }
+                            },
+                        },
+                    },
                     series: config.riders.map(function (rider) {return {
                         id: rider['name'],
                         name: rider['name'],
@@ -1268,7 +1354,13 @@ function update_graph() {
                 graph_charts.speed_dist = Highcharts.chart('graph_speed_dist', {
                     chart: { type: 'line', height: null, zoomType: 'x', },
                     title: { text: 'Speed / Distance', style: {display: 'none'}},
-                    xAxis: { title: 'Distance', endOnTick: false, startOnTick: false, },
+                    xAxis: {
+                        title: 'Distance',
+                        endOnTick: false,
+                        startOnTick: false,
+                        crosshair: true,
+                        events: { setExtremes: graphs_sync_other_extremes },
+                    },
                     yAxis: [
                         {
                             title: {text: 'Speed (km/h)' },
@@ -1277,6 +1369,22 @@ function update_graph() {
                     ],
                     credits: { enabled: false },
                     legend:{ enabled: false },
+                    plotOptions: {
+                        series: {
+                            point: {
+                                events: {
+                                    mouseOver: graphs_block_link_event.bind(null, function (event) {
+                                        mouseover_other_chart(event, graph_charts.elevation_dist.series[0], );
+                                    }),
+                                },
+                            },
+                            events: {
+                                mouseOut: function (event) {
+                                    graph_charts.elevation_dist.pointer.reset();
+                                }
+                            },
+                        },
+                    },
                     series: config.riders.map(function (rider) {return {
                         id: rider['name'],
                         name: rider['name'],
@@ -1290,7 +1398,13 @@ function update_graph() {
                 graph_charts.elevation_dist = Highcharts.chart('graph_elevation_dist', {
                     chart: { type: 'line', height: null, zoomType: 'x', },
                     title: { text: 'Elevation Distance', },
-                    xAxis: { title: 'Distance', endOnTick: false, startOnTick: false, },
+                    xAxis: {
+                        title: 'Distance',
+                        endOnTick: false,
+                        startOnTick: false,
+                        crosshair: true,
+                        events: { setExtremes: graphs_sync_other_extremes },
+                    },
                     yAxis: [
                         {
                             title: {text: 'Elevation (m)', },
@@ -1374,7 +1488,7 @@ function on_new_rider_points_graph(rider_name, list_name, items, new_items, old_
             );
             graph_charts.speed_time.get(rider_name).setData(
                 items.filter(function(item) {return item.hasOwnProperty('speed_from_last')})
-                .map(function (item) {return [item.time * 1000, item.speed_from_last]})
+                .map(function (item) {return [item.time * 1000, item.speed_from_last || 0]})
             );
         }
         if (graph_selected == 'elevation_speed_distance') {
