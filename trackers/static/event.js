@@ -282,7 +282,7 @@ function ws_onclose(event) {
 
 function ws_onmessage(event){
     set_status('&#x2713; Connected');
-    console.log(event.data);
+//    console.log(event.data);
 
     var data = JSON.parse(event.data);
     if (data.hasOwnProperty('sending')) {
@@ -641,7 +641,7 @@ function onclick_show_routes() {
 }
 
 function show_route_for_rider(route_name, rider_name) {
-    return (rider_name == selected_rider?route_name == 'riders_points':route_name == show_routes);
+    return (selected_riders.has(rider_name)?route_name == 'riders_points':route_name == show_routes);
 }
 
 function update_rider_paths_visible(rider_name) {
@@ -695,7 +695,7 @@ function on_new_rider_points(rider_name, list_name, items, new_items, old_items)
             }
         });
 
-        if (rider_name == selected_rider && list_name == 'riders_points') update_selected_rider_point_markers();
+        if (selected_riders.has(rider_name) && list_name == 'riders_points') update_selected_rider_point_markers();
         on_new_rider_points_graph(rider_name, list_name, items, new_items, old_items, true);
     }).catch(promise_catch);
 }
@@ -751,7 +751,7 @@ function on_new_rider_values(rider_name){
             } else {
                 rider_items.marker.setPosition(position);
             }
-            if (rider_name == selected_rider) {
+            if (selected_riders.has(rider_name)) {
                 if (!rider_items.rich_marker) {
                     var marker_html = '<div class="rider-marker" style="background: ' + marker_color + ';">' + (rider.name_short || rider.name)+ '</div>' +
                                       '<div class="rider-marker-pointer" style="border-color: transparent ' + marker_color + ' ' + marker_color + ' transparent;"></div><div style="height:2px;"></div>';
@@ -862,7 +862,7 @@ function update_rider_table(){
         var current_time = (new Date().getTime() / 1000) - time_offset;
         var detail_level = riders_detail_level_el.value;
         var rider_rows = sorted_riders.map(function (rider){
-            var rider_items = riders_client_items[rider.name] || {};
+            var rider_items = riders_client_items[rider.name];
             var values = riders_values_l[rider.name] || {};
             var last_position_time;
             var last_server_time;
@@ -962,58 +962,52 @@ function update_rider_table(){
         Array.prototype.forEach.call(riders_el, function (row){
             var rider_name = row.getAttribute('rider_name');
             row.onclick = rider_onclick.bind(null, row, rider_name);
-            if (rider_name == selected_rider) row.classList.add('selected');
+            if (selected_riders.has(rider_name)) row.classList.add('selected');
         });
     }
 }
 setInterval(update_rider_table(), 20000);
 riders_detail_level_el.onchange = update_rider_table;
 
-var selected_rider = null;
+var selected_riders = new Set();
 function rider_onclick(row, rider_name, event) {
-    select_rider(rider_name, false, true);
-    if (event.ctrlKey) {
-        var values = riders_values[rider_name] || {};
-        if (values.hasOwnProperty('position')) {
-            window.open('https://www.google.com/maps/place/' + values.position[0] + ',' + values.position[1], '_blank');
-        }
-    }
+    event.preventDefault();
+    event.stopPropagation();
+    select_rider(rider_name, false, true, event);
+//    if (event.ctrlKey) {
+//        var values = riders_values[rider_name] || {};
+//        if (values.hasOwnProperty('position')) {
+//            window.open('https://www.google.com/maps/place/' + values.position[0] + ',' + values.position[1], '_blank');
+//        }
+//    }
 }
 
-function select_rider(rider_name, rider_list_scroll, map_scroll) {
+function select_rider(rider_name, rider_list_scroll, map_scroll, event) {
+    var single = !event.ctrlKey;
+
     point_info_window.close();
-    var old_select_rider = selected_rider;
+    var old_select_riders = new Set(selected_riders);
 
-    Array.prototype.forEach.call(riders_el, function (el){
-        el.classList.remove('selected');
-    });
-
-    if (selected_rider == rider_name) {
-        selected_rider = null;
+    if (selected_riders.has(rider_name)) {
+        selected_riders.delete(rider_name);
     } else {
-        selected_rider = rider_name;
+        if (single) {
+            selected_riders = new Set([rider_name]);
+        } else {
+            selected_riders.add(rider_name);
+        }
     }
 
-    if (old_select_rider) {
-        subscriptions['riders_points.'+old_select_rider] = Math.max((subscriptions['rider_points.'+old_select_rider] || 0) - 1, 0);
-        on_new_rider_values(old_select_rider);
-    }
-
-    var selected_position;
+    var any_selected = selected_riders.length > 0;
     config.riders.forEach(function (rider){
-        var rider_items = riders_client_items[rider.name] || {
-            'paths': {},
-            'marker': null,
-            'rich_marker': null,
-        };
-
+        var rider_items = riders_client_items[rider.name];
         var zIndex;
         var opacity;
-        if (selected_rider && selected_rider==rider.name){
+        var selected = selected_riders.has(rider.name);
+        if (any_selected && selected) {
             zIndex = 1000;
             opacity = 1;
-            if (rider_items.marker) selected_position = rider_items.marker.getPosition();
-        } else if (selected_rider && selected_rider!=rider.name){
+        } else if (any_selected && !selected){
             zIndex = 1;
             opacity = 0.5;
         } else {
@@ -1031,72 +1025,86 @@ function select_rider(rider_name, rider_list_scroll, map_scroll) {
             });
         });
         update_rider_paths_visible(rider.name);
-    });
-    if (selected_rider) {
-        var row = document.getElementById('riders_actual').querySelector(".rider[rider_name='"+selected_rider+"']");
-        row.classList.add('selected');
-        if (rider_list_scroll) {
-            row.scrollIntoView({'behavior': 'smooth'});
+        var row = document.getElementById('riders_actual').querySelector(".rider[rider_name='"+rider.name+"']");
+        if (selected) {
+            row.classList.add('selected');
+        } else {
+            row.classList.remove('selected');
         }
-        on_new_rider_values(selected_rider);
-
-        setTimeout(function(){
-            apply_mobile_selected('map');
-            if (selected_position && map_scroll) {
-                map.panTo(selected_position);
+        if (selected && rider.name == rider_name) {
+            if (rider_list_scroll) {
+                row.scrollIntoView({'behavior': 'smooth'});
             }
-        });
-    }
-    event_markers.forEach(function (marker) { if (marker.hasOwnProperty('setOpacity')) {marker.setOpacity((selected_rider ? 0.5 : 1))} });
 
+            if (map_scroll && rider_items.marker) {
+                setTimeout(function(){
+                    apply_mobile_selected('map');
+                    map.panTo(rider_items.marker.getPosition());
+                });
+            }
+        }
+    });
 
-    if (selected_rider) subscriptions['riders_points.'+selected_rider] = Math.max((subscriptions['rider_points.'+selected_rider] || 0) + 1, 0);
+    // Removed from selection
+    old_select_riders.forEach(function (rider_name){
+        if (!selected_riders.has(rider_name)) {
+            subscriptions['riders_points.'+rider_name] = Math.max((subscriptions['rider_points.'+rider_name] || 0) - 1, 0);
+            on_new_rider_values(rider_name);
+        }
+    });
+
+    // Added to selection
+    selected_riders.forEach(function (rider_name){
+        if (!old_select_riders.has(rider_name)) {
+            subscriptions['riders_points.'+rider_name] = Math.max((subscriptions['rider_points.'+rider_name] || 0) + 1, 0);
+            on_new_rider_values(rider_name);
+        }
+    });
+
+    event_markers.forEach(function (marker) { if (marker.hasOwnProperty('setOpacity')) {marker.setOpacity((any_selected ? 0.5 : 1))} });
     subscriptions_updated();
     update_selected_rider_point_markers();
 }
 
 function update_selected_rider_point_markers(){
-    Object.keys(riders_client_items).forEach(function (rider_name){
-        if (rider_name != selected_rider) {
-            rider_items = riders_client_items[rider_name];
+    config.riders.forEach(function (rider){
+        var rider_name = rider.name;
+        var rider_items = riders_client_items[rider_name];
+        if (!selected_riders.has(rider_name)) {
             Object.values(rider_items.point_markers).forEach(function (marker) {marker.setVisible(false)});
+        } else if (riders_points.hasOwnProperty(rider_name)) {
+            var bounds = map.getBounds();
+            var color = rider.color || 'black';
+
+            if (map.getZoom() >= 14) {
+                Object.values(rider_items.point_markers).forEach(function (marker) {marker.setVisible(true)});
+                riders_points[rider_name].forEach(function (point){
+                    if (!rider_items.point_markers.hasOwnProperty(point.index) && point.hasOwnProperty('position')) {
+                        var position = new google.maps.LatLng(point.position[0], point.position[1]);
+                        if (bounds.contains(position)){
+                            var marker = new google.maps.Marker({
+                                icon: {
+                                    path: google.maps.SymbolPath.CIRCLE,
+                                    scale: 3,
+                                    strokeColor: color,
+                                    fillColor: color,
+                                    fillOpacity: 1,
+                                },
+                                draggable: false,
+                                map: map,
+                                position: position,
+                            });
+
+                            marker.addListener('click', point_marker_onclick.bind(null, marker, point));
+                            rider_items.point_markers[point.index] = marker;
+                        }
+                    }
+                });
+            } else {
+                Object.values(rider_items.point_markers).forEach(function (marker) {marker.setVisible(false)});
+            }
         }
     });
-
-    if (selected_rider && riders_points.hasOwnProperty(selected_rider)) {
-        var bounds = map.getBounds();
-        var rider_items = riders_client_items[selected_rider];
-        var rider = riders_by_name[selected_rider];
-        var color = rider.color || 'black';
-
-        if (map.getZoom() >= 14) {
-            Object.values(rider_items.point_markers).forEach(function (marker) {marker.setVisible(true)});
-            riders_points[selected_rider].forEach(function (point){
-                if (!rider_items.point_markers.hasOwnProperty(point.index) && point.hasOwnProperty('position')) {
-                    var position = new google.maps.LatLng(point.position[0], point.position[1]);
-                    if (bounds.contains(position)){
-                        var marker = new google.maps.Marker({
-                            icon: {
-                                path: google.maps.SymbolPath.CIRCLE,
-                                scale: 3,
-                                strokeColor: color,
-                                fillColor: color,
-                                fillOpacity: 1,
-                            },
-                            draggable: false,
-                            map: map,
-                            position: position,
-                        });
-
-                        marker.addListener('click', point_marker_onclick.bind(null, marker, point));
-                        rider_items.point_markers[point.index] = marker;
-                    }
-                }
-            });
-        } else {
-            Object.values(rider_items.point_markers).forEach(function (marker) {marker.setVisible(false)});
-        }
-    }
 }
 
 function point_marker_onclick(marker, point) {
