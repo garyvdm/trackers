@@ -998,7 +998,7 @@ function select_rider(rider_name, rider_list_scroll, map_scroll, event) {
         }
     }
 
-    var any_selected = selected_riders.length > 0;
+    var any_selected = selected_riders.size > 0;
     config.riders.forEach(function (rider){
         var rider_items = riders_client_items[rider.name];
         var zIndex;
@@ -1252,13 +1252,18 @@ var graph_contain = document.getElementById('graph_contain');
 
 function update_graph() {
     config_loaded.promise.then( function () {
+        var any_selected = selected_riders.size > 0;
+
+        // TODO: we never remove these if we navigate away from graphs. Fix this
+        if (!any_selected) {
+            subscriptions['riders_points'] = Math.max((subscriptions['riders_points'] || 0) + 1, 0);
+            subscriptions_updated();
+        }
+
         if (graph_selected != graph_select.value) {
             Object.values(graph_charts).forEach(function (chart){ chart.destroy(); });
             graph_charts = {}
-            if (!graph_selected) {
-                subscriptions['riders_points'] = Math.max((subscriptions['riders_points'] || 0) + 1, 0);
-                subscriptions_updated();
-            }
+
             graph_selected = graph_select.value;
             if (graph_selected == 'dist_speed_time') {
                 graph_contain.innerHTML = '<div id="graph_dist_time"></div><div id="graph_speed_time"></div>';
@@ -1298,10 +1303,13 @@ function update_graph() {
                             },
                         },
                     },
-                    series: config.riders.map(function (rider) {return {
+                    series: config.riders.map(function (rider) {
+                    console.log(any_selected, selected_riders.has(rider.name), !any_selected || selected_riders.has(rider.name), rider.name);
+                    return {
                         id: rider['name'],
                         name: rider['name'],
                         color: rider['color'],
+                        visible: !any_selected || selected_riders.has(rider.name),
                         tooltip: {
                             headerFormat: '<b>' + rider.name +'</b><br>',
                             pointFormat: '{point.x:%H:%M:%S %e %b}: {point.y:.2f} km'
@@ -1349,6 +1357,7 @@ function update_graph() {
                         name: rider['name'],
                         color: rider['color'],
                         yAxis: 'speed',
+                        visible: !any_selected || selected_riders.has(rider.name),
                         tooltip: {
                             headerFormat: '<b>' + rider.name +'</b><br>',
                             pointFormat: '{point.x:%H:%M:%S %e %b}: {point.y:.2f} km'
@@ -1398,6 +1407,7 @@ function update_graph() {
                         id: rider['name'],
                         name: rider['name'],
                         color: rider['color'],
+                        visible: !any_selected || selected_riders.has(rider.name),
                         tooltip: {
                             headerFormat: '<b>' + rider.name +'</b><br>',
                             pointFormat: '{point.x:.2f} km: {point.y:.2f} km/h',
@@ -1472,6 +1482,7 @@ function update_graph() {
                         id: rider['name'],
                         name: rider['name'],
                         color: rider['color'],
+                        visible: !any_selected || selected_riders.has(rider.name),
                         tooltip: {
                             headerFormat: '<b>' + rider.name +'</b><br>',
                             pointFormat: '{point.x:%H:%M:%S %e %b}: {point.y:.0f} %'
@@ -1485,7 +1496,22 @@ function update_graph() {
                 if (rider_points) on_new_rider_points_graph(rider.name, 'riders_points', rider_points, rider_points, [], false);
             });
             Object.values(graph_charts).forEach(function (chart){ chart.update(); });
+        } else {
+            config.riders.forEach(function (rider) {
+                var visible = !any_selected || selected_riders.has(rider.name);
+                if (graph_selected == 'dist_speed_time') {
+                    graph_charts.dist_time.get(rider.name).setVisible(visible);
+                    graph_charts.speed_time.get(rider.name).setVisible(visible);
+                }
+                if (graph_selected == 'elevation_speed_distance') {
+                    graph_charts.speed_dist.get(rider.name).setVisible(visible);
+                }
+                if (graph_selected == 'battery') {
+                    graph_charts.graph_battery.get(rider.name).setVisible(visible);
+                }
+            });
         }
+
     }).catch(promise_catch);
 }
 
