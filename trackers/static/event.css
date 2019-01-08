@@ -13,6 +13,12 @@
 
 body {
     overflow: hidden;
+
+    -moz-user-select: -moz-none;
+    -khtml-user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
 }
 
 #foo {
@@ -104,7 +110,6 @@ body {
 
 #riders {
     padding: 8px;
-
     table {
         border-collapse: collapse;
     }
