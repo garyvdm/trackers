@@ -72,17 +72,16 @@ async def make_aio_app(settings,
     static_manager.add_resource('/static/event.js', charset='utf8', content_type='text/javascript')
     static_manager.add_resource('/static/lib.js', charset='utf8', content_type='text/javascript')
     static_manager.add_resource('/static/individual.js', charset='utf8', content_type='text/javascript')
-    static_manager.add_resource('/static/richmarker.js', charset='utf8', content_type='text/javascript')
-    static_manager.add_resource('/static/es7-shim.min.js', charset='utf8', content_type='text/javascript')
-    static_manager.add_resource('/static/highcharts.js', charset='utf8', content_type='text/javascript')
-    static_manager.add_resource('/static/highcharts.js.map', charset='utf8', content_type='text/javascript')
-    static_manager.add_resource('/static/highcharts.src.js', charset='utf8', content_type='text/javascript')
 
     static_manager.add_resource('/static/instructions.html', '/instructions', charset='utf8', content_type='text/html')
     static_manager.add_resource('/static/instructions_lgg2019.html', '/instructions_lgg2019', charset='utf8', content_type='text/html')
     static_manager.add_resource('/static/tkstorage_admin.js', charset='utf8', content_type='text/javascript')
     static_manager.add_resource('/static/tkstorage_admin.html', '/tkstorage_admin', charset='utf8', content_type='text/html',
                                 body_processor=page_body_processor, )
+
+    static_manager.add_resource_dir('/static/markers')
+    static_manager.add_resource_dir('/static/logos')
+    static_manager.add_resource_dir('/static/contrib')
 
     static_manager.add_resource('/static/event.html')  # This is just here so that we reload on change.
     static_manager.add_resource('/static/individual.html', route_name='individual_page',
@@ -91,9 +90,6 @@ async def make_aio_app(settings,
                                     page_body_processor,
                                     api_key=settings['google_api_key'],
                                 ))
-
-    static_manager.add_resource_dir('/static/markers')
-    static_manager.add_resource_dir('/static/logos')
 
     static_manager.start_monitor_and_process_resources()
     await trackers.auth.config_aio_app(app, settings)
