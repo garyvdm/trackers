@@ -1315,7 +1315,7 @@ function update_graph() {
                         {
                             title: {text: 'Speed (km/h)' },
                             id: 'speed',
-                            endOnTick: false, startOnTick: false,
+                            ceiling: 80,
                         },
                     ],
                     credits: { enabled: false },
@@ -1365,6 +1365,7 @@ function update_graph() {
                         {
                             title: {text: 'Speed (km/h)' },
                             id: 'speed',
+                            ceiling: 80,
                         },
                     ],
                     credits: { enabled: false },
