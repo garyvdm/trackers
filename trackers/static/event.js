@@ -696,7 +696,7 @@ function on_new_rider_points(rider_name, list_name, items, new_items, old_items)
         });
 
         if (rider_name == selected_rider && list_name == 'riders_points') update_selected_rider_point_markers();
-        on_new_rider_points_graph(rider_name, list_name, items, new_items, old_items);
+        on_new_rider_points_graph(rider_name, list_name, items, new_items, old_items, true);
     }).catch(promise_catch);
 }
 
@@ -1473,13 +1473,16 @@ function update_graph() {
 
             config.riders.forEach(function (rider) {
                 var rider_points = riders_points[rider.name];
-                if (rider_points) on_new_rider_points_graph(rider.name, 'riders_points', rider_points, rider_points, []);
+                if (rider_points) on_new_rider_points_graph(rider.name, 'riders_points', rider_points, rider_points, [], false);
             });
+            Object.values(graph_charts).forEach(function (chart){ chart.update(); });
         }
     }).catch(promise_catch);
 }
 
-function on_new_rider_points_graph(rider_name, list_name, items, new_items, old_items){
+var graph_update_timeout;
+
+function on_new_rider_points_graph(rider_name, list_name, items, new_items, old_items, update){
     if (list_name == 'riders_points') {
         if (graph_selected == 'dist_speed_time') {
             graph_charts.dist_time.get(rider_name).setData(
@@ -1502,9 +1505,16 @@ function on_new_rider_points_graph(rider_name, list_name, items, new_items, old_
                 items.filter(function(item) {return item.hasOwnProperty('battery')})
                 .map(function (item) {return [item.time * 1000, item.battery]})
             );
-
+        }
+        if (update && !graph_update_timeout) {
+            graph_update_timeout = setTimeout(500, )
         }
     }
+}
+
+function update_graphs(){
+    graph_update_timeout = null;
+    Object.values(graph_charts).forEach(function (chart){ chart.update(); });
 }
 
 
