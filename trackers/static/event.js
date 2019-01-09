@@ -417,7 +417,11 @@ var elevation_chart = Highcharts.chart('elevation', {
     series: [],
     tooltip: {
         formatter: function() {
-            return this.key || (Math.round(this.x / 100) / 10).toString() + " km : " +  Math.round(this.y).toString() + ' m';
+            if (this.series.name.startsWith('route-')) {
+                return (Math.round(this.x / 100) / 10).toString() + " km : " +  Math.round(this.y).toString() + ' m';
+            } else {
+                return (this.key);
+            }
         }
     },
 });
@@ -570,6 +574,7 @@ function on_new_routes(){
                 marker: {enabled: false, symbol: 'circle', radius: 2},
                 color: (i==1?'black':'#444444'),
                 turboThreshold: 5000,
+                name: 'route-' + i,
                 data: elevation_points.map(function (item) { return {
                     x: item.dist,
                     y: item.elevation,
