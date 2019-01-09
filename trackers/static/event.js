@@ -1562,3 +1562,9 @@ function on_graphs_hide() {
         graph_chart = null;
     }
 }
+
+Highcharts.setOptions({
+    time: {
+        useUTC: false
+    }
+});
