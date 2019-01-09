@@ -77,15 +77,20 @@
       </div>
       <div id="elevation"></div>
       <div id="graphs">
-        <label style="padding: 10px;">
-          Graph:
-          <select id="graph_select">
-            <option value="dist_speed_time" selected>Distance & Speed / Time</option>
-            <option value="elevation_speed_distance">Elevation & Speed / Distance</option>
-            <option value="battery">Tracker Battery Levels / Time</option>
-          </select>
-        </label>
-        <div id="graph_contain">
+        <div id="graphs_riders"></div>
+        <div id="graphs_graphs">
+          <div id="graph_select_contain">
+            <label style="padding: 10px;">
+              Graph:
+              <select id="graph_select">
+                <option value="dist_speed_time" selected>Distance & Speed / Time</option>
+                <option value="elevation_speed_distance">Elevation & Speed / Distance</option>
+                <option value="battery">Tracker Battery Levels / Time</option>
+              </select>
+            </label>
+          </div>
+          <div id="graph_contain" style="background: blue;">
+          </div>
         </div>
       </div>
     </div>

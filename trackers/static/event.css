@@ -174,10 +174,22 @@ body {
     -ms-flex: 1 1 100%; flex: 1 1 100%;
 }
 
+#graphs_graphs {
+    -ms-flex: 1 1 100%; flex: 1 1 100%;
+    @include display-flex-column;
+}
+
+#graph_select_contain {
+    margin: 10px;
+    text-align: center;
+}
+
 #graph_contain {
     @include display-flex-column;
     -ms-flex: 1 1 100%; flex: 1 1 100%;
-    position: relative;
+    > * {
+        -ms-flex: 1 1 100%; flex: 1 1 100%;
+    }
 }
 
 #graph {
@@ -251,7 +263,7 @@ body {
             display: none;
         }
         #graphs{
-            @include display-flex-column;
+            @include display-flex;
         }
     }
 }
@@ -278,7 +290,7 @@ body {
             display: none;
         }
         #graphs{
-            @include display-flex-column;
+            @include display-flex;
         }
     }
 
@@ -327,6 +339,10 @@ body {
 
     #riders>table{
         width: 100%
+    }
+
+    #graphs_riders {
+        display: none;
     }
 
 }
