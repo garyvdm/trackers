@@ -1312,7 +1312,7 @@ function update_graph() {
             subscriptions['riders_points.'+rider_name] = Math.max((subscriptions['rider_points.'+rider_name] || 0) - 1, 0);
         });
         if (selected_riders.size > 0) {
-            graph_selected_riders = selected_riders;
+            graph_selected_riders = new Set(selected_riders);
         } else {
             var sorted_riders = get_rider_values_and_sorted_riders()[1];
             graph_selected_riders = new Set(sorted_riders.slice(0, 10).map(function (rider) { return rider.name; }))
@@ -1321,7 +1321,6 @@ function update_graph() {
             subscriptions['riders_points.'+rider_name] = Math.max((subscriptions['rider_points.'+rider_name] || 0) + 1, 0);
         });
         subscriptions_updated();
-
         if (graph_selected != graph_select.value || old_graph_selected_riders != graph_selected_riders) {
             Object.values(graph_charts).forEach(function (chart){ chart.destroy(); });
             graph_charts = {}
@@ -1547,9 +1546,10 @@ function update_graph() {
                 });
             }
 
-            config.riders.forEach(function (rider) {
-                var rider_points = riders_points[rider.name];
-                if (rider_points) on_new_rider_points_graph(rider.name, 'riders_points', rider_points, rider_points, [], false);
+            graph_selected_riders.forEach(function (rider_name) {
+                var rider_points = riders_points[rider_name];
+                console.log(rider_name, rider_points)
+                if (rider_points) on_new_rider_points_graph(rider_name, 'riders_points', rider_points, rider_points, [], false);
             });
             Object.values(graph_charts).forEach(function (chart){ chart.update(); });
         }
