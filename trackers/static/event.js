@@ -1041,8 +1041,8 @@ function select_rider(rider_name, rider_list_scroll, map_scroll, event) {
         });
         update_rider_paths_visible(rider.name);
         var rows = [
-            document.getElementById('riders_actual').querySelector(".rider[rider_name='"+rider.name+"']"),
-            document.getElementById('graphs_riders').querySelector(".rider[rider_name='"+rider.name+"']"),
+            document.getElementById('riders_actual').querySelector(".rider[rider_name='"+CSS.escape(rider.name)+"']"),
+            document.getElementById('graphs_riders').querySelector(".rider[rider_name='"+CSS.escape(rider.name)+"']"),
         ];
         rows.forEach(function (row) {
             if (selected) {
