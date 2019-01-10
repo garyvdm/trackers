@@ -345,6 +345,7 @@ graph_select.onchange = update_graph;
 var main_el = document.getElementById('foo');
 var mobile_selectors = document.getElementById('mobile_select').querySelectorAll('div');
 var mobile_selected;
+var last_mobile_selected = 'map';
 
 function apply_mobile_selected(selected){
     mobile_selected = selected;
@@ -353,8 +354,15 @@ function apply_mobile_selected(selected){
     Array.prototype.forEach.call(mobile_selectors, function (el){
         el.className = (el.getAttribute('show') == selected?'selected':'')
     });
-    if (selected=='map') google.maps.event.trigger(map, 'resize');
-    if (selected=='graphs') update_graph();
+    if (selected=='map') {
+        google.maps.event.trigger(map, 'resize');
+        last_mobile_selected = selected;
+    }
+    if (selected=='graphs') {
+        update_graph();
+        last_mobile_selected = selected;
+    }
+    if (mobile_selected != 'graphs' && desktop_main_selected != 'graphs') remove_graph_subscriptions();
 }
 
 Array.prototype.forEach.call(mobile_selectors, function (el){
@@ -393,6 +401,7 @@ function apply_desktop_main_selected(selected){
     });
     if (selected=='map') google.maps.event.trigger(map, 'resize');
     if (selected=='graphs') update_graph();
+    if (mobile_selected != 'graphs' && desktop_main_selected != 'graphs') remove_graph_subscriptions();
 }
 
 Array.prototype.forEach.call(desktop_main_selectors, function (el){
@@ -834,35 +843,44 @@ function on_new_rider_values(rider_name){
 var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 var riders_detail_level_el = document.getElementById('riders_detail_level');
 var riders_el = [];
+
+function get_rider_values_and_sorted_riders(){
+    var riders_values_l = riders_values;
+    if (predicted_el.checked) {
+        riders_values_l = Object.assign({}, riders_values_l);
+        Object.keys(riders_values_l).forEach(function (rider_name) {
+            if (riders_predicted.hasOwnProperty(rider_name)) {
+                var values = riders_values_l[rider_name];
+                values = Object.assign({}, values);
+                Object.assign(values, riders_predicted[rider_name]);
+                riders_values_l[rider_name] = values;
+            }
+        });
+
+    }
+
+    var sorted_riders = config.riders.slice();
+    sorted_riders.sort(function (a, b){
+        var a_values = riders_values_l[a.name] || {};
+        var b_values = riders_values_l[b.name] || {};
+
+        if (a_values.finished_time && !b_values.finished_time || a_values.finished_time < b_values.finished_time) return -1;
+        if (!a_values.finished_time && b_values.finished_time || a_values.finished_time > b_values.finished_time) return 1;
+
+        if (a_values.dist_route && !b_values.dist_route || a_values.dist_route > b_values.dist_route) return -1;
+        if (!a_values.dist_route && b_values.dist_route || a_values.dist_route < b_values.dist_route) return 1;
+        return 0;
+    });
+    return [riders_values_l, sorted_riders];
+}
+
 function update_rider_table(){
     if (config) {
+        var x = get_rider_values_and_sorted_riders();
+        var riders_values_l = x[0];
+        var sorted_riders = x[1];
+
         document.getElementById('riders_options').className = (config.riders.length >= 10? 'big':'small')
-        var riders_values_l = riders_values;
-        if (predicted_el.checked) {
-            riders_values_l = Object.assign({}, riders_values_l);
-            Object.keys(riders_values_l).forEach(function (rider_name) {
-                if (riders_predicted.hasOwnProperty(rider_name)) {
-                    var values = riders_values_l[rider_name];
-                    values = Object.assign({}, values);
-                    Object.assign(values, riders_predicted[rider_name]);
-                    riders_values_l[rider_name] = values;
-                }
-            });
-
-        }
-
-        var sorted_riders = config.riders.slice();
-        sorted_riders.sort(function (a, b){
-            var a_values = riders_values_l[a.name] || {};
-            var b_values = riders_values_l[b.name] || {};
-
-            if (a_values.finished_time && !b_values.finished_time || a_values.finished_time < b_values.finished_time) return -1;
-            if (!a_values.finished_time && b_values.finished_time || a_values.finished_time > b_values.finished_time) return 1;
-
-            if (a_values.dist_route && !b_values.dist_route || a_values.dist_route > b_values.dist_route) return -1;
-            if (!a_values.dist_route && b_values.dist_route || a_values.dist_route < b_values.dist_route) return 1;
-            return 0;
-        });
 
         var current_time = (new Date().getTime() / 1000) - time_offset;
         update_rider_table_specific(
@@ -1057,10 +1075,15 @@ function select_rider(rider_name, rider_list_scroll, map_scroll, event) {
             }
         });
         if (selected && rider.name == rider_name) {
-            if (map_scroll && rider_items.marker) {
+            if (map_scroll && rider_items.marker && last_mobile_selected == 'map') {
                 setTimeout(function(){
-                    apply_mobile_selected('map');
+                    apply_mobile_selected(last_mobile_selected);
                     map.panTo(rider_items.marker.getPosition());
+                });
+            }
+            if (last_mobile_selected == 'graphs') {
+                setTimeout(function(){
+                    apply_mobile_selected(last_mobile_selected);
                 });
             }
         }
@@ -1085,7 +1108,7 @@ function select_rider(rider_name, rider_list_scroll, map_scroll, event) {
     event_markers.forEach(function (marker) { if (marker.hasOwnProperty('setOpacity')) {marker.setOpacity((any_selected ? 0.5 : 1))} });
     subscriptions_updated();
     update_selected_rider_point_markers();
-    update_graph();
+    if (desktop_main_selected == 'graphs' || mobile_selected == 'graphs') update_graph();
 }
 
 function update_selected_rider_point_markers(){
@@ -1271,18 +1294,35 @@ function graphs_sync_other_extremes(event) {
 
 
 var graph_contain = document.getElementById('graph_contain');
+var graph_selected_riders = new Set()
+
+function remove_graph_subscriptions() {
+    graph_selected_riders.forEach(function (rider_name) {
+        subscriptions['riders_points.'+rider_name] = Math.max((subscriptions['rider_points.'+rider_name] || 0) - 1, 0);
+    });
+    graph_selected_riders = new Set()
+    subscriptions_updated();
+}
+
 
 function update_graph() {
     config_loaded.promise.then( function () {
-        var any_selected = selected_riders.size > 0;
-
-        // TODO: we never remove these if we navigate away from graphs. Fix this
-        if (!any_selected) {
-            subscriptions['riders_points'] = Math.max((subscriptions['riders_points'] || 0) + 1, 0);
-            subscriptions_updated();
+        var old_graph_selected_riders = graph_selected_riders;
+        graph_selected_riders.forEach(function (rider_name) {
+            subscriptions['riders_points.'+rider_name] = Math.max((subscriptions['rider_points.'+rider_name] || 0) - 1, 0);
+        });
+        if (selected_riders.size > 0) {
+            graph_selected_riders = selected_riders;
+        } else {
+            var sorted_riders = get_rider_values_and_sorted_riders()[1];
+            graph_selected_riders = new Set(sorted_riders.slice(0, 10).map(function (rider) { return rider.name; }))
         }
+        graph_selected_riders.forEach(function (rider_name) {
+            subscriptions['riders_points.'+rider_name] = Math.max((subscriptions['rider_points.'+rider_name] || 0) + 1, 0);
+        });
+        subscriptions_updated();
 
-        if (graph_selected != graph_select.value) {
+        if (graph_selected != graph_select.value || old_graph_selected_riders != graph_selected_riders) {
             Object.values(graph_charts).forEach(function (chart){ chart.destroy(); });
             graph_charts = {}
 
@@ -1325,13 +1365,10 @@ function update_graph() {
                             },
                         },
                     },
-                    series: config.riders.map(function (rider) {
-                    console.log(any_selected, selected_riders.has(rider.name), !any_selected || selected_riders.has(rider.name), rider.name);
-                    return {
+                    series: config.riders.filter(function (rider) {return graph_selected_riders.has(rider.name)}).map(function (rider) { return {
                         id: rider['name'],
                         name: rider['name'],
                         color: rider['color'],
-                        visible: !any_selected || selected_riders.has(rider.name),
                         tooltip: {
                             headerFormat: '<b>' + rider.name +'</b><br>',
                             pointFormat: '{point.x:%H:%M:%S %e %b}: {point.y:.2f} km'
@@ -1374,12 +1411,11 @@ function update_graph() {
                             },
                         },
                     },
-                    series: config.riders.map(function (rider) {return {
+                    series: config.riders.filter(function (rider) {return graph_selected_riders.has(rider.name)}).map(function (rider) {return {
                         id: rider['name'],
                         name: rider['name'],
                         color: rider['color'],
                         yAxis: 'speed',
-                        visible: !any_selected || selected_riders.has(rider.name),
                         tooltip: {
                             headerFormat: '<b>' + rider.name +'</b><br>',
                             pointFormat: '{point.x:%H:%M:%S %e %b}: {point.y:.2f} km'
@@ -1425,11 +1461,10 @@ function update_graph() {
                             },
                         },
                     },
-                    series: config.riders.map(function (rider) {return {
+                    series: config.riders.filter(function (rider) {return graph_selected_riders.has(rider.name)}).map(function (rider) {return {
                         id: rider['name'],
                         name: rider['name'],
                         color: rider['color'],
-                        visible: !any_selected || selected_riders.has(rider.name),
                         tooltip: {
                             headerFormat: '<b>' + rider.name +'</b><br>',
                             pointFormat: '{point.x:.2f} km: {point.y:.2f} km/h',
@@ -1500,11 +1535,10 @@ function update_graph() {
                     ],
                     credits: { enabled: false },
                     legend:{ enabled: false },
-                    series: config.riders.map(function (rider) {return {
+                    series: config.riders.filter(function (rider) {return graph_selected_riders.has(rider.name)}).map(function (rider) {return {
                         id: rider['name'],
                         name: rider['name'],
                         color: rider['color'],
-                        visible: !any_selected || selected_riders.has(rider.name),
                         tooltip: {
                             headerFormat: '<b>' + rider.name +'</b><br>',
                             pointFormat: '{point.x:%H:%M:%S %e %b}: {point.y:.0f} %'
@@ -1518,20 +1552,6 @@ function update_graph() {
                 if (rider_points) on_new_rider_points_graph(rider.name, 'riders_points', rider_points, rider_points, [], false);
             });
             Object.values(graph_charts).forEach(function (chart){ chart.update(); });
-        } else {
-            config.riders.forEach(function (rider) {
-                var visible = !any_selected || selected_riders.has(rider.name);
-                if (graph_selected == 'dist_speed_time') {
-                    graph_charts.dist_time.get(rider.name).setVisible(visible);
-                    graph_charts.speed_time.get(rider.name).setVisible(visible);
-                }
-                if (graph_selected == 'elevation_speed_distance') {
-                    graph_charts.speed_dist.get(rider.name).setVisible(visible);
-                }
-                if (graph_selected == 'battery') {
-                    graph_charts.graph_battery.get(rider.name).setVisible(visible);
-                }
-            });
         }
 
     }).catch(promise_catch);
@@ -1540,25 +1560,25 @@ function update_graph() {
 var graph_update_timeout;
 
 function on_new_rider_points_graph(rider_name, list_name, items, new_items, old_items, update){
-    if (list_name == 'riders_points') {
-        if (graph_selected == 'dist_speed_time') {
-            graph_charts.dist_time.get(rider_name).setData(
+    if (list_name == 'riders_points' && (mobile_selected == 'graphs' || desktop_main_selected == 'graphs')) {
+        if (graph_charts.dist_time && graph_charts.speed_time) {
+            if (graph_charts.dist_time.get(rider_name)) graph_charts.dist_time.get(rider_name).setData(
                 items.filter(function(item) {return item.hasOwnProperty('dist_route')})
                 .map(function (item) {return [item.time * 1000, item.dist_route/1000]})
             );
-            graph_charts.speed_time.get(rider_name).setData(
+            if (graph_charts.speed_time.get(rider_name)) graph_charts.speed_time.get(rider_name).setData(
                 items.filter(function(item) {return item.hasOwnProperty('speed_from_last')})
                 .map(function (item) {return [item.time * 1000, item.speed_from_last || 0]})
             );
         }
-        if (graph_selected == 'elevation_speed_distance') {
-            graph_charts.speed_dist.get(rider_name).setData(
+        if (graph_charts.speed_dist) {
+            if (graph_charts.speed_dist.get(rider_name)) graph_charts.speed_dist.get(rider_name).setData(
                 items.filter(function(item) {return item.hasOwnProperty('speed_from_last')})
                 .map(function (item) {return [item.dist_route / 1000, item.speed_from_last]})
             );
         }
-        if (graph_selected == 'battery') {
-            graph_charts.graph_battery.get(rider_name).setData(
+        if (graph_charts.graph_battery) {
+            if (graph_charts.graph_battery.get(rider_name)) graph_charts.graph_battery.get(rider_name).setData(
                 items.filter(function(item) {return item.hasOwnProperty('battery')})
                 .map(function (item) {return [item.time * 1000, item.battery]})
             );
@@ -1574,16 +1594,6 @@ function update_graphs(){
     Object.values(graph_charts).forEach(function (chart){ chart.update(); });
 }
 
-
-function on_graphs_hide() {
-    if (graph_selected) {
-        subscriptions['riders_points'] = Math.max((subscriptions['riders_points'] || 0) - 1, 0);
-        subscriptions_updated();
-        graph_selected = null;
-        graph_chart.destroy();
-        graph_chart = null;
-    }
-}
 
 Highcharts.setOptions({
     time: {
