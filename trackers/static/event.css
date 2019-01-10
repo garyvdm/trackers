@@ -79,9 +79,17 @@ body {
 }
 
 #map_riders {
-    @include display-flex;
-    -ms-flex: 1 1 80%; flex: 1 1 100px;
+    -ms-flex: 1 1 80%; flex: 1 1 80%;
     position: relative;
+}
+
+#map_riders_inner {
+    @include display-flex;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
 }
 
 #map_contain {
@@ -105,15 +113,36 @@ body {
 #riders_options {
     display: none;
     background: white;
-    position: relative;
 }
 
-#riders {
-    padding: 8px;
-    table {
-        border-collapse: collapse;
-    }
+#riders_actual{
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-bottom: 16px;
+}
 
+#riders_detail_level_select {
+    padding: 8px;
+}
+
+#graphs_riders {
+    padding: 8px;
+    -ms-flex: 1 1 250px; flex: 1 1 250px;
+    overflow-y: auto;
+}
+
+.riders {
+    width: 100%;
+    min-width: 250px;
+    box-sizing: border-box;
+    border-collapse: collapse;
+    margin-right: 8px; /* 2 reasons: 1 - The scrollbar eats in to our spacing, 2 - we want to avoid a horzontal scrollbar */
+
+    .head {
+        position: sticky;
+        top: 0;
+        background: white;
+    }
     .head>* {
         font-weight: bold;
         white-space: nowrap;
@@ -172,10 +201,20 @@ body {
 
 #graphs {
     -ms-flex: 1 1 100%; flex: 1 1 100%;
+    position: relative;
+}
+
+#graphs_inner{
+    @include display-flex;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
 }
 
 #graphs_graphs {
-    -ms-flex: 1 1 100%; flex: 1 1 100%;
+    -ms-flex: 2 1 65%; flex: 2 1 65%;
     @include display-flex-column;
 }
 
@@ -204,19 +243,11 @@ body {
 
     #riders_options.big{
         @include display-flex-column;
-        top: 0; bottom: 0; left: 0; right: 0;
-        -ms-flex: 1 1 20%; flex: 1 1 20%;
+        -ms-flex: 1 1 auto; flex: 1 1 auto;
 
-        #riders_options_inner {
+        #riders_actual {
             -ms-flex: 1 1 100%; flex: 1 1 100%;
-            position: relative;
-            top: 0; bottom: 0; left: 0; right: 0;
-
-            >* {
-                position: absolute;
-                top: 0; bottom: 0; left: 0; right: 0;
-                overflow: auto;
-            }
+            overflow-y: auto;
         }
     }
 
@@ -235,7 +266,7 @@ body {
         #options {
             display: none;
         }
-        #riders {
+        #riders_actual, #riders_detail_level_select {
             display: block;
         }
     }
@@ -244,7 +275,7 @@ body {
         #options {
             display: block;
         }
-        #riders {
+        #riders_actual, #riders_detail_level_select {
             display: none;
         }
     }    
@@ -263,7 +294,7 @@ body {
             display: none;
         }
         #graphs{
-            @include display-flex;
+            display: block;
         }
     }
 }
@@ -290,7 +321,7 @@ body {
             display: none;
         }
         #graphs{
-            @include display-flex;
+            display: block
         }
     }
 
@@ -301,13 +332,14 @@ body {
         #riders_options {
             @include display-flex-column;            
         }
-        #riders{
+        #riders_actual, #riders_detail_level_select{
             display: block;
+            overflow-x: auto;
         }
 
     }
     .show_options {
-        #map_contain, #elevation, #riders, #graphs{
+        #map_contain, #elevation, #riders_actual, #riders_detail_level_select, #graphs{
             display: none;
         }
         #riders_options {
@@ -333,12 +365,7 @@ body {
         >* {
             position: absolute;
             top: 0; bottom: 0; left: 0; right: 0;
-            overflow: auto;
         }
-    }
-
-    #riders>table{
-        width: 100%
     }
 
     #graphs_riders {

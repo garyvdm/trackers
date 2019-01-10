@@ -37,23 +37,22 @@
         <div show="options">Options</div>
       </div>
       <div id="map_riders">
-        <div id="riders_options">
-          <div id="desktop_select" class="select">
-            <div show="riders" class="selected">Riders</div>
-            <div show="options">Options</div>
-          </div>
-          <div id="riders_options_inner">
-            <div id="riders">
-              <label style="padding: 10px;">
-                Detail level:
-                <select id="riders_detail_level">
-                  <option value="simple" selected>Simple</option>
-                  <option value="tracker">Tracker Status</option>
-                  <option value="progress">Progress Details</option>
-                </select>
-              </label>
-              <div id="riders_actual"></div>
+        <div id="map_riders_inner">
+          <div id="riders_options">
+            <div id="desktop_select" class="select">
+              <div show="riders" class="selected">Riders</div>
+              <div show="options">Options</div>
             </div>
+            <label id="riders_detail_level_select">
+              Detail level:
+              <select id="riders_detail_level">
+                <option value="simple" selected>Simple</option>
+                <option value="tracker">Tracker Status</option>
+                <option value="progress">Progress Details</option>
+              </select>
+            </label>
+            <div id="riders_actual"></div>
+
             <div id="options">
               <div>
                 <label style="font-weight: bold;"><input type="checkbox" id="predicted" checked> Predicted Positions</label> <br>
@@ -70,26 +69,30 @@
               </div>
             </div>
           </div>
-        </div>
-        <div id="map_contain">
-          <div id="map_el"></div>
+          <div id="map_contain">
+            <div id="map_el"></div>
+          </div>
         </div>
       </div>
       <div id="elevation"></div>
       <div id="graphs">
-        <div id="graphs_riders"></div>
-        <div id="graphs_graphs">
-          <div id="graph_select_contain">
-            <label style="padding: 10px;">
-              Graph:
-              <select id="graph_select">
-                <option value="dist_speed_time" selected>Distance & Speed / Time</option>
-                <option value="elevation_speed_distance">Elevation & Speed / Distance</option>
-                <option value="battery">Tracker Battery Levels / Time</option>
-              </select>
-            </label>
+        <div id="graphs_inner">
+          <div id="graphs_riders">
+
           </div>
-          <div id="graph_contain" style="background: blue;">
+          <div id="graphs_graphs">
+            <div id="graph_select_contain">
+              <label style="padding: 10px;">
+                Graph:
+                <select id="graph_select">
+                  <option value="dist_speed_time" selected>Distance & Speed / Time</option>
+                  <option value="elevation_speed_distance">Elevation & Speed / Distance</option>
+                  <option value="battery">Tracker Battery Levels / Time</option>
+                </select>
+              </label>
+            </div>
+            <div id="graph_contain">
+            </div>
           </div>
         </div>
       </div>

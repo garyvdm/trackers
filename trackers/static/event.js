@@ -865,112 +865,122 @@ function update_rider_table(){
         });
 
         var current_time = (new Date().getTime() / 1000) - time_offset;
-        var detail_level = riders_detail_level_el.value;
-        var rider_rows = sorted_riders.map(function (rider){
-            var rider_items = riders_client_items[rider.name];
-            var values = riders_values_l[rider.name] || {};
-            var last_position_time;
-            var last_server_time;
-            var finished_time;
-            var speed;
-            var leader_time_diff = '';
-            var rider_status = (rider.hasOwnProperty('status') ? rider.status : values.rider_status || '' );
-            if (values.finished_time) {
-                if (config && config.hasOwnProperty('event_start')){
-                    finished_time = format_time_delta(values.finished_time - config.event_start, time_show_days);
-                } else {
-                    var time = new Date(values.finished_time * 1000);
-                    finished_time = sprintf('%s %02i:%02i:%02i', days[time.getDay()], time.getHours(), time.getMinutes(), time.getSeconds() )
-                }
-
-            }
-            if (values.hasOwnProperty('position_time')) {
-                last_position_time = format_time_delta_ago_with_date(current_time, values.position_time, date_options_delta);
-            }
-            if (values.hasOwnProperty('server_time')) {
-                last_server_time = format_time_delta_ago_with_date(current_time, values.server_time, date_options_delta)
-            }
-            if (values.hasOwnProperty('leader_time_diff')) {
-                var total_min = Math.round(values.leader_time_diff / 60);
-                var min = total_min % 60;
-                var hours = Math.floor(total_min / 60);
-                // TODO more than a day
-                if (total_min < 60) { leader_time_diff = sprintf(':%02i', min) }
-                else { leader_time_diff = sprintf('%i:%02i', hours, min) }
-            }
-            if (detail_level == 'tracker') {
-                return '<tr rider_name="' + rider.name + '" class="rider">' +
-                       '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
-                       '<td class="name">' + rider.name + '</td>' +
-                       '<td style="text-align: right">' + (last_position_time || '') + '</td>' +
-                       '<td style="text-align: right">' + (last_server_time || '') + '</td>' +
-                       '<td style="text-align: right">' + (values.battery ? sprintf('%i %%', values.battery) : '') + '</td>' +
-                       '<td>' + (values.hasOwnProperty('tk_config')? values.tk_config : '') + '</td>' +
-                       '</tr>';
-            }
-            if (detail_level == 'progress') {
-                return '<tr rider_name="' + rider.name + '" class="rider">' +
-                       '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
-                       '<td class="name">' + rider.name + '</td>' +
-                       '<td style="text-align: right">' + (last_position_time || '') + '</td>' +
-                       '<td>' + rider_status + '</td>' +
-                       '<td style="text-align: right">' + (current_time - values.position_time < 15 * 60 && values.speed_from_last ? sprintf('%.1f', values.speed_from_last) || '': '') + '</td>' +
-                       '<td style="text-align: right">' + (values.hasOwnProperty('dist_route') ? sprintf('%.1f', values.dist_route / 1000) : '') + '</td>' +
-                       '<td style="text-align: right">' + (values.hasOwnProperty('dist') ? sprintf('%.1f', values.dist / 1000) : '') + '</td>' +
-                       '<td style="text-align: right">' + leader_time_diff + '</td>' +
-                       '<td style="text-align: right">' + (finished_time || '') + '</td>' +
-                       '</tr>';
-            }
-            if (detail_level == 'simple') {
-                return '<tr rider_name="' + rider.name + '" class="rider">' +
-                       '<td style="background: ' + (rider.color || 'black') + '">&nbsp;&nbsp;&nbsp;</td>' +
-                       '<td class="name">' + rider.name + '</td>' +
-                       '<td style="text-align: right">' +
-                            (finished_time || (values.hasOwnProperty('dist_route') ? sprintf('%.1f km', values.dist_route / 1000) : ''))
-                            + '<br>' + (rider_status || last_position_time || '') +'</td>' +
-                       '</tr>';
-            }
-        });
-        if (detail_level == 'tracker') {
-            document.getElementById('riders_actual').innerHTML =
-                '<table><tr class="head">' +
-                '<td></td>' +
-                '<td>Name</td>' +
-                '<td style="text-align: right">Last<br>Position</td>' +
-                '<td style="text-align: right">Last<br>Connection</td>' +
-                '<td>Battery</td>' +
-                '<td>Config</td>' +
-                '</tr>' + rider_rows.join('') + '</table>';
-            document.getElementById('riders_options').style.minWidth = '700px';
-        }
-        if (detail_level == 'progress') {
-            document.getElementById('riders_actual').innerHTML =
-                '<table><tr class="head">' +
-                '<td></td>' +
-                '<td>Name</td>' +
-                '<td>Last Position</td>' +
-                '<td>Status</td>' +
-                '<td style="text-align: right">Current<br>Speed</td>' +
-                '<td style="text-align: right">Dist on<br>Main Route</td>' +
-                '<td style="text-align: right">Dist</td>' +
-                '<td style="text-align: right">Gap to<br>Leader</td>' +
-                '<td style="text-align: right">Finish<br>Time</td>' +
-                '</tr>' + rider_rows.join('') + '</table>';
-            document.getElementById('riders_options').style.minWidth = '700px';
-        }
-        if (detail_level == 'simple') {
-            document.getElementById('riders_actual').innerHTML =
-                '<table>' + rider_rows.join('') + '</table>';
-            document.getElementById('riders_options').style.minWidth = '250px';;
-        }
-        riders_el = document.getElementById('riders_actual').querySelectorAll('.rider');
-        Array.prototype.forEach.call(riders_el, function (row){
-            var rider_name = row.getAttribute('rider_name');
-            row.onclick = rider_onclick.bind(null, row, rider_name);
-            if (selected_riders.has(rider_name)) row.classList.add('selected');
-        });
+        update_rider_table_specific(
+            document.getElementById('riders_actual'),
+            riders_detail_level_el.value,
+            sorted_riders, riders_values_l, current_time);
+        update_rider_table_specific(
+            document.getElementById('graphs_riders'),
+            'simple', sorted_riders, riders_values_l, current_time);
     }
 }
+
+function update_rider_table_specific(container, detail_level, sorted_riders, riders_values_l, current_time) {
+    var rider_rows = sorted_riders.map(function (rider){
+        var rider_items = riders_client_items[rider.name];
+        var values = riders_values_l[rider.name] || {};
+        var last_position_time;
+        var last_server_time;
+        var finished_time;
+        var speed;
+        var leader_time_diff = '';
+        var rider_status = (rider.hasOwnProperty('status') ? rider.status : values.rider_status || '' );
+        if (values.finished_time) {
+            if (config && config.hasOwnProperty('event_start')){
+                finished_time = format_time_delta(values.finished_time - config.event_start, time_show_days);
+            } else {
+                var time = new Date(values.finished_time * 1000);
+                finished_time = sprintf('%s %02i:%02i:%02i', days[time.getDay()], time.getHours(), time.getMinutes(), time.getSeconds() )
+            }
+
+        }
+        if (values.hasOwnProperty('position_time')) {
+            last_position_time = format_time_delta_ago_with_date(current_time, values.position_time, date_options_delta);
+        }
+        if (values.hasOwnProperty('server_time')) {
+            last_server_time = format_time_delta_ago_with_date(current_time, values.server_time, date_options_delta)
+        }
+        if (values.hasOwnProperty('leader_time_diff')) {
+            var total_min = Math.round(values.leader_time_diff / 60);
+            var min = total_min % 60;
+            var hours = Math.floor(total_min / 60);
+            // TODO more than a day
+            if (total_min < 60) { leader_time_diff = sprintf(':%02i', min) }
+            else { leader_time_diff = sprintf('%i:%02i', hours, min) }
+        }
+        if (detail_level == 'tracker') {
+            return '<tr rider_name="' + rider.name + '" class="rider">' +
+                   '<td style="background: ' + (rider.color || 'black') + ';">&nbsp;&nbsp;&nbsp;</td>' +
+                   '<td class="name">' + rider.name + '</td>' +
+                   '<td style="text-align: right">' + (last_position_time || '') + '</td>' +
+                   '<td style="text-align: right">' + (last_server_time || '') + '</td>' +
+                   '<td style="text-align: right">' + (values.battery ? sprintf('%i %%', values.battery) : '') + '</td>' +
+                   '<td>' + (values.hasOwnProperty('tk_config')? values.tk_config : '') + '</td>' +
+                   '</tr>';
+        }
+        if (detail_level == 'progress') {
+            return '<tr rider_name="' + rider.name + '" class="rider">' +
+                   '<td style="background: ' + (rider.color || 'black') + ';">&nbsp;&nbsp;&nbsp;</td>' +
+                   '<td class="name">' + rider.name + '</td>' +
+                   '<td style="text-align: right">' + (last_position_time || '') + '</td>' +
+                   '<td>' + rider_status + '</td>' +
+                   '<td style="text-align: right">' + (current_time - values.position_time < 15 * 60 && values.speed_from_last ? sprintf('%.1f', values.speed_from_last) || '': '') + '</td>' +
+                   '<td style="text-align: right">' + (values.hasOwnProperty('dist_route') ? sprintf('%.1f', values.dist_route / 1000) : '') + '</td>' +
+                   '<td style="text-align: right">' + (values.hasOwnProperty('dist') ? sprintf('%.1f', values.dist / 1000) : '') + '</td>' +
+                   '<td style="text-align: right">' + leader_time_diff + '</td>' +
+                   '<td style="text-align: right">' + (finished_time || '') + '</td>' +
+                   '</tr>';
+        }
+        if (detail_level == 'simple') {
+            return '<tr rider_name="' + rider.name + '" class="rider">' +
+                   '<td style="background: ' + (rider.color || 'black') + ';">&nbsp;&nbsp;&nbsp;</td>' +
+                   '<td class="name">' + rider.name + '</td>' +
+                   '<td style="text-align: right">' +
+                        (finished_time || (values.hasOwnProperty('dist_route') ? sprintf('%.1f km', values.dist_route / 1000) : ''))
+                        + '<br>' + (rider_status || last_position_time || '') +'</td>' +
+                   '</tr>';
+        }
+    });
+    if (detail_level == 'tracker') {
+        container.innerHTML =
+            '<table class="riders"><colgroup><col style="width:54px; max-width: 54px;"><col style="width:50%;"></colgroup><tr class="head">' +
+            '<td></td>' +
+            '<td>Name</td>' +
+            '<td style="text-align: right">Last<br>Position</td>' +
+            '<td style="text-align: right">Last<br>Connection</td>' +
+            '<td>Battery</td>' +
+            '<td>Config</td>' +
+            '</tr>' + rider_rows.join('') + '</table>';
+//        parent.style.minWidth = '700px';
+    }
+    if (detail_level == 'progress') {
+        container.innerHTML =
+            '<table class="riders"><colgroup><col style="width:54px; max-width: 54px;"><col style="width:50%;"></colgroup><tr class="head">' +
+            '<td></td>' +
+            '<td>Name</td>' +
+            '<td>Last Position</td>' +
+            '<td>Status</td>' +
+            '<td style="text-align: right">Current<br>Speed</td>' +
+            '<td style="text-align: right">Dist on<br>Main Route</td>' +
+            '<td style="text-align: right">Dist</td>' +
+            '<td style="text-align: right">Gap to<br>Leader</td>' +
+            '<td style="text-align: right">Finish<br>Time</td>' +
+            '</tr>' + rider_rows.join('') + '</table>';
+//        parent.style.minWidth = '700px';
+    }
+    if (detail_level == 'simple') {
+        container.innerHTML =
+            '<table class="riders"><colgroup><col style="width:54px; max-width: 54px;"><col style="width:50%;"></colgroup>' + rider_rows.join('') + '</table>';
+//        parent.style.minWidth = '250px';
+    }
+    riders_el = container.querySelectorAll('.rider');
+    Array.prototype.forEach.call(riders_el, function (row){
+        var rider_name = row.getAttribute('rider_name');
+        row.onclick = rider_onclick.bind(null, row, rider_name);
+        if (selected_riders.has(rider_name)) row.classList.add('selected');
+    });
+}
+
 setInterval(update_rider_table(), 20000);
 riders_detail_level_el.onchange = update_rider_table;
 
@@ -1030,17 +1040,23 @@ function select_rider(rider_name, rider_list_scroll, map_scroll, event) {
             });
         });
         update_rider_paths_visible(rider.name);
-        var row = document.getElementById('riders_actual').querySelector(".rider[rider_name='"+rider.name+"']");
-        if (selected) {
-            row.classList.add('selected');
-        } else {
-            row.classList.remove('selected');
-        }
-        if (selected && rider.name == rider_name) {
-            if (rider_list_scroll) {
-                row.scrollIntoView({'behavior': 'smooth'});
+        var rows = [
+            document.getElementById('riders_actual').querySelector(".rider[rider_name='"+rider.name+"']"),
+            document.getElementById('graphs_riders').querySelector(".rider[rider_name='"+rider.name+"']"),
+        ];
+        rows.forEach(function (row) {
+            if (selected) {
+                row.classList.add('selected');
+            } else {
+                row.classList.remove('selected');
             }
-
+            if (selected && rider.name == rider_name) {
+                if (rider_list_scroll) {
+                    row.scrollIntoView({'behavior': 'smooth'});
+                }
+            }
+        });
+        if (selected && rider.name == rider_name) {
             if (map_scroll && rider_items.marker) {
                 setTimeout(function(){
                     apply_mobile_selected('map');
@@ -1069,6 +1085,7 @@ function select_rider(rider_name, rider_list_scroll, map_scroll, event) {
     event_markers.forEach(function (marker) { if (marker.hasOwnProperty('setOpacity')) {marker.setOpacity((any_selected ? 0.5 : 1))} });
     subscriptions_updated();
     update_selected_rider_point_markers();
+    update_graph();
 }
 
 function update_selected_rider_point_markers(){
