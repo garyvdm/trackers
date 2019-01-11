@@ -14,7 +14,6 @@ from typing import Any
 from more_itertools import spy, take
 from numpy import (
     arccos,
-    array_equal,
     cross,
     deg2rad,
     dot,
@@ -104,18 +103,20 @@ class AnalyseTracker(Tracker):
         return self
 
     def reset(self):
+        self.current_track_id = 0
+        self.off_route_track_id = 0
+
+        self.finished = False
+        self.going_forward = None
+        self.total_dist = 0
+        self.is_off_route = None
+
         self.prev_point_with_position = None
         self.prev_point_with_position_point = None
-        self.prev_unit_vector = None
-        self.current_track_id = 0
         self.prev_closest = None
         self.prev_route_dist = 0
         self.prev_route_dist_time = None
-        self.going_forward = None
-        self.finished = False
-        self.is_off_route = False
-        self.off_route_track_id = 0
-        self.total_dist = 0
+        self.prev_on_route = None
 
     def stop(self):
         self.process_initial_points_fut.cancel()
@@ -183,101 +184,100 @@ class AnalyseTracker(Tracker):
                             250, self.prev_route_dist, max_travel_dist)
                         if closest and closest.dist > 100000:
                             closest = None
+                    else:
+                        closest = None
 
+                    if closest:
+                        on_route = closest.dist < 250
+                        route_dist = route_distance(closest.route, closest)
+                        point['dist_route'] = round(route_dist)
+                        self.going_forward = route_dist > self.prev_route_dist
+
+                        if on_route and 'elevation' in closest.route:
+                            point['route_elevation'] = round(route_elevation(closest.route, route_dist))
+
+                        if closest.route_i == 0 and abs(route_dist - last_route_point.distance) < 100:
+                            # This is for when we get a point at the finish.
+                            self.logger.debug('Finished')
+                            self.finished = True
+                            point['finished_time'] = point['time']
+                            point['rider_status'] = 'Finished'
+                    else:
+                        self.going_forward = None
+                        on_route = False
                         route_dist = None
-                        if closest:
-                            route_dist = route_distance(closest.route, closest)
-                            point['dist_route'] = round(route_dist)
-                            self.going_forward = route_dist > self.prev_route_dist
-                            self.prev_route_dist = route_dist
-                            self.prev_route_dist_time = point['time']
-                            if 'elevation' in closest.route and closest.dist > 250:
-                                point['route_elevation'] = round(route_elevation(closest.route, route_dist))
 
-                            if closest.route_i == 0 and abs(route_dist - last_route_point.distance) < 100:
-                                # This is for when we get a point at the finish.
-                                self.logger.debug('Finished')
-                                self.finished = True
-                                point['finished_time'] = point['time']
-                                point['rider_status'] = 'Finished'
-                            if 'elevation' in closest.route:
-                                point['route_elevation'] = round(route_elevation(closest.route, point['dist_route']))
-                        else:
-                            self.going_forward = None
-                            self.prev_route_dist_time = None
+                    time = None
+                    dist_from_last = None
+                    if self.prev_point_with_position_point:
+                        prev_point = self.prev_point_with_position
+                        time = point['time'] - prev_point['time']
+                        if 'server_time' in point and 'server_time' in prev_point:
+                            point['server_time_from_last'] = point['server_time'] - prev_point['server_time']
 
-                        time = None
-                        dist_from_last = None
-                        if self.prev_point_with_position_point:
-                            prev_point = self.prev_point_with_position
-                            time = point['time'] - prev_point['time']
-                            if 'server_time' in point and 'server_time' in prev_point:
-                                point['server_time_from_last'] = point['server_time'] - prev_point['server_time']
+                        if on_route and self.prev_on_route and closest.route_i == self.prev_closest.route_i:
+                            dist_from_last = abs(
+                                route_distance_no_adjust(closest.route, closest) -
+                                route_distance_no_adjust(self.prev_closest.route, self.prev_closest))
 
-                            if (
-                                    closest and closest.dist < 250 and
-                                    self.prev_closest and self.prev_closest.dist < 250 and
-                                    closest.route_i == self.prev_closest.route_i):
-                                dist_from_last = abs(
-                                    route_distance_no_adjust(closest.route, closest) -
-                                    route_distance_no_adjust(self.prev_closest.route, self.prev_closest))
-                            else:
-                                dist_from_last = distance(point_point, self.prev_point_with_position_point)
+                        if not dist_from_last:
+                            # as the crow flys distance
+                            dist_from_last = distance(point_point, self.prev_point_with_position_point)
 
-                            if not array_equal(point_point.pv, self.prev_point_with_position_point.pv):
-                                self.prev_unit_vector = unit(point_point.pv - self.prev_point_with_position_point.pv)
-                            else:
-                                self.prev_unit_vector = None
-                        else:
-                            # Assume the last point was at the start of the route, and at the start of then event.
-                            self.prev_unit_vector = None
-                            time = point['time'] - self.analyse_start_time
-                            if route_dist is not None:
-                                dist_from_last = route_dist
+                    else:
+                        # Assume the last point was at the start of the route, and at the start of then event.
+                        time = point['time'] - self.analyse_start_time
+                        if route_dist is not None:
+                            dist_from_last = route_dist
+                        elif self.routes:
+                            # as the crow flys from the first point
+                            dist_from_last = distance(point_point, self.routes[0]['points'][0])
 
-                        if time:
-                            point['time_from_last'] = time
+                    if time:
+                        point['time_from_last'] = time
 
-                        if dist_from_last:
-                            self.total_dist += dist_from_last
-                            point['dist'] = round(self.total_dist)
-                            point['dist_from_last'] = round(dist_from_last)
+                    if dist_from_last:
+                        self.total_dist += dist_from_last
+                        point['dist'] = round(self.total_dist)
+                        point['dist_from_last'] = round(dist_from_last)
 
-                        if time and dist_from_last:
-                            seconds = time.total_seconds()
-                            if seconds != 0:
-                                point['speed_from_last'] = round(dist_from_last / seconds * 3.6, 1)
+                    speed_from_last = None
+                    if time and dist_from_last:
+                        seconds = time.total_seconds()
+                        if seconds != 0:
+                            speed_from_last = dist_from_last / seconds * 3.6
+                            point['speed_from_last'] = round(speed_from_last, 1)
 
-                            if time > self.track_break_time and dist_from_last > self.track_break_dist:
-                                self.current_track_id += 1
-                                self.off_route_track_id += 1
-
-                            if not self.finished and i == last_point_i and closest and closest.route_i == 0 and abs(route_dist - last_route_point.distance) < 2000:
-                                # This is for when they are near to the finish, and the tracker turns off too soon.
-                                seconds_to_finish = abs(route_dist - last_route_point.distance) / (dist_from_last / seconds)
-                                est_finish_time = point['time'] + timedelta(seconds=seconds_to_finish)
-                                self.do_est_finish_fut = asyncio.ensure_future(self.do_est_finish(est_finish_time))
-
-                        # self.logger.info((not self.routes, not closest, closest.dist > 500 if closest else None, not self.going_forward and point.get('dist_from_last', 0)))
-                        if not self.routes or not closest or closest.dist > 1000 or (not self.going_forward and point.get('dist_from_last', 0) > 1000):
-                            # self.logger.info('off_route')
-                            if not self.is_off_route and self.prev_point_with_position and self.prev_point_with_position['track_id'] == self.current_track_id:
-                                new_off_route_points.append({'position': self.prev_point_with_position['position'], 'track_id': self.off_route_track_id})
-                            self.is_off_route = True
-                            new_off_route_points.append({'position': point['position'], 'track_id': self.off_route_track_id})
-                        elif self.is_off_route:
-                            new_off_route_points.append({'position': point['position'], 'track_id': self.off_route_track_id})
-                            self.is_off_route = False
+                        if time > self.track_break_time and dist_from_last > self.track_break_dist:
+                            self.current_track_id += 1
                             self.off_route_track_id += 1
 
-                        self.prev_closest = closest
-                    else:
-                        self.prev_closest = None
-                        self.going_forward = None
+                        if not self.finished and i == last_point_i and closest and closest.route_i == 0 and abs(route_dist - last_route_point.distance) < 2000:
+                            # This is for when they are near to the finish, and the tracker turns off too soon.
+                            seconds_to_finish = abs(route_dist - last_route_point.distance) / (dist_from_last / seconds)
+                            est_finish_time = point['time'] + timedelta(seconds=seconds_to_finish)
+                            self.do_est_finish_fut = asyncio.ensure_future(self.do_est_finish(est_finish_time))
+
+                    if not on_route or (not self.going_forward and speed_from_last and speed_from_last > 3):
+                        # self.logger.info('off_route')
+                        if not self.is_off_route and self.prev_point_with_position and self.prev_point_with_position['track_id'] == self.current_track_id:
+                            new_off_route_points.append({'position': self.prev_point_with_position['position'], 'track_id': self.off_route_track_id})
+                        self.is_off_route = True
+                        new_off_route_points.append({'position': point['position'], 'track_id': self.off_route_track_id})
+                    elif self.is_off_route:
+                        new_off_route_points.append({'position': point['position'], 'track_id': self.off_route_track_id})
+                        self.is_off_route = False
+                        self.off_route_track_id += 1
 
                     self.prev_point_with_position = point
                     self.prev_point_with_position_point = point_point
+                    self.prev_closest = closest
+                    self.prev_route_dist = route_dist
+                    self.prev_route_dist_time = point['time'] if route_dist else None
+                    self.prev_on_route = on_route
+
                     point['track_id'] = self.current_track_id
+
                 new_new_points.append(point)
 
                 is_last_point = i == last_point_i
@@ -614,7 +614,8 @@ def route_distance(route, closest):
 
 def route_distance_no_adjust(route, closest):
     prev_route_point = closest.point_pair[0]
-    return round(prev_route_point.distance + distance(prev_route_point, closest.point))
+    start_distance = 0 if route['main'] else route['start_distance']
+    return round(prev_route_point.distance + distance(prev_route_point, closest.point) + start_distance)
 
 
 def route_elevation(route, route_dist):
