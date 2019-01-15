@@ -295,12 +295,46 @@ class TestAnalyseTracker(asynctest.TestCase):
         ))
         print_points(analyse_tracker.points)
         self.assertSequenceEqual(analyse_tracker.points, [
-            {'time': d('2017/01/01 05:30:00'), 'position': (-27.280315, 27.969365, 1800), 'track_id': 0, 'time_from_last': timedelta(0, 1800)},
+            {'time': d('2017/01/01 05:30:00'), 'position': (-27.280315, 27.969365, 1800), 'track_id': 0},
             {'time': d('2017/01/01 05:31:00'), 'position': (-27.28287, 27.97062, 1800), 'track_id': 0, 'dist': 309.0, 'dist_from_last': 309.0, 'speed_from_last': 18.6, 'time_from_last': timedelta(0, 60)},
         ])
 
         tracker.completed.set_result(None)
         await analyse_tracker.complete()
+
+    async def test_pre_post(self):
+        tracker = Tracker('test')
+        await tracker.new_points((
+            # Pre
+            {'time': d('2017/01/01 02:00:00'), 'position': (-26.300822, 28.049444, 1800)},
+            {'time': d('2017/01/01 02:01:00'), 'position': (-26.302245, 28.051139, 1800)},
+            {'time': d('2017/01/01 02:30:00'), 'position': (-27.280315, 27.969365, 1800)},
+            {'time': d('2017/01/01 02:31:00'), 'position': (-27.282870, 27.970620, 1800)},
+
+            # During
+            {'time': d('2017/01/01 05:00:00'), 'position': (-26.300822, 28.049444, 1800)},
+            {'time': d('2017/01/01 05:01:00'), 'position': (-26.302245, 28.051139, 1800), 'status': 'Finished'},
+
+            # Post
+            {'time': d('2017/01/01 05:02:00'), 'position': (-27.280315, 27.969365, 1800)},
+            {'time': d('2017/01/01 05:03:00'), 'position': (-27.282870, 27.970620, 1800)},
+
+        ))
+        tracker.completed.set_result(None)
+        analyse_tracker = await AnalyseTracker.start(tracker, d('2017/01/01 05:00:00'), [], track_break_time=timedelta(minutes=20))
+        await analyse_tracker.complete()
+
+        points = filter_keys(analyse_tracker.pre_post_tracker.points, keys_to_keep=('track_id', 'status'))
+        print_points(points)
+        self.assertSequenceEqual(points, [
+            {'track_id': 0},
+            {'track_id': 0},
+            {'track_id': 1},
+            {'track_id': 1},
+            {'track_id': 2},
+            {'track_id': 2},
+        ])
+        print_points(analyse_tracker.points)
 
 
 class TestRouteElevation(unittest.TestCase):

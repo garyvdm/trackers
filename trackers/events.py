@@ -14,6 +14,7 @@ from typing import List
 import aionotify
 import msgpack
 import yaml
+from more_itertools import spy
 
 from trackers.analyse import AnalyseTracker, get_analyse_routes
 from trackers.base import BlockedList, cancel_and_wait_task, Observable, Tracker
@@ -103,8 +104,10 @@ class Event(object):
 
         self.config_routes_change_observable = Observable(self.logger)
         self.rider_new_values_observable = Observable(self.logger)
+        self.rider_pre_post_new_values_observable = Observable(self.logger)
         self.rider_blocked_list_update_observable = Observable(self.logger)
         self.rider_off_route_blocked_list_update_observable = Observable(self.logger)
+        self.rider_pre_post_blocked_list_update_observable = Observable(self.logger)
         self.rider_predicted_updated_observable = Observable(self.logger)
         self.new_points = asyncio.Event()
 
@@ -217,6 +220,7 @@ class Event(object):
 
         self.riders_objects = {}
         self.riders_current_values = {}
+        self.riders_pre_post_values = {}
         self.riders_predicted_points = {}
 
         tree_reader = TreeReader(self.app['trackers.data_repo'], treeish=self.git_hash) if self.git_hash else None
@@ -279,6 +283,11 @@ class Event(object):
         for rider in self.config['riders']:
             rider_name = rider['name']
             objects = self.riders_objects[rider_name]
+
+            # Should these not be a part of objects?
+            self.riders_current_values[rider['name']] = {}
+            self.riders_pre_post_values[rider['name']] = {}
+
             tracker = await Combined.start(f'combined.{rider_name}', tuple(chain((objects.data_tracker, ), objects.source_trackers)))
             if replay:
                 tracker = await start_replay_tracker(tracker, **replay_kwargs)
@@ -290,18 +299,27 @@ class Event(object):
                     objects.off_route_tracker = await start_implicit_static_event_tracker(
                         self, rider_name, 'off_route', tree_reader)
 
+                    # As we intentionally don't store pre_post, just create a blank tracker.
+                    objects.pre_post_tracker = Tracker('null')
+
                 else:
                     objects.analyse_tracker = tracker = await AnalyseTracker.start(
                         tracker, self.event_start, analyse_routes, find_closest_cache=find_closest_cache,
                         processing_lock=self.app['analyse_processing_lock'])
                     objects.off_route_tracker = await index_and_hash_tracker(tracker.off_route_tracker)
+                    objects.pre_post_tracker = await index_and_hash_tracker(tracker.pre_post_tracker)
+                    await self.on_rider_pre_post_new_points(rider['name'], objects.pre_post_tracker, objects.pre_post_tracker.points)
+                    objects.pre_post_tracker.new_points_observable.subscribe(partial(self.on_rider_pre_post_new_points, rider['name']))
 
                 objects.off_route_blocked_list = BlockedList.from_tracker(
                     objects.off_route_tracker, entire_block=not is_live,
                     new_update_callbacks=(partial(self.rider_off_route_blocked_list_update_observable, self, rider['name']), ))
 
+                objects.pre_post_blocked_list = BlockedList.from_tracker(
+                    objects.pre_post_tracker, entire_block=not is_live,
+                    new_update_callbacks=(partial(self.rider_pre_post_blocked_list_update_observable, self, rider['name']), ))
+
             tracker = await index_and_hash_tracker(tracker)
-            self.riders_current_values[rider['name']] = {}
             await self.on_rider_new_points(rider['name'], tracker, tracker.points)
             tracker.new_points_observable.subscribe(partial(self.on_rider_new_points, rider['name']))
             tracker.reset_points_observable.subscribe(partial(self.on_rider_reset_points, rider['name']))
@@ -350,13 +368,45 @@ class Event(object):
                 values.update(point)
                 if 'position' in point:
                     values['position_time'] = point['time']
+            # if 'rider_status' in values:
+            #     with suppress(KeyError):
+            #         del values['position']
             await self.rider_new_values_observable(self, rider_name, values)
         self.new_points.set()
+
+    pre_post_update_main_keys = {'time', 'battery', 'tk_status', 'tk_config'}
+
+    async def on_rider_pre_post_new_points(self, rider_name, tracker, new_points):
+        if new_points:
+            values_updated = False
+
+            pre_post_values = self.riders_pre_post_values[rider_name]
+            values = self.riders_current_values[rider_name]
+            for point in new_points:
+                pre_post_values.update(point)
+                has_values_update, values_update = spy(((k, v) for k, v in point.items() if k in self.pre_post_update_main_keys))
+                if has_values_update:
+                    values_update = list(values_update)
+                    values.update(values_update)
+                    values_updated = True
+                if 'position' in point:
+                    pre_post_values['position_time'] = point['time']
+                    values['position_time'] = point['time']
+                    values_updated = True
+
+            if values_updated:
+                await self.rider_new_values_observable(self, rider_name, values)
+            await self.rider_pre_post_new_values_observable(self, rider_name, pre_post_values)
 
     async def on_rider_reset_points(self, rider_name, tracker):
         values = self.riders_current_values[rider_name]
         values.clear()
         await self.rider_new_values_observable(self, rider_name, values)
+
+        pre_post_values = self.riders_pre_post_values[rider_name]
+        pre_post_values.clear()
+        await self.rider_pre_post_new_values_observable(self, rider_name, pre_post_values)
+
         self.new_points.set()
 
     def rider_sort_key_func(self, riders_predicted_points, rider_name):
@@ -545,8 +595,11 @@ class RiderObjects(object):
     analyse_tracker: Tracker = field(default=None)
     tracker: Tracker = field(default=None)
     off_route_tracker: Tracker = field(default=None)
+    pre_post_tracker: Tracker = field(default=None)
+
     blocked_list: BlockedList = field(default=None)
     off_route_blocked_list: BlockedList = field(default=None)
+    pre_post_blocked_list: BlockedList = field(default=None)
 
 
 class DataTracker(Tracker):

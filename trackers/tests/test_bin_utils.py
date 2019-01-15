@@ -51,10 +51,13 @@ class TestAssignRiderColors(asynctest.TestCase, TestEventWithMockTracker):
             riders:
             - color: hsl(0, 100%, 50%)
               color_marker: hsl(0, 100%, 60%)
+              color_pre_post: hsl(0, 100%, 70%)
             - color: hsl(120, 100%, 50%)
               color_marker: hsl(120, 100%, 60%)
+              color_pre_post: hsl(120, 100%, 70%)
             - color: hsl(240, 100%, 50%)
               color_marker: hsl(240, 100%, 60%)
+              color_pre_post: hsl(240, 100%, 70%)
             ''').lstrip('\n'))
 
 

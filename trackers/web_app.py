@@ -106,6 +106,8 @@ async def make_aio_app(settings,
                          handler=coro_partial(blocked_lists, list_attr_name='blocked_list'))
     app.router.add_route('GET', '/{event}/riders_off_route', name='riders_off_route',
                          handler=coro_partial(blocked_lists, list_attr_name='off_route_blocked_list'))
+    app.router.add_route('GET', '/{event}/riders_pre_post', name='riders_pre_post',
+                         handler=coro_partial(blocked_lists, list_attr_name='pre_post_blocked_list'))
     app.router.add_route('GET', '/{event}/riders_csv', name='riders_csv', handler=riders_csv)
 
     admin_users = {'garyvdm@gmail.com'}
@@ -414,9 +416,12 @@ async def on_static_processed(static_manager):
 
 async def on_new_event(event):
     event.config_routes_change_observable.subscribe(on_event_config_routes_change)
-    event.rider_new_values_observable.subscribe(on_event_rider_new_values)
-    event.rider_blocked_list_update_observable.subscribe(on_event_rider_blocked_list_update)
-    event.rider_off_route_blocked_list_update_observable.subscribe(on_event_rider_off_route_blocked_list_update)
+    event.rider_new_values_observable.subscribe(partial(on_event_rider_new_values, 'riders_values'))
+    event.rider_pre_post_new_values_observable.subscribe(partial(on_event_rider_new_values, 'riders_pre_post_values',
+                                                                 filter_ws=lambda ws: 'riders_pre_post' in ws.subscriptions))
+    event.rider_blocked_list_update_observable.subscribe(partial(on_event_rider_blocked_list_update, 'riders_points'))
+    event.rider_off_route_blocked_list_update_observable.subscribe(partial(on_event_rider_blocked_list_update, 'riders_off_route'))
+    event.rider_pre_post_blocked_list_update_observable.subscribe(partial(on_event_rider_blocked_list_update, 'riders_pre_post'))
     event.rider_predicted_updated_observable.subscribe(on_event_rider_predicted_updated)
     await on_event_config_routes_change(event)
     event.app['home_pages'] = {}
@@ -460,30 +465,22 @@ async def on_event_config_routes_change(event):
         event.start_trackers_without_wait()
 
 
-async def on_event_rider_new_values(event, rider_name, values):
+async def on_event_rider_new_values(key, event, rider_name, values, filter_ws=None):
     await message_to_multiple_wss(
         event.app,
         event.app['trackers.event_ws_sessions'][event.name],
-        {'riders_values': {rider_name: values}}
+        {key: {rider_name: values}},
+        filter_ws=filter_ws,
     )
 
 
-async def on_event_rider_blocked_list_update(event, rider_name, blocked_list, update):
+async def on_event_rider_blocked_list_update(key, event, rider_name, blocked_list, update):
     event_wss = event.app['trackers.event_ws_sessions'][event.name]
     await message_to_multiple_wss(
         event.app,
         event_wss,
-        {'riders_points': {rider_name: update}},
-        filter_ws=lambda ws: 'riders_points' in ws.subscriptions or f'riders_points.{rider_name}' in ws.subscriptions,
-    )
-
-
-async def on_event_rider_off_route_blocked_list_update(event, rider_name, blocked_list, update):
-    await message_to_multiple_wss(
-        event.app,
-        event.app['trackers.event_ws_sessions'][event.name],
-        {'riders_off_route': {rider_name: update}},
-        filter_ws=lambda ws: 'riders_off_route' in ws.subscriptions,
+        {key: {rider_name: update}},
+        filter_ws=lambda ws: key in ws.subscriptions or f'{key}.{rider_name}' in ws.subscriptions,
     )
 
 
@@ -553,6 +550,13 @@ async def event_ws(request):
                             if 'riders_off_route' in added_subscriptions:
                                 await send({'riders_off_route': {rider_name: list_full
                                                                  for rider_name, list_full in get_rider_blocked_list(event, 'off_route_blocked_list')}})
+
+                            if 'riders_pre_post' in added_subscriptions:
+                                await send({
+                                    'riders_pre_post_values': getattr(event, 'riders_pre_post_values', {}),
+                                    'riders_pre_post': {rider_name: list_full
+                                                        for rider_name, list_full in get_rider_blocked_list(event, 'pre_post_blocked_list')}
+                                })
 
                             if 'riders_predicted' in added_subscriptions:
                                 await send({'riders_predicted': event.riders_predicted_points})

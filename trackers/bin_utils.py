@@ -244,6 +244,7 @@ def assign_rider_colors_inner(event):
     alternating_hues = interleave_longest(*chunked_hues)
     for rider, hue in zip(event.config['riders'], alternating_hues):
         rider['color'] = 'hsl({}, 100%, 50%)'.format(hue)
+        rider['color_pre_post'] = 'hsl({}, 100%, 70%)'.format(hue)
         rider['color_marker'] = 'hsl({}, 100%, 60%)'.format(hue)
 
 

@@ -89,7 +89,9 @@ var riders_by_name = {};
 var riders_client_items = {};
 var riders_points = {};
 var riders_off_route = {};
+var riders_pre_post = {};
 var riders_values = {};
+var riders_pre_post_values = {};
 var riders_predicted = {}
 
 function on_new_state_received(new_state) {
@@ -134,6 +136,7 @@ function on_new_state_received(new_state) {
         riders_predicted = {};
         riders_points = {};
         riders_off_route = {};
+        riders_pre_post = {};
         if (config_loaded.promise.PromiseStatus == 'pending') config_loaded.reject();
         config_loaded = new Deferred();
 
@@ -168,8 +171,19 @@ function on_new_state_received(new_state) {
             });
             if (!predicted_el.checked || !riders_predicted.length) update_rider_table();
         }).catch(promise_catch);
-
     }
+
+    if (new_state.hasOwnProperty('riders_pre_post_values')) {
+        config_loaded.promise.then( function () {
+            Object.entries(new_state.riders_pre_post_values).forEach(function (entry){
+                var name = entry[0];
+                var values = entry[1];
+                riders_pre_post_values[name] = values;
+                if (pre_post) on_new_rider_values(name);
+            });
+        }).catch(promise_catch);
+    }
+
     if (new_state.hasOwnProperty('riders_predicted')) {
         config_loaded.promise.then( function () {
             riders_predicted = new_state.riders_predicted;
@@ -180,7 +194,12 @@ function on_new_state_received(new_state) {
             update_rider_table();
         }).catch(promise_catch);
     }
-    [['riders_points', riders_points], ['riders_off_route', riders_off_route]].forEach(function(item){
+
+    [
+        ['riders_points', riders_points],
+        ['riders_off_route', riders_off_route],
+        ['riders_pre_post', riders_pre_post],
+    ].forEach(function(item){
         var list_name = item[0];
         var list_container = item[1];
         if (new_state.hasOwnProperty(list_name)) {
@@ -524,6 +543,7 @@ function on_new_config(){
                 paths: {
                     riders_points: [],
                     riders_off_route: [],
+                    riders_pre_post: []
                 },
                 point_markers: {},
                 marker: null,
@@ -655,6 +675,9 @@ function onclick_show_routes() {
 }
 
 function show_route_for_rider(route_name, rider_name) {
+    if (route_name == 'riders_pre_post'){
+        return pre_post_el.checked;
+    }
     return (selected_riders.has(rider_name)?route_name == 'riders_points':route_name == show_routes);
 }
 
@@ -663,6 +686,7 @@ function update_rider_paths_visible(rider_name) {
     Object.keys(rider_client_items.paths).forEach( function (route_name) {
         var paths = rider_client_items.paths[route_name];
         var show = show_route_for_rider(route_name, rider_name);
+        console.log(rider_name, route_name, show);
         paths.forEach(function (path) { path.setVisible(show) });
     });
 }
@@ -672,7 +696,6 @@ Array.prototype.forEach.call(document.getElementsByName('show_routes'), function
 
 function on_new_rider_points(rider_name, list_name, items, new_items, old_items){
     config_loaded.promise.then( function () {
-
         var rider = riders_by_name[rider_name]
         if (!rider) return;
         var rider_items = riders_client_items[rider_name];
@@ -680,14 +703,18 @@ function on_new_rider_points(rider_name, list_name, items, new_items, old_items)
         if (old_items.length) {
             Object.values(paths).forEach(function (path){ path.setMap(null) });
             rider_items.paths[list_name] = paths = [];
-            Object.values(rider_items.point_markers).forEach(function (marker) {marker.setMap(null)});
-            rider_items.point_markers = {};
+            if (list_name == 'riders_points') {
+                Object.values(rider_items.point_markers).forEach(function (marker) {marker.setMap(null)});
+                rider_items.point_markers = {};
+            }
             new_items = items;
         }
 
         var path_color = rider.color || 'black';
-        var rider_current_values = rider_items.current_values;
+        if (list_name == 'riders_pre_post' && rider.color_pre_post) {path_color = rider.color_pre_post}
 
+        var rider_current_values = rider_items.current_values;
+        var visible = show_route_for_rider(list_name, rider_name);
         new_items.forEach(function (point) {
             if (point.hasOwnProperty('position')) {
                 var track_id = (point.hasOwnProperty('track_id')? point.track_id : 0);
@@ -700,7 +727,7 @@ function on_new_rider_points(rider_name, list_name, items, new_items, old_items)
                         strokeColor: path_color,
                         strokeOpacity: 1.0,
                         strokeWeight: 2,
-                        visible: show_route_for_rider(list_name, rider_name),
+                        visible: visible,
                         zIndex: (list_name == 'riders_points'? 1: 0),
                     });
                     path.addListener('click', select_rider.bind(null, rider_name, true, false));
@@ -714,13 +741,25 @@ function on_new_rider_points(rider_name, list_name, items, new_items, old_items)
     }).catch(promise_catch);
 }
 
+var pre_post_el = document.getElementById('pre_post')
+pre_post_el.onclick = function () {
+    var old_riders_pre_post_values = riders_pre_post_values;
+    if (!pre_post_el.checked) riders_pre_post_values = {};
+    Object.keys(old_riders_pre_post_values).forEach(on_new_rider_values);
+    update_rider_table();
+    Object.keys(riders_client_items).forEach(update_rider_paths_visible);
+
+    subscriptions['riders_pre_post'] = (pre_post_el.checked?1:0)
+    subscriptions_updated();
+}
+pre_post_el.onclick();
+
+
 var predicted_el = document.getElementById('predicted');
 predicted_el.onclick = function () {
-    var changed = {};
-    Object.assign(changed, riders_predicted);
-    Object.assign(changed, riders_values);
+    var old_riders_predicted = riders_predicted;
     if (!predicted_el.checked) riders_predicted = {};
-    Object.keys(changed).forEach(on_new_rider_values);
+    Object.keys(old_riders_predicted).forEach(on_new_rider_values);
     update_rider_table();
     subscriptions['riders_predicted'] = (predicted_el.checked?1:0)
     subscriptions_updated();
@@ -733,16 +772,22 @@ function on_new_rider_values(rider_name){
         var rider = riders_by_name[rider_name]
         if (!rider) return;
         var rider_items = riders_client_items[rider_name];
-        var values = riders_values[rider_name];
+        var values = riders_values[rider_name] || {};
 
+        if (pre_post_el.checked && riders_pre_post_values.hasOwnProperty(rider_name)) {
+            values = Object.assign({}, values);
+            Object.assign(values, riders_pre_post_values[rider_name]);
+
+        }
         if (predicted_el.checked && riders_predicted.hasOwnProperty(rider_name)) {
             values = Object.assign({}, values);
             Object.assign(values, riders_predicted[rider_name]);
         }
+        var show = pre_post_el.checked || !values.hasOwnProperty('rider_status') || selected_riders.has(rider_name);
 
         var marker_color = rider.color_marker || 'white';
 
-        if (values.hasOwnProperty('position')) {
+        if (show && values.hasOwnProperty('position')) {
             var position = new google.maps.LatLng(values.position[0], values.position[1])
             if (!rider_items.marker) {
                 rider_items.marker = new google.maps.Marker({
@@ -798,7 +843,7 @@ function on_new_rider_values(rider_name){
 
         }
         var series = elevation_chart.get(rider_name);
-        if (values.hasOwnProperty('dist_route')) {
+        if (show && values.hasOwnProperty('dist_route')) {
             var elevation = 0;
             if (values.hasOwnProperty('position') && values.position.length > 2) {
                 elevation = values.position[2]
@@ -1179,6 +1224,10 @@ function point_marker_onclick(marker, point) {
     if (point.hasOwnProperty('dist_route')) {
         content += sprintf('<tr><td style="font-weight: bold;">Dist on Route:</td><td>%.1f km</td></tr>',
                            point.dist_route / 1000);
+    }
+    if (point.hasOwnProperty('dist')) {
+        content += sprintf('<tr><td style="font-weight: bold;">Dist Total:</td><td>%.1f km</td></tr>',
+                           point.dist / 1000);
     }
     if (point.hasOwnProperty('dist_from_last')) {
         content += sprintf('<tr><td style="font-weight: bold;">Dist from last point:</td><td>%.1f km</td></tr>',
