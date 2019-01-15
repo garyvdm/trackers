@@ -72,28 +72,37 @@
             <li>WhatsApp: <a href="tel:+27793405832">+27793405832</a></li>
         </ul>
 
-        <h5>Android Phones</h5>
-        <ol>
-            <li>Install <a href="https://play.google.com/store/apps/details?id=tk.trackrace.client" target="_blank" >TrackRace Client</a> app.</li>
-            <li>Open app. </li>
-            <li>Note the Device identifier - Email this to <a href="mailto:garyvdm+trackrace@gmail.com" target="_blank">garyvdm+trackrace@gmail.com</a></li>
-        </ol>
-        <p><b>Note: </b>Battery saver modes often disable the GPS on the phone, which means the app won't work. If you
-            want to use your battery saver, please test that the app works with it before the race.</p>
-        <p><b>Note: </b>If you used the Traccar Client in the 2018 race, please uninstall it.<br></p>
-
-        <h5>Apple Phones</h5>
-        <ol>
-            <li>Install <a href="https://itunes.apple.com/us/app/traccar-client/id843156974" target="_blank">Traccar Client</a> app. </li>
-            <li>Open app.</li>
-            <li>Set the following settings:
-                <ul>
-                    <li><b>Server Url:</b> http://trackrace.tk:5055</li>
-                    <li><b>Accuracy:</b> High</li>
-                </ul>
+        <ul class="collapsible">
+            <li>
+                <div class="collapsible-header">Android Phones</div>
+                <div class="collapsible-body">
+                    <ol>
+                        <li>Install <a href="https://play.google.com/store/apps/details?id=tk.trackrace.client" target="_blank" >TrackRace Client</a> app.</li>
+                        <li>Open app. </li>
+                        <li>Note the Device identifier - Email this to <a href="mailto:garyvdm+trackrace@gmail.com" target="_blank">garyvdm+trackrace@gmail.com</a></li>
+                    </ol>
+                    <p><b>Note: </b>Battery saver modes often disable the GPS on the phone, which means the app won't work. If you
+                        want to use your battery saver, please test that the app works with it before the race.</p>
+                    <p><b>Note: </b>If you used the Traccar Client in the 2018 race, please uninstall it.<br></p>
+                </div>
             </li>
-            <li>Note the Device identifier - Email this to <a href="mailto:garyvdm+trackrace@gmail.com" target="_blank">garyvdm+trackrace@gmail.com</a></li>
-        </ol>
+            <li>
+                <div class="collapsible-header">Apple Phones</div>
+                <div class="collapsible-body">
+                    <ol>
+                        <li>Install <a href="https://itunes.apple.com/us/app/traccar-client/id843156974" target="_blank">Traccar Client</a> app. </li>
+                        <li>Open app.</li>
+                        <li>Set the following settings:
+                            <ul>
+                                <li><b>Server Url:</b> http://trackrace.tk:5055</li>
+                                <li><b>Accuracy:</b> High</li>
+                            </ul>
+                        </li>
+                        <li>Note the Device identifier - Email this to <a href="mailto:garyvdm+trackrace@gmail.com" target="_blank">garyvdm+trackrace@gmail.com</a></li>
+                    </ol>
+                </div>
+            </li>
+        </ul>
 
         <h4>Testing</h4>
         <p>It is highly recommended that you test the tracking app on you phone on a long ride before the race.</p>
@@ -130,10 +139,12 @@
         <h5>Costs</h5>
         <div>R50 Rental</div>
         <div>R400 Deposit which will be refunded on return of the device.</div>
-    </div>
+    </h5>
   </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
     <script>
+
 ;(function() {{
     var throttle = function(type, name, obj) {{
         var obj = obj || window;
@@ -163,7 +174,12 @@ window.addEventListener("optimizedScroll", function(){{
   head.style.minHeight = (100 + change) + 'px';
   head.style.background = 'rgba(0.2, 0.2, 0.2, ' + ((200 - change)  / 200 + 0.1)  + ')';
 
-}})
+}});
+
+document.addEventListener('DOMContentLoaded', function() {{
+    var elems = document.querySelectorAll('.collapsible');
+    var instances = M.Collapsible.init(elems, { accordion: false });
+}});
 
     </script>
 </body>
