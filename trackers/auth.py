@@ -85,18 +85,23 @@ async def show_identity(request, writer):
     if identity:
         with c(Tag('div')):
             if identity.get('picture'):
-                w(Tag('img', src=identity['picture']))
+                w(Tag('img', src=identity['picture'], s_height="4em", s_margin_right="8px"))
             with c(Tag('div', s_display='inline-block')):
                 w('You are logged in as:')
                 w(Tag('br'))
                 w(f"{identity['first_name']} <{identity['email']}>")
                 w(Tag('br'))
-                w(Tag('a', href=request.app.router['logout'].url_for().with_query(return_to=request.path)), 'Logout')
+
+        w(Tag('a', class_="waves-effect waves-light btn",
+              href=request.app.router['logout'].url_for().with_query(return_to=request.path)),
+          'Logout')
     else:
+        w(Tag('p'), 'Not logged in.')
+
         with c(Tag('div')):
-            w('Not logged in. Click to login: ')
             for provider in request.app['oauth_providers']:
-                w(Tag('a', href=request.app.router['oauth_login'].url_for(provider=provider['name']).with_query(return_to=request.path)),
+                w(Tag('a', class_="waves-effect waves-light btn",
+                      href=request.app.router['oauth_login'].url_for(provider=provider['name']).with_query(return_to=request.path)),
                   provider['display_name'])
 
 

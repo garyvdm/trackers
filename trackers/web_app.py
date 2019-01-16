@@ -96,6 +96,7 @@ async def make_aio_app(settings,
 
     app.router.add_route('GET', '/', handler=home, name='home')
     app['home_pages'] = {}
+    app.router.add_route('GET', '/admin_login', handler=admin_login, name='admin_login')
 
     app.router.add_route('GET', '/{event}', handler=event_page, name='event_page')
     app.router.add_route('GET', '/{event}/websocket', handler=event_ws, name='event_ws')
@@ -731,6 +732,28 @@ client_url_re = re.compile(r'https?://.*?/static/(?P<path>.*?)(\?hash=.*?)?(?P<t
 
 def convert_client_urls_to_paths(static_path, s):
     return client_url_re.sub(rf'\n{static_path}/\g<path>\g<term>', s)
+
+
+@say_error_handler
+async def admin_login(request):
+    body = io.StringIO()
+    writer = Writer(body)
+    w = writer.w
+    c = writer.c
+
+    w(Markup('<!DOCTYPE html>'))
+    with c(Tag('html')):
+        with c(Tag('head')):
+            w(Tag('title'), 'Admin Login')
+            w(Tag('meta', name="viewport", content="initial-scale=1.0, user-scalable=no"))
+            w(Tag('link', rel="stylesheet", href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"))
+
+        with c(Tag('body', s_padding="24px", s_width="100%", )):
+            with c(Tag('div', s_margin="auto", s_max_width="800px", )):
+                w(Tag('h3'), 'Admin Login')
+                with c(Tag('div', class_="card-panel", s_display="flex", s_width="100%", s_justify_content="space-between")):
+                    await show_identity(request, writer)
+    return web.Response(body=body.getvalue(), headers={'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache'})
 
 
 @say_error_handler
