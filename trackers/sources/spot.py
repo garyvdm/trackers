@@ -100,29 +100,11 @@ async def monitor_feed(app, tracker, feed_id, start, end):
                 now = datetime.datetime.utcnow()
                 if end and now > end:
                     now = end
-
                 if now > start:
                     params = {'startDate': last.isoformat(timespec='seconds') + '-0000', 'endDate': now.isoformat(timespec='seconds') + '-0000'}
                     last = now
                     data = await api_call(app, feed_id, params)
-                    messages = resolve_pointer(data, '/response/feedMessageResponse/messages/message', ())
-                    new_points = []
-                    for message in messages:
-                        if message['id'] not in seen_ids:
-                            seen_ids.add(message['id'])
-                            if message['altitude']:
-                                p = [message['latitude'], message['longitude'], message['altitude']]
-                            else:
-                                p = [message['latitude'], message['longitude']]
-                            new_points.append({
-                                'position': p,
-                                'battery': message['batteryState'],
-                                'time': datetime.datetime.utcfromtimestamp(message['unixTime']),
-                                'server_time': now,
-                                'message_type': message['messageType'],  # TODO translate into tracker status
-                            })
-                    if new_points:
-                        await tracker.new_points(new_points)
+                    await process_data(tracker, data, seen_ids)
 
                 if end and now >= end:
                     break
@@ -132,12 +114,52 @@ async def monitor_feed(app, tracker, feed_id, start, end):
                 tracker.logger.error('Error in monitor_feed: {!r}'.format(e))
             except Exception:
                 tracker.logger.exception('Error in monitor_feed:')
-            await asyncio.sleep(60)
+
+            await wait_for_next_check(tracker)
 
     except asyncio.CancelledError:
         raise
     except Exception:
         tracker.logger.exception('Error in monitor_feed:')
+
+
+async def process_data(tracker, data, now, seen_ids):
+    error = resolve_pointer(data, '/response/errors/error')
+    if error:
+        tracker.logger.debug(f'{error["description"]}')
+
+    messages = resolve_pointer(data, '/response/feedMessageResponse/messages/message', ())
+    new_points = []
+    for message in messages:
+        if message['id'] not in seen_ids:
+            seen_ids.add(message['id'])
+            if message['altitude']:
+                p = [message['latitude'], message['longitude'], message['altitude']]
+            else:
+                p = [message['latitude'], message['longitude']]
+            new_points.append({
+                'position': p,
+                'battery': message['batteryState'],
+                'time': datetime.datetime.utcfromtimestamp(message['unixTime']),
+                'server_time': now,
+                'message_type': message['messageType'],  # TODO translate into tracker status
+            })
+    if new_points:
+        await tracker.new_points(new_points)
+
+
+async def wait_for_next_check(tracker):
+    now = datetime.datetime.now()
+    if tracker.points:
+        next_check_on_last_point_time = tracker.points[-1]['time'] + datetime.timedelta(minutes=5, seconds=15)
+    else:
+        next_check_on_last_point_time = datetime.datetime(year=1980, month=1, day=1)
+
+    next_check_on_now = now + datetime.timedelta(minutes=2, seconds=30)
+    next_check = max(next_check_on_now, next_check_on_last_point_time)
+    next_check_sec = (next_check - now).total_seconds()
+    tracker.logger.debug(f'Next check: {next_check_sec} sec -- {next_check}')
+    await asyncio.sleep(next_check_sec)
 
 
 async def main():
@@ -147,7 +169,7 @@ async def main():
     settings = {}
     async with config(app, settings):
         tracker = await start_tracker(
-            app, 'foobar', 'FEED_ID', datetime.datetime(2018, 2, 1), None)
+            app, 'foobar', '0RrHLaqkrQHCYYj52QMZEP6fhOLd8g6E5', datetime.datetime(2019, 1, 16), None)
         print_tracker(tracker)
 
         run_fut = asyncio.Future()
