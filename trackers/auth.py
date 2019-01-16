@@ -1,5 +1,7 @@
 import datetime
+import functools
 import io
+import logging
 
 import aioauth_client
 import aiohttp_session
@@ -7,6 +9,9 @@ import aiohttp_session.cookie_storage
 from aiohttp import web
 from cryptography import fernet
 from htmlwrite import Markup, Tag, Writer
+
+
+logger = logging.getLogger(__name__)
 
 
 def gen_key():
@@ -77,8 +82,12 @@ async def get_git_author(request):
         return f"{identity['first_name']} <{identity['email']}>"
 
 
-async def show_identity(request, writer):
-    identity = await get_identity(request)
+sentinel = object()
+
+
+async def show_identity(request, writer, identity=sentinel):
+    if identity == sentinel:
+        identity = await get_identity(request)
     c = writer.context
     w = writer.write
 
@@ -96,39 +105,56 @@ async def show_identity(request, writer):
               href=request.app.router['logout'].url_for().with_query(return_to=request.path)),
           'Logout')
     else:
-        w(Tag('p'), 'Not logged in.')
-
         with c(Tag('div')):
+            w('Not logged in. Login with: ')
+
             for provider in request.app['oauth_providers']:
                 w(Tag('a', class_="waves-effect waves-light btn",
                       href=request.app.router['oauth_login'].url_for(provider=provider['name']).with_query(return_to=request.path)),
                   provider['display_name'])
 
 
+async def ensure_authorized_handler(request, allowed_principals, handler):
+    if not request.app['authorization']:
+        return await handler(request)
+    else:
+        identity = await get_identity(request)
+        if identity and identity['email'] in allowed_principals:
+            return await handler(request)
+        else:
+            body = io.StringIO()
+            writer = Writer(body)
+            w = writer.w
+            c = writer.c
+            error = 'Not Authorised.' if identity else 'Not Authenticated'
+            w(Markup('<!DOCTYPE html>'))
+            with c(Tag('html')):
+                with c(Tag('head')):
+                    w(Tag('title'), error)
+                    w(Tag('meta', name="viewport", content="initial-scale=1.0, user-scalable=no"))
+                    w(Tag('link', rel="stylesheet",
+                          href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"))
+                with c(Tag('body', s_padding="24px", s_width="100%", )):
+                    with c(Tag('div', s_margin="auto", s_max_width="800px", )):
+                        w(Tag('h1'), error)
+                        await show_identity(request, writer)
+            return web.Response(body=body.getvalue(), headers={'Content-Type': 'text/html; charset=utf-8'},
+                                status=403 if identity else 401)
+
+
 def ensure_authorized(handler, allowed_principals):
 
     async def ensure_authorized_inner(request):
+        return await ensure_authorized_handler(request, allowed_principals, handler)
 
-        if not request.app['authorization']:
-            return await handler(request)
-        else:
-            identity = await get_identity(request)
-            if identity and identity['email'] in allowed_principals:
-                return await handler(request)
-            else:
-                body = io.StringIO()
-                writer = Writer(body)
-                w = writer.w
-                c = writer.c
-                error = 'Not Authorised.' if identity else 'Not Authenticated'
-                w(Markup('<!DOCTYPE html>'))
-                with c(Tag('html')):
-                    with c(Tag('head')):
-                        w(Tag('title'), error)
-                    with c(Tag('body')):
-                        w(Tag('h1'), error)
-                        await show_identity(request, writer)
-                return web.Response(body=body.getvalue(), headers={'Content-Type': 'text/html; charset=utf-8'},
-                                    status=403 if identity else 401)
+    return ensure_authorized_inner
+
+
+def ensure_authorized_event(handler):
+
+    async def ensure_authorized_inner(request, event):
+        allowed_principals = event.admin_allowed_principals
+        logger.debug(f'allowed_principals: {allowed_principals}')
+        return await ensure_authorized_handler(request, allowed_principals, functools.partial(handler, event=event))
 
     return ensure_authorized_inner

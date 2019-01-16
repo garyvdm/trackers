@@ -23,7 +23,7 @@ import trackers.auth
 import trackers.bin_utils
 import trackers.events
 from trackers.analyse import AnalyseTracker
-from trackers.auth import ensure_authorized, get_git_author, show_identity
+from trackers.auth import ensure_authorized_event, get_git_author, get_identity, show_identity
 from trackers.base import cancel_and_wait_task, list_register, Observable
 from trackers.general import hash_bytes, json_dumps
 from trackers.web_helpers import (
@@ -96,7 +96,7 @@ async def make_aio_app(settings,
 
     app.router.add_route('GET', '/', handler=home, name='home')
     app['home_pages'] = {}
-    app.router.add_route('GET', '/admin_login', handler=admin_login, name='admin_login')
+    app.router.add_route('GET', '/admin', handler=admin, name='admin')
 
     app.router.add_route('GET', '/{event}', handler=event_page, name='event_page')
     app.router.add_route('GET', '/{event}/websocket', handler=event_ws, name='event_ws')
@@ -111,19 +111,17 @@ async def make_aio_app(settings,
                          handler=coro_partial(blocked_lists, list_attr_name='pre_post_blocked_list'))
     app.router.add_route('GET', '/{event}/riders_csv', name='riders_csv', handler=riders_csv)
 
-    admin_users = {'garyvdm@gmail.com'}
-
-    app.router.add_route('GET', '/{event}/admin', handler=ensure_authorized(event_admin, admin_users), name='event_admin')
-    app.router.add_route('POST', '/{event}/set_start', handler=ensure_authorized(event_set_start, admin_users), name='event_set_start')
-    app.router.add_route('POST', '/{event}/add_rider_point', handler=ensure_authorized(event_add_rider_point, admin_users), name='event_add_rider_point')
+    app.router.add_route('GET', '/{event}/admin', handler=event_admin, name='event_admin')
+    app.router.add_route('POST', '/{event}/set_start', handler=event_set_start, name='event_set_start')
+    app.router.add_route('POST', '/{event}/add_rider_point', handler=event_add_rider_point, name='event_add_rider_point')
 
     app.router.add_route('POST', '/client_error', handler=client_error_handler, name='client_error')
 
     app['trackers.app_setup_cm'] = app_setup_cm = await app_setup(app, settings)
     await app_setup_cm.__aenter__()
 
-    app['load_events_with_watcher_task'] = asyncio.ensure_future(
-        trackers.events.load_events_with_watcher(
+    app['load_with_watcher_task'] = asyncio.ensure_future(
+        trackers.events.load_with_watcher(
             app,
             new_event_observable=Observable(logger=trackers.events.logger, callbacks=(on_new_event, )),
             removed_event_observable=Observable(logger=trackers.events.logger, callbacks=(on_removed_event, )),
@@ -138,8 +136,8 @@ async def shutdown(app):
     if close_fs:
         await asyncio.wait(close_fs, timeout=20)
 
-    logger.info('Stopping load_events_with_watcher_task')
-    await cancel_and_wait_task(app['load_events_with_watcher_task'])
+    logger.info('Stopping load_with_watcher_task')
+    await cancel_and_wait_task(app['load_with_watcher_task'])
 
     logger.info('Stopping event and individual trackers')
     stop_and_complete_trackers_fs = \
@@ -597,6 +595,7 @@ async def message_to_multiple_wss(app, wss, msg, log_level=logging.DEBUG, filter
 
 @say_error_handler
 @event_handler
+@ensure_authorized_event
 async def event_set_start(request, event):
     event.config['event_start'] = datetime.datetime.now().replace(microsecond=0)
     author = await get_git_author(request)
@@ -735,7 +734,10 @@ def convert_client_urls_to_paths(static_path, s):
 
 
 @say_error_handler
-async def admin_login(request):
+async def admin(request):
+    identity = await get_identity(request)
+
+    router = request.app.router
     body = io.StringIO()
     writer = Writer(body)
     w = writer.w
@@ -744,7 +746,7 @@ async def admin_login(request):
     w(Markup('<!DOCTYPE html>'))
     with c(Tag('html')):
         with c(Tag('head')):
-            w(Tag('title'), 'Admin Login')
+            w(Tag('title'), 'Admin')
             w(Tag('meta', name="viewport", content="initial-scale=1.0, user-scalable=no"))
             w(Tag('link', rel="stylesheet", href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"))
 
@@ -752,12 +754,26 @@ async def admin_login(request):
             with c(Tag('div', s_margin="auto", s_max_width="800px", )):
                 w(Tag('h3'), 'Admin Login')
                 with c(Tag('div', class_="card-panel", s_display="flex", s_width="100%", s_justify_content="space-between")):
-                    await show_identity(request, writer)
+                    await show_identity(request, writer, identity)
+
+                if identity:
+                    w(Tag('h4'), 'Events')
+
+                    events = tuple(sorted(request.app['trackers.events'].values(),
+                                          key=lambda event: event.config.get('event_start'),
+                                          reverse=True))
+                    with c(Tag('ul', class_='collection')):
+                        for event in events:
+                            if identity['email'] in event.admin_allowed_principals:
+                                w(Tag('a', class_='collection-item', href=router['event_admin'].url_for(event=event.name)),
+                                  event.config.get('title', event.name))
+
     return web.Response(body=body.getvalue(), headers={'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache'})
 
 
 @say_error_handler
 @event_handler
+@ensure_authorized_event
 async def event_admin(request, event):
     router = request.app.router
     body = io.StringIO()
@@ -769,55 +785,66 @@ async def event_admin(request, event):
     with c(Tag('html')):
         with c(Tag('head')):
             w(Tag('title'), ('Admin', event.name))
-        with c(Tag('body')):
-            w(Tag('h1'), ('Admin - ', event.config['title']))
-            await show_identity(request, writer)
+            w(Tag('meta', name="viewport", content="initial-scale=1.0, user-scalable=no"))
+            w(Tag('link', rel="stylesheet",
+                  href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"))
 
-            w(Tag('h2'), 'Add Rider Points')
+        with c(Tag('body', s_padding="24px", s_width="100%", )):
 
-            with c(Tag('form', action=router['event_add_rider_point'].url_for(event=event.name), method='POST')):
-                with c(Tag('p')):
-                    w('Rider: ')
-                    w(Tag('br'))
-                    with c(Tag('select', name='rider_name')):
-                        w(Tag('option', value=''), '---')
-                        for rider in event.config['riders']:
-                            w(Tag('option', value=rider['name']), rider['name'])
+            with c(Tag('div', s_margin="auto", s_max_width="800px", )):
+                w(Tag('h3'), ('Admin - ', event.config['title']))
+                with c(Tag('div', class_="card-panel", s_display="flex", s_width="100%", s_justify_content="space-between")):
+                    await show_identity(request, writer)
 
-                w('Point: ')
-                w(Tag('br'))
-                w(Tag('script', src='https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.22.2/moment.min.js'))
-                w(Tag('script'), Markup('''
-                    function set_status(status) {
-                        var now = new moment().local().format('YYYY-MM-DDTHH:mm:ss');
-                        var val = 'rider_status: '+status+'\\ntime: ' + now;
-                        if (status == 'Finished') val += '\\nfinish_time: ' + now;
-                        document.getElementById('point').value = val
-                    }
-                '''))
-                w(Tag('button', onclick='set_status("Did not start")', type="button"), 'Did not start')
-                w(Tag('button', onclick='set_status("Withdrawn")', type="button"), 'Withdrawn')
-                w(Tag('button', onclick='set_status("Disqualified")', type="button"), 'Disqualified')
-                w(Tag('button', onclick='set_status("Finished")', type="button"), 'Finished')
-                w(Tag('br'))
-                w(Tag('textarea', name='point', id='point', rows="10", cols="50"))
-                with c(Tag('p')):
-                    w(Tag('button', type='submit'), 'Add rider point')
+                with c(Tag('div', class_="card")):
+                    with c(Tag('form', action=router['event_add_rider_point'].url_for(event=event.name), method='POST')):
 
-            w(Tag('h2'), 'Start')
-            if 'event_start' in event.config:
-                with c(Tag('p')):
-                    w(Tag('b'), 'Start is set to: ')
-                    w(event.config['event_start'])
-            with c(Tag('form', action=router['event_set_start'].url_for(event=event.name), method='POST')):
-                with c(Tag('p')):
-                    w(Tag('button', type='submit'), 'Set Start to Now')
+                        with c(Tag('div', class_="card-content")):
+                            w(Tag('span', class_="card-title"), 'Add Rider Point')
+                            w('Rider: ')
+                            w(Tag('br'))
+                            with c(Tag('select', name='rider_name', class_="browser-default")):
+                                w(Tag('option', value=''), '---')
+                                for rider in event.config['riders']:
+                                    w(Tag('option', value=rider['name']), rider['name'])
+
+                            w('Point: ')
+                            w(Tag('br'))
+                            w(Tag('script', src='https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.22.2/moment.min.js'))
+                            w(Tag('script'), Markup('''
+                                function set_status(status) {
+                                    var now = new moment().local().format('YYYY-MM-DDTHH:mm:ss');
+                                    var val = 'rider_status: '+status+'\\ntime: ' + now;
+                                    if (status == 'Finished') val += '\\nfinish_time: ' + now;
+                                    document.getElementById('point').value = val
+                                }
+                            '''))
+                            w(Tag('button', onclick='set_status("Did not start")', type="button", class_="btn waves-effect waves-light"), 'Did not start')
+                            w(Tag('button', onclick='set_status("Withdrawn")', type="button", class_="btn waves-effect waves-light"), 'Withdrawn')
+                            w(Tag('button', onclick='set_status("Disqualified")', type="button", class_="btn waves-effect waves-light"), 'Disqualified')
+                            w(Tag('button', onclick='set_status("Finished")', type="button", class_="btn waves-effect waves-light"), 'Finished')
+                            w(Tag('br'))
+                            w(Tag('textarea', name='point', id='point', rows="10", cols="50"))
+                        with c(Tag('div', class_="card-action", s_text_align="right")):
+                            w(Tag('button', type='submit', class_="btn waves-effect waves-light"), 'Add rider point')
+
+                with c(Tag('div', class_="card")):
+                    with c(Tag('div', class_="card-content")):
+                        w(Tag('span', class_="card-title"), 'Start')
+                        if 'event_start' in event.config:
+                            with c(Tag('p')):
+                                w(Tag('b'), 'Start is set to: ')
+                                w(event.config['event_start'])
+                    with c(Tag('div', class_="card-action", s_text_align="right")):
+                        with c(Tag('form', action=router['event_set_start'].url_for(event=event.name), method='POST')):
+                            w(Tag('button', type='submit', class_="btn waves-effect waves-light"), 'Set Start to Now')
 
     return web.Response(body=body.getvalue(), headers={'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache'})
 
 
 @say_error_handler
 @event_handler
+@ensure_authorized_event
 async def event_add_rider_point(request, event):
     post = await request.post()
     rider_name = post['rider_name']

@@ -21,7 +21,7 @@ class TestEvents(asynctest.TestCase, fixtures.TestWithFixtures):
         writer.commit('add test_event')
 
         app, settings = get_test_app_and_settings(repo)
-        await load_events(app)
+        await load_events(app, writer)
 
         events = app['trackers.events']
         self.assertEqual(len(events), 1)

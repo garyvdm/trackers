@@ -26,9 +26,11 @@ from trackers.persisted_func_cache import PersistedFuncCache
 logger = logging.getLogger(__name__)
 
 
-async def load_events_with_watcher(app, ref=b'HEAD', **kwargs):
+# TODO: this is no longer specific to events. Move to somewhere
+
+async def load_with_watcher(app, ref=b'HEAD', **kwargs):
     try:
-        await load_events(app, ref=ref, **kwargs)
+        await load(app, ref=ref, **kwargs)
 
         repo = app['trackers.data_repo']
 
@@ -53,30 +55,40 @@ async def load_events_with_watcher(app, ref=b'HEAD', **kwargs):
                 new_sha = repo.refs[ref]
                 if sha != new_sha:
                     logger.info('Ref {} changed {} -> {}. Reloading.'.format(ref.decode(), sha.decode()[:6], new_sha.decode()[:6]))
-                    await load_events(app, ref=ref, **kwargs)
+                    await load(app, ref=ref, **kwargs)
         else:
             logger.debug('No inotify reload on memory repo')
     except asyncio.CancelledError:
         raise
     except Exception:
-        logger.exception('Error in load_events_with_watcher: ')
+        logger.exception('Error in load_with_watcher: ')
 
 
-async def load_events(app, ref=b'HEAD', new_event_observable=Observable(logger), removed_event_observable=Observable(logger)):
-    events = app['trackers.events']
+async def load(app, ref=b'HEAD', **kwargs):
     try:
         tree_reader = TreeReader(app['trackers.data_repo'], treeish=ref)
     except KeyError:
         pass
     else:
-        names = set(tree_reader.tree_items('events'))
-        for name in events.keys() - names:
-            await events[name].stop_and_complete_trackers()
-            await removed_event_observable(events.pop(name))
-        load_event_fs = [load_event(name, app, events, tree_reader, new_event_observable) for name in names]
-        if load_event_fs:
-            await asyncio.wait(load_event_fs)
-        logger.info('Events loaded.')
+        try:
+            app['config'] = yaml.load(tree_reader.get('config.yaml').data)
+        except Exception:
+            logger.exception('')
+            app['config'] = {}
+
+        await load_events(app, tree_reader, **kwargs)
+
+
+async def load_events(app, tree_reader, new_event_observable=Observable(logger), removed_event_observable=Observable(logger)):
+    events = app['trackers.events']
+    names = set(tree_reader.tree_items('events'))
+    for name in events.keys() - names:
+        await events[name].stop_and_complete_trackers()
+        await removed_event_observable(events.pop(name))
+    load_event_fs = [load_event(name, app, events, tree_reader, new_event_observable) for name in names]
+    if load_event_fs:
+        await asyncio.wait(load_event_fs)
+    logger.info('Events loaded.')
 
 
 async def load_event(name, app, events, tree_reader, new_event_observable):
@@ -196,6 +208,13 @@ class Event(object):
         tree_writer.commit(message, author=author)
         _, self.git_hash = tree_writer.lookup(self.path)
         await self.config_routes_change_observable(self)
+
+    @property
+    def admin_allowed_principals(self):
+        return tuple(chain(
+            self.app['config'].get('admin', ()),
+            self.config.get('admin', ())
+        ))
 
     async def start_trackers(self, analyse=True):
         self.start_trackers_without_wait(analyse)
