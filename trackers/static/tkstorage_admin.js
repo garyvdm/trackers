@@ -153,7 +153,7 @@ function update_trackers() {
         '<td>Id</td>' +
         '<td>Last<br>Connection</td>' +
         '<td>Position</td>' +
-        '<td>Status</td>' +
+        '<td>Battery</td>' +
         '<td>Config</td>' +
         '<td>Actions</td>' +
         '</tr>' + table_rows.join('') + '</table>';
@@ -192,10 +192,10 @@ function update_values() {
             cells[2].innerText = '';
         }
 
-        if (tk_values.hasOwnProperty('tk_status')) {
+        if (tk_values.hasOwnProperty('battery')) {
             cells[3].innerHTML = sprintf(
-                '%s<div class="ago">%s</div>', tk_values.tk_status.value.replace(/\r\n/g, '<br>'),
-                format_time_delta_ago_with_date(now, tk_values.tk_status.time, date_options))
+                '%i %%<div class="ago">%s</div>', tk_values.battery.value,
+                format_time_delta_ago_with_date(now, tk_values.battery.time, date_options))
         } else {
             cells[3].innerText = '';
         }

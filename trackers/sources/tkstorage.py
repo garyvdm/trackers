@@ -233,7 +233,7 @@ async def connection(app, settings, points_received_observables, send_queue,
                                     trackers_values_changed.add(tk_id)
                                     tracker_values = get_tracker_objects(app, point['tk_id']).values
                                     tracker_values['last_connection'] = point['server_time']
-                                    for key in ('tk_status', 'tk_config', 'position'):
+                                    for key in ('tk_status', 'tk_config', 'position', 'battery'):
                                         if key in point:
                                             tracker_values[key] = {'value': point[key], 'time': point['time']}
                                 await values_changed({tk_id: trackers_objects[tk_id].values for tk_id in trackers_values_changed})
