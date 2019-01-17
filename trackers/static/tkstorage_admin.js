@@ -126,6 +126,7 @@ function update_trackers() {
             sprintf('<button onclick="del_config(\'%s\');">Clear</button>', id) +
             '<br>Routetrack: ' +
             sprintf('<button onclick="set_config(\'%s\', {routetrack: true, rupload: 60, rsampling: 60});">60 sec</button>', id) +
+            sprintf('<button onclick="set_config(\'%s\', {routetrack: true, rupload: 30, rsampling: 30});">30 sec</button>', id) +
             sprintf('<button onclick="set_config(\'%s\', {routetrack: true, rupload: 10, rsampling: 10});">10 sec</button>', id) +
             '<br>Check: ' +
             sprintf('<button onclick="set_config(\'%s\', {check: 5});">5min</button>', id) +
@@ -137,13 +138,13 @@ function update_trackers() {
 //            '<br>Check: ' +
 //            sprintf('<button onclick="send_command(\'%s\', \'*checkoff*\', true);">Off</button>', id) +
 //            sprintf('<button onclick="send_command(\'%s\', \'*checkm*5*\', true);">5min</button>', id) +
-//            '<br>' +
-//            sprintf('<button onclick="send_command(\'%s\', \'*apn*internet*\', true);">*apn*internet*</button>', id) +
-//            sprintf('<button onclick="send_command(\'%s\', \'*master*123456*+27635933475*\', true);">master</button>', id) +
-//            sprintf('<button onclick="send_command(\'%s\', \'*multiquery*\', true);">*multiquery*</button>', id) +
-//            sprintf('<button onclick="send_command(\'%s\', \'*alertoff*\', true);">alertoff</button>', id) +
-//            sprintf('<button onclick="send_command(\'%s\', \'*setip*154*127*61*242*6002*\', true);">setip</button>', id) +
-//            sprintf('<button onclick="basic_config(\'%s\');">Basic Config</button>', id) +
+            '<br>' +
+            sprintf('<button onclick="send_command(\'%s\', \'*apn*internet*\', true);">*apn*internet*</button>', id) +
+            sprintf('<button onclick="send_command(\'%s\', \'*master*123456*+27635933475*\', true);">master</button>', id) +
+            sprintf('<button onclick="send_command(\'%s\', \'*multiquery*\', true);">*multiquery*</button>', id) +
+            sprintf('<button onclick="send_command(\'%s\', \'*alertoff*\', true);">alertoff</button>', id) +
+            sprintf('<button onclick="send_command(\'%s\', \'*setip*160*119*253*157*6002*\', true);">setip</button>', id) +
+            sprintf('<button onclick="basic_config(\'%s\');">Basic Config</button>', id) +
             '</td>'+
             '</tr>';
     });
@@ -219,7 +220,7 @@ function basic_config(id){
             '*master*123456*+27635933475*',
             '*apn*internet*',
             '*multiquery*',
-            '*setip*154*127*61*242*6002*',
+            '*setip*160*119*253*157*6002*',
         ], true);
 }
 
