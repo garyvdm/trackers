@@ -2,6 +2,7 @@ import asyncio
 import base64
 import hashlib
 import logging
+import mimetypes
 import os.path
 from collections import namedtuple
 from contextlib import closing, suppress
@@ -9,7 +10,6 @@ from copy import copy
 from functools import partial
 
 import aionotify
-import magic
 import pkg_resources
 import sass
 from aiohttp.web import HTTPFound, HTTPNotModified, Response
@@ -64,7 +64,7 @@ class ProcessedStaticManager(object):
     def __init__(self, app, package, resources_processed=()):
         self.app = app
         self.package = package
-        self.magic = magic.Magic(flags=magic.MAGIC_MIME_TYPE)
+        mimetypes.init()
         app.on_shutdown.append(self.on_app_shutdown)
         self.resources = []
         self.processed_resources = {}
@@ -142,7 +142,9 @@ class ProcessedStaticManager(object):
                 resource.resource_name, resource.body_processor, resource.body_loader, watcher)
 
             if 'content_type' not in response_kwarg:
-                response_kwarg['content_type'] = self.magic.id_buffer(body)
+                _, extension = os.path.splitext(resource.resource_name)
+                with suppress(KeyError):
+                    response_kwarg['content_type'] = mimetypes.types_map[extension]
             response_kwarg['body'] = body
 
             if resource.use_hased_url:
@@ -195,7 +197,6 @@ class ProcessedStaticManager(object):
     async def on_app_shutdown(self, app):
         if self.monitor_task:
             await cancel_and_wait_task(self.monitor_task)
-        self.magic.close()
 
 
 def sass_body_loader(static_manager, resource_name, watcher, **kwargs):

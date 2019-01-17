@@ -17,7 +17,6 @@ setuptools.setup(
         'beautifulsoup4',
         'calmjs.parse',
         'dulwich',
-        'filemagic',
         'fixtures',
         'htmlwrite',
         'jsonpointer',
