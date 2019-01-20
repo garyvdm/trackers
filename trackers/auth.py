@@ -133,7 +133,7 @@ async def ensure_authorized_handler(request, allowed_principals, handler):
                     w(Tag('title'), error)
                     w(Tag('meta', name="viewport", content="initial-scale=1.0, user-scalable=no"))
                     w(Tag('link', rel="stylesheet",
-                          href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"))
+                          href="/static/contrib/materialize.min.css"))
                 with c(Tag('body', s_padding="24px", s_width="100%", )):
                     with c(Tag('div', s_margin="auto", s_max_width="800px", )):
                         w(Tag('h1'), error)

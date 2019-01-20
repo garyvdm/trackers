@@ -789,7 +789,7 @@ async def event_admin(request, event):
             w(Tag('title'), ('Admin', event.name))
             w(Tag('meta', name="viewport", content="initial-scale=1.0, user-scalable=no"))
             w(Tag('link', rel="stylesheet",
-                  href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"))
+                  href="/static/contrib/materialize.min.css"))
 
         with c(Tag('body', s_padding="24px", s_width="100%", )):
 
@@ -805,7 +805,7 @@ async def event_admin(request, event):
                             w(Tag('span', class_="card-title"), 'Add Rider Point')
                             w('Rider: ')
                             w(Tag('br'))
-                            with c(Tag('select', name='rider_name', class_="browser-default")):
+                            with c(Tag('select', name='rider_name', class_="browser-default", s_border="revert", s_background="revert", s_border_radius="revert")):
                                 w(Tag('option', value=''), '---')
                                 for rider in event.config['riders']:
                                     w(Tag('option', value=rider['name']), rider['name'])
@@ -826,7 +826,9 @@ async def event_admin(request, event):
                             w(Tag('button', onclick='set_status("Disqualified")', type="button", class_="btn waves-effect waves-light"), 'Disqualified')
                             w(Tag('button', onclick='set_status("Finished")', type="button", class_="btn waves-effect waves-light"), 'Finished')
                             w(Tag('br'))
-                            w(Tag('textarea', name='point', id='point', rows="10", cols="50"))
+                            w('Data: ')
+                            w(Tag('br'))
+                            w(Tag('textarea', name='point', id='point', rows="10", cols="50", s_height="10em"))
                         with c(Tag('div', class_="card-action", s_text_align="right")):
                             w(Tag('button', type='submit', class_="btn waves-effect waves-light"), 'Add rider point')
 
