@@ -25,6 +25,7 @@ import trackers.events
 from trackers.analyse import AnalyseTracker
 from trackers.auth import ensure_authorized_event, get_git_author, get_identity, show_identity
 from trackers.base import cancel_and_wait_task, list_register, Observable
+from trackers.dulwich_helpers import TreeReader, TreeWriter
 from trackers.general import hash_bytes, json_dumps
 from trackers.web_helpers import (
     coro_partial,
@@ -114,6 +115,7 @@ async def make_aio_app(settings,
     app.router.add_route('GET', '/{event}/admin', handler=event_admin, name='event_admin')
     app.router.add_route('POST', '/{event}/set_start', handler=event_set_start, name='event_set_start')
     app.router.add_route('POST', '/{event}/add_rider_point', handler=event_add_rider_point, name='event_add_rider_point')
+    app.router.add_route('GET', '/{event}/edit', handler=event_config_edit, name='event_config_edit')
 
     app.router.add_route('POST', '/client_error', handler=client_error_handler, name='client_error')
 
@@ -859,3 +861,87 @@ async def event_add_rider_point(request, event):
     await event.save(f'{event.name}: add point to {rider_name} - {status}', author=author)
 
     return web.Response(text=f'Added point to {rider_name}: {point}')
+
+
+@say_error_handler
+@event_handler
+@ensure_authorized_event
+async def event_config_edit(request, event):
+    body = io.StringIO()
+    writer = Writer(body)
+    w = writer.w
+    c = writer.c
+
+    errors = []
+    commited = False
+
+    if request.method == 'POST':
+        form = await request.post()
+        tree = TreeWriter(request.app['trackers.data_repo'])
+        _, sha = tree.lookup(event.config_path)
+
+        if sha.decode() != form['sha']:
+            errors.append(
+                "Config has changed. Reload and reapply your change.")
+            sha = form['sha'].encode()
+
+        try:
+            config = yaml.safe_load(form['data'])
+            data = yaml.dump(config, default_flow_style=False,
+                             Dumper=trackers.events.YamlEventDumper).encode()
+        except Exception as e:
+            errors.append(Tag('pre', c=str(e)))
+            data = form['data'].encode()
+
+        if not errors:
+            tree.set_data(event.config_path, data)
+            author = await get_git_author(request)
+            tree.commit(f'{event.name}: web edit', author=author)
+            commited = True
+    else:
+        tree = TreeReader(request.app['trackers.data_repo'])
+        _, sha = tree.lookup(event.config_path)
+        data = tree.lookup_obj(sha).data
+
+    w(Markup('<!DOCTYPE html>'))
+    with c(Tag('html')):
+        with c(Tag('head')):
+            w(Tag('title'), ('Edit', event.config['title']))
+            w(Tag('meta', name="viewport", content="initial-scale=1.0, user-scalable=no"))
+            w(Tag('link', rel="stylesheet",
+                  href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"))
+            w(Tag('script', src=r'//cdnjs.cloudflare.com/ajax/libs/ace/1.1.3/ace.js', c=''))
+
+        with c(Tag('body')):
+            with c(Tag('form', method="POST", id='form')):
+                w(Tag('input', type='hidden', name='sha', value=sha.decode()))
+                w(Tag('input', type='hidden', name='data',
+                      id="data", value=data.decode()))
+                with c(Tag('div', s_display="flex", s_flex_direction="column",
+                           s_position='absolute', s_left='0', s_right='0', s_top='0', s_bottom='0', s_padding='8px', )):
+                    with c(Tag('div', s_display="flex")):
+                        w(Tag('h3', s_flex="1 1 80%"),
+                          ('Edit - ', event.config['title']))
+                        await show_identity(request, writer)
+
+                    for error in errors:
+                        w(Tag('div', class_="card-panel red white-text ", ), error)
+                    if commited:
+                        w(Tag('div', class_="card-panel teal white-text "),
+                          'Change saved')
+
+                    w(Tag('div', id='editor', s_flex='1 1 100%'))
+
+                    with c(Tag('div', s_text_align="right")):
+                        w(Tag('button', type='submit',
+                              class_="btn waves-effect waves-light"), 'Save')
+            w(Tag('script'), Markup('''
+                var editor = ace.edit("editor");
+                var data = document.getElementById('data');
+                editor.session.setMode("ace/mode/yaml");
+                editor.getSession().setValue(data.value);
+                document.getElementById('form').onsubmit = function (){
+                    data.value = editor.getSession().getValue();
+                }
+            '''))
+    return web.Response(body=body.getvalue(), headers={'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache'})
