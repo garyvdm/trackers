@@ -1609,7 +1609,12 @@ function update_graph() {
 var graph_update_timeout;
 
 function on_new_rider_points_graph(rider_name, list_name, items, new_items, old_items, update){
-    if (list_name == 'riders_points' && (mobile_selected == 'graphs' || desktop_main_selected == 'graphs')) {
+    var applicable_points = (
+        list_name == 'riders_points'
+        ||
+        (list_name == 'riders_pre_post' && pre_post_el.checked && graph_charts.graph_battery)
+    )
+    if (applicable_points && (mobile_selected == 'graphs' || desktop_main_selected == 'graphs')) {
         if (graph_charts.dist_time && graph_charts.speed_time) {
             if (graph_charts.dist_time.get(rider_name)) graph_charts.dist_time.get(rider_name).setData(
                 items.filter(function(item) {return item.hasOwnProperty('dist_route')})
@@ -1627,6 +1632,14 @@ function on_new_rider_points_graph(rider_name, list_name, items, new_items, old_
             );
         }
         if (graph_charts.graph_battery) {
+            if (pre_post_el.checked) {
+                // Horrible hack
+                items = riders_pre_post[rider_name].concat(riders_points[rider_name]);
+                console.log(items);
+                items = items.filter(function(item) {return item.hasOwnProperty('battery')});
+                items.sort(function (a, b) { return a.time - b.time });
+            }
+
             if (graph_charts.graph_battery.get(rider_name)) graph_charts.graph_battery.get(rider_name).setData(
                 items.filter(function(item) {return item.hasOwnProperty('battery')})
                 .map(function (item) {return [item.time * 1000, item.battery]})
