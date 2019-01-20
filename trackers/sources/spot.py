@@ -104,7 +104,7 @@ async def monitor_feed(app, tracker, feed_id, start, end):
                     params = {'startDate': last.isoformat(timespec='seconds') + '-0000', 'endDate': now.isoformat(timespec='seconds') + '-0000'}
                     last = now
                     data = await api_call(app, feed_id, params)
-                    await process_data(tracker, data, seen_ids)
+                    await process_data(tracker, data, now, seen_ids)
 
                 if end and now >= end:
                     break
