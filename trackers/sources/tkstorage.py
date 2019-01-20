@@ -539,7 +539,7 @@ class TKStorageTracker(Tracker):
         if time_between(time, self.config_read_start, self.end) or time_between(server_time, self.config_read_start, self.end):
             if any((key in point for key in config_keys)):
                 return True
-        print(point)
+        # print(point)
         return False
 
     async def points_received(self, points):
