@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import contextlib
+import copy
 import csv
 import datetime
 import hashlib
@@ -442,8 +443,28 @@ web_route_keys = (
 )
 
 
+def filter_event_config_for_web(config):
+    'Filters out keys from event config that the tracker page does not need.'
+
+    config = copy.deepcopy(config)
+
+    with suppress(KeyError):
+        del config['admin']
+    with suppress(KeyError):
+        del config['page']
+
+    for rider in config.get('riders', ()):
+        with suppress(KeyError):
+            del rider['points']
+        with suppress(KeyError):
+            del rider['trackers']
+        with suppress(KeyError):
+            del rider['tracker']
+    return config
+
+
 async def on_event_config_routes_change(event):
-    event.client_config_body = json_dumps(event.config)
+    event.client_config_body = json_dumps(filter_event_config_for_web(event.config))
     event.client_config_body_hash = hash_bytes(event.client_config_body.encode())
     filtered_routes = [
         {key: value for key, value in route.items() if key in web_route_keys}
@@ -452,14 +473,11 @@ async def on_event_config_routes_change(event):
     event.client_routes_body = json_dumps(filtered_routes)
     event.client_routes_body_hash = hash_bytes(event.client_routes_body.encode())
 
+    state = await get_event_state(event.app, event)
     await message_to_multiple_wss(
         event.app,
         event.app['trackers.event_ws_sessions'][event.name],
-        {
-            'live': event.config.get('live', False),
-            'config_hash': event.client_config_body_hash,
-            'routes_hash': event.client_routes_body_hash,
-        },
+        state,
     )
     event.app['home_pages'] = {}
     if event.config.get('live', False):
