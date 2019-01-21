@@ -271,7 +271,7 @@ class Event(object):
         for rider in self.config['riders']:
             rider_name = rider['name']
             self.riders_objects[rider_name] = objects = RiderObjects(rider_name, self)
-            objects.data_tracker = await DataTracker.start(rider)
+            objects.data_tracker = await DataTracker.start(rider, self.config.get('trackers_end'))
 
         if has_static:
             for rider in self.config['riders']:
@@ -307,7 +307,7 @@ class Event(object):
             self.riders_current_values[rider['name']] = {}
             self.riders_pre_post_values[rider['name']] = {}
 
-            tracker = await Combined.start(f'combined.{rider_name}', tuple(chain((objects.data_tracker, ), objects.source_trackers)))
+            objects.combined_tracker = tracker = await Combined.start(f'combined.{rider_name}', tuple(chain((objects.data_tracker, ), objects.source_trackers)))
             if replay:
                 tracker = await start_replay_tracker(tracker, **replay_kwargs)
 
@@ -611,6 +611,7 @@ class RiderObjects(object):
     event: Event
     data_tracker: Tracker = field(default=None)
     source_trackers: List[Tracker] = field(default_factory=list)
+    combined_tracker: Tracker = field(default=None)
     analyse_tracker: Tracker = field(default=None)
     tracker: Tracker = field(default=None)
     off_route_tracker: Tracker = field(default=None)
@@ -624,11 +625,18 @@ class RiderObjects(object):
 class DataTracker(Tracker):
 
     @classmethod
-    async def start(cls, rider_data):
+    async def start(cls, rider_data, end):
         self = cls(f'data.{rider_data["name"]}')
         self.rider_data = rider_data
         await self.new_points(rider_data.get('points', ()))
-        self.completed.set_result(None)
+
+        if end:
+            now = datetime.now()
+            delay = (end - now).total_seconds()
+            if delay > 0:
+                asyncio.get_event_loop().call_later(delay, self.completed.set_result, None)
+            else:
+                self.completed.set_result(None)
         return self
 
     async def add_points(self, new_points):

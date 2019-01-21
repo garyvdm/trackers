@@ -131,6 +131,7 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
 
     async def test_mock(self):
         app, settings, writer = self.do_setup('''
+            trackers_end: 2019-01-01 00:00:00
             riders:
               - name: foo
                 tracker: {type: mock}
@@ -148,6 +149,7 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
 
     async def test_with_analyse(self):
         app, settings, writer = self.do_setup('''
+            trackers_end: 2019-01-01 00:00:00
             analyse: True
             riders:
               - name: foo
@@ -164,6 +166,7 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
     async def test_with_replay(self):
         app, settings, writer = self.do_setup('''
             event_start: 2017-07-01 05:00:00
+            trackers_end: 2019-01-01 00:00:00
             replay: True
             riders:
               - name: foo
@@ -179,6 +182,7 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
 
     async def test_no_tracker(self):
         app, settings, writer = self.do_setup('''
+            trackers_end: 2019-01-01 00:00:00
             riders:
               - name: foo
                 tracker: null
@@ -193,6 +197,7 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
 
     async def test_implicit_static(self):
         data = '''
+            trackers_end: 2019-01-01 00:00:00
             riders:
               - name: foo
             static_analyse: True

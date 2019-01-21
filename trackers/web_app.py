@@ -18,7 +18,7 @@ import pkg_resources
 import yaml
 from aiohttp import web, WSCloseCode, WSMsgType
 from htmlwrite import Markup, Tag, Writer
-from more_itertools import chunked
+from more_itertools import chunked, first
 
 import trackers.auth
 import trackers.bin_utils
@@ -116,6 +116,7 @@ async def make_aio_app(settings,
     app.router.add_route('GET', '/{event}/admin', handler=event_admin, name='event_admin')
     app.router.add_route('POST', '/{event}/set_start', handler=event_set_start, name='event_set_start')
     app.router.add_route('POST', '/{event}/add_rider_point', handler=event_add_rider_point, name='event_add_rider_point')
+    app.router.add_route('POST', '/{event}/add_rider_tracker', handler=event_add_rider_tracker, name='event_add_rider_tracker')
     app.router.add_route('GET', '/{event}/edit', handler=event_config_edit, name='event_config_edit')
 
     app.router.add_route('POST', '/client_error', handler=client_error_handler, name='client_error')
@@ -851,6 +852,82 @@ async def event_admin(request, event):
                             w(Tag('button', type='submit', class_="btn waves-effect waves-light"), 'Add rider point')
 
                 with c(Tag('div', class_="card")):
+                    with c(Tag('form', action=router['event_add_rider_tracker'].url_for(event=event.name), method='POST')):
+
+                        with c(Tag('div', class_="card-content")):
+                            w(Tag('span', class_="card-title"), 'Add rider tracker')
+                            w('Rider: ')
+                            w(Tag('br'))
+                            with c(Tag('select', name='rider_name', class_="browser-default")):
+                                w(Tag('option', value=''), '---')
+                                for rider in event.config['riders']:
+                                    w(Tag('option', value=rider['name']), rider['name'])
+
+                            w('Tracker: ')
+                            w(Tag('br'))
+                            with c(Tag('label')):
+                                w(Tag('input', name="type", type="radio", checked="checked", value="tkstorage", id='type_tkstorage'))
+                                w(Tag('span'), 'TKStorage (dedicated trackers)')
+                            w(Tag('br'))
+
+                            trackers_objects = request.app['tkstorage.trackers_objects']
+                            trackers = [{'id': tracker} for tracker in request.app['tkstorage.trackers']]
+                            for tracker in trackers:
+                                tracker_objects = trackers_objects.get(tracker['id'])
+                                if trackers_objects:
+                                    active = tracker_objects.values.get('active')
+                                    if active:
+                                        tracker['active'] = active
+                            trackers.sort(key=lambda tracker: 'active' in tracker)
+
+                            with c(Tag('select', id='tkstorage_id', class_="browser-default")):
+                                w(Tag('option', value=''), '---')
+                                for tracker in trackers:
+                                    active = tracker.get('active')
+                                    if active:
+                                        active_text = ', '.join([item for item, count in active.items() if count])
+                                    else:
+                                        active_text = ''
+                                    w(Tag('option', value=tracker['id']), f'{tracker["id"]} {active_text}')
+
+                            w(Tag('br'))
+                            with c(Tag('label')):
+                                w(Tag('input', name="type", type="radio", value="traccar", id='type_traccar'))
+                                w(Tag('span'), 'Traccar (phones)')
+                            w(Tag('br'))
+                            with c(Tag('label')):
+                                w(Tag('span'), 'Device id: ')
+                                w(Tag('input', id="traccar_device_id", type="text"))
+
+                            w('Data: ')
+                            w(Tag('br'))
+                            w(Tag('textarea', name='tracker', id='tracker_raw', rows="10", cols="50", s_height="10em"))
+
+                            w(Tag('script'), Markup('''
+                                var type_tkstorage = document.getElementById('type_tkstorage');
+                                var tkstorage_id = document.getElementById('tkstorage_id');
+                                var type_traccar = document.getElementById('type_traccar');
+                                var traccar_device_id = document.getElementById('traccar_device_id');
+                                var tracker_raw = document.getElementById('tracker_raw');
+                                
+                                function update_tracker() {
+                                    if (type_tkstorage.checked) {
+                                        tracker_raw.value = 'type: tkstorage\\nid: ' + tkstorage_id.value;
+                                    }
+                                    if (type_traccar.checked) {
+                                        tracker_raw.value = 'type: traccar\\nunique_id: ' + traccar_device_id.value;
+                                    }
+                                }
+                                type_tkstorage.oninput = update_tracker;
+                                tkstorage_id.oninput = update_tracker;
+                                type_traccar.oninput = update_tracker;
+                                traccar_device_id.oninput = update_tracker;
+                            '''))  # NOQA W293
+
+                        with c(Tag('div', class_="card-action", s_text_align="right")):
+                            w(Tag('button', type='submit', class_="btn waves-effect waves-light"), 'Add rider tracker')
+
+                with c(Tag('div', class_="card")):
                     with c(Tag('div', class_="card-content")):
                         w(Tag('span', class_="card-title"), 'Start')
                         if 'event_start' in event.config:
@@ -881,6 +958,28 @@ async def event_add_rider_point(request, event):
     await event.save(f'{event.name}: add point to {rider_name} - {status}', author=author)
 
     return web.Response(text=f'Added point to {rider_name}: {point}')
+
+
+@say_error_handler
+@event_handler
+@ensure_authorized_event
+async def event_add_rider_tracker(request, event):
+    post = await request.post()
+    rider_name = post['rider_name']
+    tracker = post['tracker']
+    tracker = yaml.safe_load(tracker)
+
+    rider_objects = event.riders_objects[rider_name]
+    start_tracker = event.app['start_event_trackers'][tracker['type']]
+    source_tracker = await start_tracker(event.app, event, rider_name, tracker)
+    rider_objects.source_trackers.append(source_tracker)
+    await rider_objects.combined_tracker.append_sub_tracker(source_tracker)
+
+    rider_config = first(filter(lambda rider: rider['name'] == rider_name, event.config['riders']))
+    rider_config['trackers'].append(tracker)
+    author = await get_git_author(request)
+    await event.save(f'{event.name}: add tracker to {rider_name} - {tracker}', author=author)
+    return web.Response(text=f'Added tracker to {rider_name}: {tracker}')
 
 
 @say_error_handler
