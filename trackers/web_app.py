@@ -652,7 +652,7 @@ async def individual_ws(get_key, get_tracker, request):
                     resend = False
                     if 'send_points_since' in data:
                         if resend:
-                            send({'erase_points': 1})
+                            await send({'erase_points': 1})
                             client_point_indexes = 0
                         else:
                             client_point_indexes = data['send_points_since']
@@ -706,7 +706,7 @@ async def get_individual_tracker(request, get_key, get_tracker):
         yield tracker_info
     finally:
         if tracker_info['discard_task']:
-            cancel_and_wait_task(tracker_info['discard_task'])
+            await cancel_and_wait_task(tracker_info['discard_task'])
             tracker_info['discard_task'] = None
         if not tracker_info['ws_sessions']:
             logger.debug(f'No more ws_sessions for {tracker_key}. Will discard in 60 min.')
