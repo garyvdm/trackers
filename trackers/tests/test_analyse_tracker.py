@@ -313,7 +313,7 @@ class TestAnalyseTracker(asynctest.TestCase):
 
             # During
             {'time': d('2017/01/01 05:00:00'), 'position': (-26.300822, 28.049444, 1800)},
-            {'time': d('2017/01/01 05:01:00'), 'position': (-26.302245, 28.051139, 1800), 'status': 'Finished'},
+            {'time': d('2017/01/01 05:01:00'), 'position': (-26.302245, 28.051139, 1800), 'rider_status': 'Finished'},
 
             # Post
             {'time': d('2017/01/01 05:02:00'), 'position': (-27.280315, 27.969365, 1800)},

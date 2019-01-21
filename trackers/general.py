@@ -132,7 +132,8 @@ def index_and_hash_list(points, start, hasher):
 
 
 async def index_and_hash_tracker_org_newpoints(ih_tracker, org_tracker, new_points):
-    await ih_tracker.new_points(index_and_hash_list(new_points, len(ih_tracker.points), ih_tracker.hasher))
+    ih_new_points = index_and_hash_list(new_points, len(ih_tracker.points), ih_tracker.hasher)
+    await ih_tracker.new_points(ih_new_points)
 
 
 async def index_and_hash_tracker_org_reset_points(ih_tracker, org_tracker):

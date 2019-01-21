@@ -299,12 +299,12 @@ class AnalyseTracker(Tracker):
 
                     point['track_id'] = self.pre_post_track_id if pre_post else self.current_track_id
 
-                if pre_post:
-                    new_pre_post_points.append(point)
-                else:
+                if not pre_post or 'rider_status' in point:
                     new_new_points.append(point)
+                else:
+                    new_pre_post_points.append(point)
 
-                if 'status' in point:
+                if 'rider_status' in point:
                     self.finished = True
                     self.pre_post_track_id += 1
 
