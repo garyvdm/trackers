@@ -213,6 +213,9 @@ class AnalyseTracker(Tracker):
 
                         if on_route and 'elevation' in closest.route:
                             point['route_elevation'] = round(route_elevation(closest.route, route_dist))
+                            if len(point['position']) > 2 and abs(point['route_elevation'] - point['position'][2]) > 500:
+                                self.logger.debug('Removing inaccurate elevation.')
+                                point['position'] = point['position'][:2]
 
                         if closest.route_i == 0 and abs(route_dist - last_route_point.distance) < 100:
                             # This is for when we get a point at the finish.
