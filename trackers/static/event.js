@@ -210,7 +210,7 @@ function on_new_state_received(new_state) {
                 var list = list_container[name] || [];
 
                 function fetch_block(block) {
-                    return get('/' + list_name + '?name=' + name + '&start_index=' + block.start_index +
+                    return get('/' + list_name + '?name=' + encodeURIComponent(name) + '&start_index=' + block.start_index +
                                '&end_index=' + block.end_index + '&end_hash=' + block.end_hash);
                 }
 
