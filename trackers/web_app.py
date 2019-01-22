@@ -1029,7 +1029,7 @@ async def event_config_edit(request, event):
             w(Tag('meta', name="viewport", content="initial-scale=1.0, user-scalable=no"))
             w(Tag('link', rel="stylesheet",
                   href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"))
-            w(Tag('script', src=r'//cdnjs.cloudflare.com/ajax/libs/ace/1.1.3/ace.js', c=''))
+            w(Tag('script', src=r'//cdnjs.cloudflare.com/ajax/libs/ace/1.4.2/ace.js', c=''))
 
         with c(Tag('body')):
             with c(Tag('form', method="POST", id='form')):
@@ -1038,7 +1038,7 @@ async def event_config_edit(request, event):
                       id="data", value=data.decode()))
                 with c(Tag('div', s_display="flex", s_flex_direction="column",
                            s_position='absolute', s_left='0', s_right='0', s_top='0', s_bottom='0', s_padding='8px', )):
-                    with c(Tag('div', s_display="flex")):
+                    with c(Tag('div', s_display="flex", class_='hide-on-med-and-down')):
                         w(Tag('h3', s_flex="1 1 80%"),
                           ('Edit - ', event.config['title']))
                         await show_identity(request, writer)
