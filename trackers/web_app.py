@@ -937,6 +937,10 @@ async def event_admin(request, event):
                     with c(Tag('div', class_="card-action", s_text_align="right")):
                         with c(Tag('form', action=router['event_set_start'].url_for(event=event.name), method='POST')):
                             w(Tag('button', type='submit', class_="btn waves-effect waves-light"), 'Set Start to Now')
+                with c(Tag('div', class_="card-panel", s_text_align="right")):
+                    w(Tag('a', class_="btn waves-effect waves-light",
+                          href=router['event_config_edit'].url_for(event=event.name)),
+                      'Edit config (Advanced)')
 
     return web.Response(body=body.getvalue(), headers={'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache'})
 
