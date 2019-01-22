@@ -458,11 +458,11 @@ async def load_riders_from_csv(app, settings, args):
     reader = csv.DictReader(sys.stdin)
 
     def trackers_from_row(row):
-        if row['Traccar Device Id']:
+        if row.get('Traccar Device Id'):
             yield {'type': 'traccar', 'unique_id': row['Traccar Device Id']}
-        if row['TKStorage']:
+        if row.get('TKStorage'):
             yield {'type': 'tkstorage', 'id': row['TKStorage']}
-        if row['Spot']:
+        if row.get('Spot'):
             yield {'type': 'spot', 'feed_id': row['Spot']}
 
     event.config['riders'] = [
