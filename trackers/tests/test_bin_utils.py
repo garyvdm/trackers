@@ -17,7 +17,7 @@ from trackers.tests.test_events import TestEventWithMockTracker
 class TestConvertToStatic(asynctest.TestCase, TestEventWithMockTracker):
     async def test_mock(self):
         app, settings, writer = self.do_setup('''
-            trackers_end: 2019-01-01 00:00:00
+            tracker_end: 2019-01-01 00:00:00
             riders:
               - name: foo
                 tracker: {type: mock}
@@ -27,9 +27,9 @@ class TestConvertToStatic(asynctest.TestCase, TestEventWithMockTracker):
 
         writer.reset()
         self.assertEqual(writer.get('events/test_event/data.yaml').data.decode(), dedent('''
+            tracker_end: 2019-01-01 00:00:00
             live: false
             static_analyse: true
-            trackers_end: 2019-01-01 00:00:00
             riders:
             - name: foo
             ''').lstrip('\n'))
