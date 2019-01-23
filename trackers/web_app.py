@@ -620,7 +620,7 @@ async def message_to_multiple_wss(app, wss, msg, log_level=logging.DEBUG, filter
 async def event_set_start(request, event):
     event.config['event_start'] = datetime.datetime.now().replace(microsecond=0)
     author = await get_git_author(request)
-    await event.save(f"{event.name}: Set event start", author=author)
+    await event.save(f"{event.name}: Set event start", author=author, prevent_reload=False)
     return web.Response(text='Start time set to {}'.format(event.config['event_start']))
 
 
