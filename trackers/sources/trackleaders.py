@@ -136,8 +136,8 @@ async def get_config(app, settings, args):
     await event.save(f'{event_name}: load config from trackleaders', tree_writer=tree_writer, save_routes=True)
 
 
-async def start_event_tracker(app, event, rider_name, tracker_data):
-    return await start_tracker(app, rider_name, tracker_data['name'], tracker_data['event'], event.config['tracker_end'])
+async def start_event_tracker(app, event, rider_name, tracker_data, start, end):
+    return await start_tracker(app, rider_name, tracker_data['name'], tracker_data['event'], end)
 
 
 async def start_tracker(app, tracker_name, name, event, end):

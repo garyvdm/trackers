@@ -466,11 +466,9 @@ def consume_config_from_point(app, point):
     return point
 
 
-async def start_event_tracker(app, event, rider_name, tracker_data):
+async def start_event_tracker(app, event, rider_name, tracker_data, start, end):
     return await TKStorageTracker.start(
-        app, rider_name, tracker_data['id'],
-        tracker_data.get('start') or event.config['tracker_start'],
-        tracker_data.get('end') or event.config['tracker_end'],
+        app, rider_name, tracker_data['id'], start, end,
         tracker_data.get('config') or event.config.get('tk_config'),
     )
 

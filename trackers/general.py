@@ -26,7 +26,7 @@ def json_encode(obj):
 json_dumps = functools.partial(json.dumps, default=json_encode, sort_keys=True)
 
 
-async def static_start_event_tracker(app, event, rider_name, tracker_data):
+async def static_start_event_tracker(app, event, rider_name, tracker_data, start, end):
     tracker = Tracker('static.{}'.format(tracker_data['name']))
     path = os.path.join('events', event.name, tracker_data['name'])
     data = TreeReader(app['trackers.data_repo']).get(path).data
@@ -82,9 +82,9 @@ async def replay(replay_tracker, org_tracker, event_start_time, replay_start, of
             await asyncio.sleep(1)
 
 
-async def wrapped_tracker_start_event(start_wraped, app, event, rider_name, tracker_data):
+async def wrapped_tracker_start_event(start_wraped, app, event, rider_name, tracker_data, start, end):
     start_tracker = app['start_event_trackers'][tracker_data['tracker']['type']]
-    org_tracker = await start_tracker(app, event, rider_name, tracker_data['tracker'])
+    org_tracker = await start_tracker(app, event, rider_name, tracker_data['tracker'], start, end)
     return await start_wraped(org_tracker, tracker_data)
 
 

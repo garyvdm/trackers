@@ -974,8 +974,12 @@ async def event_add_rider_tracker(request, event):
     tracker = yaml.safe_load(tracker)
 
     rider_objects = event.riders_objects[rider_name]
+
     start_tracker = event.app['start_event_trackers'][tracker['type']]
-    source_tracker = await start_tracker(event.app, event, rider_name, tracker)
+    start = tracker.get('start') or event.config['tracker_start'],
+    end = tracker.get('end') or event.config['tracker_end'],
+    source_tracker = await start_tracker(event.app, event, rider_name, tracker, start, end)
+
     rider_objects.source_trackers.append(source_tracker)
     await rider_objects.combined_tracker.append_sub_tracker(source_tracker)
 

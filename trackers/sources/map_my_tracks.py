@@ -21,11 +21,11 @@ def config(app, settings):
     return mapmytracks_session
 
 
-async def start_event_tracker(app, event, rider_name, tracker_data):
+async def start_event_tracker(app, event, rider_name, tracker_data, start, end):
     tracker = Tracker('mapmytracks.{}'.format(tracker_data['name']))
     monitor_task = asyncio.ensure_future(monitor_user(
         app['trackers.mapmytracks_session'], tracker_data['name'],
-        event.config['tracker_start'], event.config['tracker_end'],
+        start, end,
         os.path.join(app['trackers.settings']['cache_path'], event.name, 'mapmytracks'),
         tracker, set(tracker_data.get('exclude', ()))))
     tracker.stop = monitor_task.cancel

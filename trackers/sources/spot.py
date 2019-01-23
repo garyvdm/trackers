@@ -69,10 +69,8 @@ def api_call(app, feed_id, params):
     return fut
 
 
-async def start_event_tracker(app, event, rider_name, tracker_data):
-    return await start_tracker(app, rider_name,
-                               tracker_data['feed_id'],
-                               event.config['tracker_start'], event.config['tracker_end'])
+async def start_event_tracker(app, event, rider_name, tracker_data, start, end):
+    return await start_tracker(app, rider_name, tracker_data['feed_id'], start, end)
 
 
 async def start_tracker(app, tracker_name, feed_id, start, end):

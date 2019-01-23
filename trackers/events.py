@@ -230,7 +230,7 @@ class Event(object):
         self.starting_fut = None
 
     async def _start_trackers(self, analyse):
-        self.logger.info('Starting {}'.format(self.name))
+        self.logger.info('Starting.')
 
         # analyse = self.config.get('analyse', False)
         replay = self.config.get('replay', False)
@@ -288,7 +288,9 @@ class Event(object):
                 ))
                 for tracker in rider_trackers:
                     start_tracker = self.app['start_event_trackers'][tracker['type']]
-                    start_fut = asyncio.ensure_future(start_tracker(self.app, self, rider_name, tracker))
+                    start = tracker.get('start') or self.config.get('tracker_start')
+                    end = tracker.get('end') or self.config.get('tracker_end')
+                    start_fut = asyncio.ensure_future(start_tracker(self.app, self, rider_name, tracker, start, end))
                     rider_tracker_start_fs[rider_name].append(start_fut)
 
             all_start_fs = list(chain.from_iterable(rider_tracker_start_fs.values()))
@@ -351,6 +353,7 @@ class Event(object):
         if analyse and is_live:
             self.predicted_task = asyncio.ensure_future(self.predicted())
         self.trackers_started = True
+        self.logger.info('Started.')
 
     async def stop_and_complete_trackers(self):
         if self.starting_fut:

@@ -114,7 +114,7 @@ class TestEventWithMockTracker(fixtures.TestWithFixtures):
         writer.set_data('events/test_event/data.yaml', dedent(data).encode())
         writer.commit('add test_event')
 
-        async def start_mock_event_tracker(app, event, rider_name, tracker_data):
+        async def start_mock_event_tracker(app, event, rider_name, tracker_data, start, end):
             tracker = Tracker('mock_tracker')
             tracker.completed.set_result(None)
             return tracker

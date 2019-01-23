@@ -166,7 +166,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
 
             mock_tracker = Tracker('mock_tracker')
 
-            async def start_mock_event_tracker(app, event, rider_name, tracker_data):
+            async def start_mock_event_tracker(app, event, rider_name, tracker_data, start, end):
                 return mock_tracker
 
             app['start_event_trackers'] = {
