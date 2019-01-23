@@ -333,6 +333,7 @@ class Event(object):
                     objects.pre_post_tracker = await index_and_hash_tracker(tracker.pre_post_tracker)
                     await self.on_rider_pre_post_new_points(rider['name'], objects.pre_post_tracker, objects.pre_post_tracker.points)
                     objects.pre_post_tracker.new_points_observable.subscribe(partial(self.on_rider_pre_post_new_points, rider['name']))
+                    tracker.not_pre_post_observable.subscribe(partial(self.on_rider_not_pre_post, rider['name']))
 
                 objects.off_route_blocked_list = BlockedList.from_tracker(
                     objects.off_route_tracker, entire_block=not is_live,
@@ -421,6 +422,10 @@ class Event(object):
             if values_updated:
                 await self.rider_new_values_observable(self, rider_name, values)
             await self.rider_pre_post_new_values_observable(self, rider_name, pre_post_values)
+
+    async def on_rider_not_pre_post(self, rider_name):
+        self.riders_pre_post_values[rider_name] = values = {}
+        await self.rider_pre_post_new_values_observable(self, rider_name, values)
 
     async def on_rider_reset_points(self, rider_name, tracker):
         values = self.riders_current_values[rider_name]

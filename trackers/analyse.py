@@ -58,7 +58,7 @@ except ImportError:
         return n_EB_E_ti
 
 
-from trackers.base import cancel_and_wait_task, general_fut_done_callback, Tracker
+from trackers.base import cancel_and_wait_task, general_fut_done_callback, Observable, Tracker
 from trackers.contrib.dataclass_tools import add_slots
 
 logger = logging.getLogger(__name__)
@@ -96,6 +96,7 @@ class AnalyseTracker(Tracker):
 
         self.off_route_tracker = Tracker(f'offroute.{self.name}', completed=self.completed)
         self.pre_post_tracker = Tracker(f'prepost.{self.name}', completed=self.completed)
+        self.not_pre_post_observable = Observable(self.logger)
 
         self.reset()
         self.do_est_finish_fut = None
@@ -163,9 +164,10 @@ class AnalyseTracker(Tracker):
             new_new_points = []
             new_off_route_points = []
             new_pre_post_points = []
+            prev_submited_pre_post = self.pre_post
 
             async def submit_points():
-                nonlocal new_new_points, new_off_route_points, new_pre_post_points
+                nonlocal new_new_points, new_off_route_points, new_pre_post_points, prev_submited_pre_post
                 if new_new_points:
                     await self.new_points(new_new_points)
                     new_new_points = []
@@ -175,6 +177,9 @@ class AnalyseTracker(Tracker):
                 if new_pre_post_points:
                     await self.pre_post_tracker.new_points(new_pre_post_points)
                     new_pre_post_points = []
+                if not self.pre_post and prev_submited_pre_post != self.pre_post:
+                    await self.not_pre_post_observable()
+                prev_submited_pre_post = self.pre_post
 
             log_time = datetime.now()
             log_i = 0
