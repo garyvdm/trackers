@@ -158,7 +158,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
         self.check_no_errors(client_errors, server_errors)
 
     async def test_tracker_points_show_and_change(self):
-        step_sleep_time = 0.2
+        step_sleep_time = 0.5
 
         async with AsyncExitStack() as stack:
             session = self.browser_session
@@ -185,6 +185,8 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
                           name_short: Foo
                           tracker: {type: mock}
                     markers: []
+                    batch_update_interval: 0.1
+                    predicted_update_interval: 5
                     bounds: {'north': -26.300822, 'south': -27.28287, 'east': 28.051139, 'west': 27.969365}
                 """),
                 []
@@ -208,6 +210,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
 
             await mock_tracker.reset_points()
             await asyncio.sleep(step_sleep_time)
+            # await asyncio.sleep(100)
             self.assertTrue(await session.execute_script('return riders_client_items["Foo Bar"].marker === null;'))
             self.assertEqual(await session.execute_script('return riders_client_items["Foo Bar"].paths.riders_off_route.length;'), 0)
 
@@ -216,6 +219,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
                 {'time': d('2017/01/01 05:31:00'), 'position': (-27.282870, 27.970620, 1800)},
             ])
             await asyncio.sleep(step_sleep_time)
+            # await asyncio.sleep(100)
             self.assertFalse(await session.execute_script('return riders_client_items["Foo Bar"].marker === null;'))
             self.assertEqual(await session.execute_script('return riders_client_items["Foo Bar"].paths.riders_off_route.length;'), 1)
             self.assertEqual(await session.execute_script('return riders_client_items["Foo Bar"].paths.riders_off_route[0].getPath().length;'), 2)

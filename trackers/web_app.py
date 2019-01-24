@@ -13,6 +13,8 @@ from base64 import urlsafe_b64encode
 from collections import defaultdict
 from contextlib import asynccontextmanager, suppress
 from functools import partial, wraps
+from itertools import groupby
+from operator import itemgetter
 
 import pkg_resources
 import yaml
@@ -303,7 +305,7 @@ async def event_state(request, event):
         state = {'live': True}
     else:
         await event.start_trackers()
-        if all([rider_objs.tracker.completed.done() for rider_objs in event.riders_objects.values()]):
+        if event.not_live_complete_trackers_task.done():
             state = await get_event_state(request.app, event)
         else:
             state = {'loading': True}
@@ -419,13 +421,13 @@ async def on_static_processed(static_manager):
 
 async def on_new_event(event):
     event.config_routes_change_observable.subscribe(on_event_config_routes_change)
-    event.rider_new_values_observable.subscribe(partial(on_event_rider_new_values, 'riders_values'))
-    event.rider_pre_post_new_values_observable.subscribe(partial(on_event_rider_new_values, 'riders_pre_post_values',
-                                                                 filter_ws=lambda ws: 'riders_pre_post' in ws.subscriptions))
-    event.rider_blocked_list_update_observable.subscribe(partial(on_event_rider_blocked_list_update, 'riders_points'))
-    event.rider_off_route_blocked_list_update_observable.subscribe(partial(on_event_rider_blocked_list_update, 'riders_off_route'))
-    event.rider_pre_post_blocked_list_update_observable.subscribe(partial(on_event_rider_blocked_list_update, 'riders_pre_post'))
-    event.rider_predicted_updated_observable.subscribe(on_event_rider_predicted_updated)
+    # event.rider_new_values_observable.subscribe(partial(on_event_rider_new_values, 'riders_values'))
+    # event.rider_pre_post_new_values_observable.subscribe(partial(on_event_rider_new_values, 'riders_pre_post_values',
+    #                                                              filter_ws=lambda ws: 'riders_pre_post' in ws.subscriptions))
+    # event.rider_blocked_list_update_observable.subscribe(partial(on_event_rider_blocked_list_update, 'riders_points'))
+    # event.rider_off_route_blocked_list_update_observable.subscribe(partial(on_event_rider_blocked_list_update, 'riders_off_route'))
+    # event.rider_pre_post_blocked_list_update_observable.subscribe(partial(on_event_rider_blocked_list_update, 'riders_pre_post'))
+    event.batch_update_observable.subscribe(on_event_batch_update)
     await on_event_config_routes_change(event)
     event.app['home_pages'] = {}
 
@@ -485,15 +487,6 @@ async def on_event_config_routes_change(event):
         event.start_trackers_without_wait()
 
 
-async def on_event_rider_new_values(key, event, rider_name, values, filter_ws=None):
-    await message_to_multiple_wss(
-        event.app,
-        event.app['trackers.event_ws_sessions'][event.name],
-        {key: {rider_name: values}},
-        filter_ws=filter_ws,
-    )
-
-
 async def on_event_rider_blocked_list_update(key, event, rider_name, blocked_list, update):
     event_wss = event.app['trackers.event_ws_sessions'][event.name]
     await message_to_multiple_wss(
@@ -504,13 +497,67 @@ async def on_event_rider_blocked_list_update(key, event, rider_name, blocked_lis
     )
 
 
-async def on_event_rider_predicted_updated(event, predicted, time):
-    await message_to_multiple_wss(
-        event.app,
-        event.app['trackers.event_ws_sessions'][event.name],
-        {'riders_predicted': predicted, },
-        filter_ws=lambda ws: 'riders_predicted' in ws.subscriptions,
+def group_wss_by_subscriptions(wss):
+    with_hashable = ((tuple(sorted(ws.subscriptions)), ws) for ws in wss)
+    key = itemgetter(0)
+    for subscriptions, group in groupby(sorted(with_hashable, key=key), key=key):
+        yield subscriptions, tuple(ws for _, ws in group)
+
+
+async def on_event_batch_update(event, time, riders_updated, riders_off_route_updated, riders_pre_post_updated):
+
+    update = {
+        'riders_values': {rider_name: values for rider_name, values in event.riders_current_values.items() if rider_name in riders_updated},
+        'riders_pre_post_values': {rider_name: values for rider_name, values in event.riders_pre_post_values.items() if rider_name in riders_pre_post_updated},
+        'riders_predicted': event.riders_predicted_points,
+    }
+
+    blocked_lists = (
+        ('riders_points', 'blocked_list', riders_updated),
+        ('riders_off_route', 'off_route_blocked_list', riders_off_route_updated),
+        ('riders_pre_post', 'pre_post_blocked_list', riders_pre_post_updated),
     )
+
+    for update_key, list_attr, updated in blocked_lists:
+        update[update_key] = {rider_name: getattr(objects, list_attr).get_update_from_last()
+                              for rider_name, objects in event.riders_objects.items() if rider_name in updated}
+
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f'send bulk_update: {json_dumps(update)[:1000]}')
+
+    for subscriptions, wss in group_wss_by_subscriptions(event.app['trackers.event_ws_sessions'][event.name]):
+        filtered_update = {
+            'riders_values': update['riders_values'],
+        }
+        if update.get('riders_points'):
+            if 'riders_points' in subscriptions:
+                filtered_update['riders_points'] = update['riders_points']
+            else:
+                filtered_rider_points = {rider_name: points for rider_name, points in update['riders_points'].items()
+                                         if f'riders_points.{rider_name}' in subscriptions}
+                if filtered_rider_points:
+                    filtered_update['riders_points'] = filtered_rider_points
+
+        if 'riders_predicted' in subscriptions:
+            filtered_update['riders_predicted'] = update['riders_predicted']
+
+        if 'riders_pre_post' in subscriptions:
+            filtered_update['riders_pre_post_values'] = update['riders_pre_post_values']
+            if update.get('riders_pre_post'):
+                filtered_update['riders_pre_post'] = update['riders_pre_post']
+
+        if update.get('riders_off_route') and 'riders_off_route' in subscriptions:
+            filtered_update['riders_off_route'] = update['riders_off_route']
+
+        msg = json_dumps(filtered_update)
+        futures = [asyncio.ensure_future(ws.send_str(msg)) for ws in wss]
+        await asyncio.wait(futures)
+        for fut in futures:
+            try:
+                fut.result()
+            except Exception:
+                event.app['exception_recorder']()
+                logger.exception('Error sending msg to ws:')
 
 
 def get_rider_blocked_list(event, list_name):
@@ -602,7 +649,9 @@ async def event_ws(request):
 async def message_to_multiple_wss(app, wss, msg, log_level=logging.DEBUG, filter_ws=None):
     msg = json_dumps(msg)
     filtered_wss = [ws for ws in wss if (filter_ws(ws) if filter_ws else True) and not ws.closed]
-    logger.log(log_level, f'send to {len(filtered_wss)}: {msg[:1000]}')
+
+    if logger.isEnabledFor(log_level):
+        logger.log(log_level, f'send to {len(filtered_wss)}: {msg[:1000]}')
     if filtered_wss:
         futures = [asyncio.ensure_future(ws.send_str(msg)) for ws in filtered_wss]
         await asyncio.wait(futures)

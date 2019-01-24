@@ -161,66 +161,64 @@ function on_new_state_received(new_state) {
         }).catch(promise_catch);
         need_save = true;
     }
-    if (new_state.hasOwnProperty('riders_values')) {
-        config_loaded.promise.then( function () {
+    config_loaded.promise.then( function () {
+        var need_update_rider_table = false;
+        var riders_updated = {};
+
+        if (new_state.hasOwnProperty('riders_values')) {
             Object.entries(new_state.riders_values).forEach(function (entry){
                 var name = entry[0];
                 var values = entry[1];
                 riders_values[name] = values;
-                if (!predicted_el.checked || !riders_predicted.hasOwnProperty(name)) on_new_rider_values(name);
             });
-            if (!predicted_el.checked || !riders_predicted.length) update_rider_table();
-        }).catch(promise_catch);
-    }
-
-    if (new_state.hasOwnProperty('riders_pre_post_values')) {
-        config_loaded.promise.then( function () {
+            Object.assign(riders_updated, new_state.riders_values);
+            need_update_rider_table = true;
+        }
+        if (new_state.hasOwnProperty('riders_pre_post_values')) {
             Object.entries(new_state.riders_pre_post_values).forEach(function (entry){
                 var name = entry[0];
                 var values = entry[1];
                 riders_pre_post_values[name] = values;
-                if (pre_post) on_new_rider_values(name);
             });
-        }).catch(promise_catch);
-    }
-
-    if (new_state.hasOwnProperty('riders_predicted')) {
-        config_loaded.promise.then( function () {
-            riders_predicted = new_state.riders_predicted;
-            var changed = {};
-            Object.assign(changed, riders_predicted);
-            Object.assign(changed, riders_values);
-            Object.keys(changed).forEach(on_new_rider_values);
-            update_rider_table();
-        }).catch(promise_catch);
-    }
-
-    [
-        ['riders_points', riders_points],
-        ['riders_off_route', riders_off_route],
-        ['riders_pre_post', riders_pre_post],
-    ].forEach(function(item){
-        var list_name = item[0];
-        var list_container = item[1];
-        if (new_state.hasOwnProperty(list_name)) {
-            Object.entries(new_state[list_name]).forEach(function (entry){
-                var name = entry[0];
-                var update = entry[1];
-
-                var list = list_container[name] || [];
-
-                function fetch_block(block) {
-                    return get('/' + list_name + '?name=' + encodeURIComponent(name) + '&start_index=' + block.start_index +
-                               '&end_index=' + block.end_index + '&end_hash=' + block.end_hash);
-                }
-
-                process_update_list(fetch_block, list, update).then(function (rider_points) {
-                    list_container[name] = rider_points.new_list;
-                    on_new_rider_points(name, list_name, rider_points.new_list, rider_points.new_items, rider_points.old_items);
-                });
-            });
+            if (pre_post_el.checked) Object.assign(riders_updated, new_state.riders_pre_post_values);
+            need_update_rider_table = true;
         }
-    });
+        if (new_state.hasOwnProperty('riders_predicted')) {
+            riders_predicted = new_state.riders_predicted;
+            Object.assign(riders_updated, riders_predicted);
+            need_update_rider_table = true;
+        }
+        if (need_update_rider_table) update_rider_table();
+        Object.keys(riders_updated).forEach(on_new_rider_values);
+
+        [
+            ['riders_points', riders_points],
+            ['riders_off_route', riders_off_route],
+            ['riders_pre_post', riders_pre_post],
+        ].forEach(function(item){
+            var list_name = item[0];
+            var list_container = item[1];
+            if (new_state.hasOwnProperty(list_name)) {
+                Object.entries(new_state[list_name]).forEach(function (entry){
+                    var name = entry[0];
+                    var update = entry[1];
+
+                    var list = list_container[name] || [];
+
+                    function fetch_block(block) {
+                        return get('/' + list_name + '?name=' + encodeURIComponent(name) + '&start_index=' + block.start_index +
+                                   '&end_index=' + block.end_index + '&end_hash=' + block.end_hash);
+                    }
+
+                    process_update_list(fetch_block, list, update).then(function (rider_points) {
+                        list_container[name] = rider_points.new_list;
+                        on_new_rider_points(name, list_name, rider_points.new_list, rider_points.new_items, rider_points.old_items);
+                    });
+                });
+            }
+        });
+
+    }).catch(promise_catch);
 
     if (need_save) save_state(state);
 }
@@ -686,7 +684,6 @@ function update_rider_paths_visible(rider_name) {
     Object.keys(rider_client_items.paths).forEach( function (route_name) {
         var paths = rider_client_items.paths[route_name];
         var show = show_route_for_rider(route_name, rider_name);
-        console.log(rider_name, route_name, show);
         paths.forEach(function (path) { path.setVisible(show) });
     });
 }
@@ -772,15 +769,12 @@ function on_new_rider_values(rider_name){
         var rider = riders_by_name[rider_name]
         if (!rider) return;
         var rider_items = riders_client_items[rider_name];
-        var values = riders_values[rider_name] || {};
-
+        var values = {};
+        Object.assign(values, riders_values[rider_name] || {});
         if (pre_post_el.checked && riders_pre_post_values.hasOwnProperty(rider_name)) {
-            values = Object.assign({}, values);
             Object.assign(values, riders_pre_post_values[rider_name]);
-
         }
         if (predicted_el.checked && riders_predicted.hasOwnProperty(rider_name)) {
-            values = Object.assign({}, values);
             Object.assign(values, riders_predicted[rider_name]);
         }
         var show = pre_post_el.checked || !values.hasOwnProperty('rider_status') || selected_riders.has(rider_name);
@@ -919,8 +913,13 @@ function get_rider_values_and_sorted_riders(){
     return [riders_values_l, sorted_riders];
 }
 
+var update_rider_table_timeout_id = null;
+
 function update_rider_table(){
     if (config) {
+        if (update_rider_table_timeout_id) clearTimeout(update_rider_table_timeout_id);
+        update_rider_table_timeout_id = setTimeout(update_rider_table, 20000)
+
         var x = get_rider_values_and_sorted_riders();
         var riders_values_l = x[0];
         var sorted_riders = x[1];
@@ -1044,7 +1043,6 @@ function update_rider_table_specific(container, detail_level, sorted_riders, rid
     });
 }
 
-setInterval(update_rider_table(), 20000);
 riders_detail_level_el.onchange = update_rider_table;
 
 var selected_riders = new Set();
@@ -1597,7 +1595,6 @@ function update_graph() {
 
             graph_selected_riders.forEach(function (rider_name) {
                 var rider_points = riders_points[rider_name];
-                console.log(rider_name, rider_points)
                 if (rider_points) on_new_rider_points_graph(rider_name, 'riders_points', rider_points, rider_points, [], false);
             });
             Object.values(graph_charts).forEach(function (chart){ chart.update(); });
@@ -1635,7 +1632,6 @@ function on_new_rider_points_graph(rider_name, list_name, items, new_items, old_
             if (pre_post_el.checked) {
                 // Horrible hack
                 items = riders_pre_post[rider_name].concat(riders_points[rider_name]);
-                console.log(items);
                 items = items.filter(function(item) {return item.hasOwnProperty('battery')});
                 items.sort(function (a, b) { return a.time - b.time });
             }

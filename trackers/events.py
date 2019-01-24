@@ -17,7 +17,7 @@ import yaml
 from more_itertools import spy
 
 from trackers.analyse import AnalyseTracker, get_analyse_routes
-from trackers.base import BlockedList, cancel_and_wait_task, Observable, Tracker
+from trackers.base import BlockedList, cancel_and_wait_task, general_fut_done_callback, Observable, Tracker
 from trackers.combined import Combined
 from trackers.dulwich_helpers import TreeReader, TreeWriter
 from trackers.general import hash_bytes, index_and_hash_tracker, json_encode, start_replay_tracker
@@ -112,7 +112,7 @@ class Event(object):
 
         self.trackers_started = False
         self.starting_fut = None
-        self.predicted_task = None
+        self.batch_update_task = None
 
         self.config_routes_change_observable = Observable(self.logger)
         self.rider_new_values_observable = Observable(self.logger)
@@ -120,7 +120,7 @@ class Event(object):
         self.rider_blocked_list_update_observable = Observable(self.logger)
         self.rider_off_route_blocked_list_update_observable = Observable(self.logger)
         self.rider_pre_post_blocked_list_update_observable = Observable(self.logger)
-        self.rider_predicted_updated_observable = Observable(self.logger)
+        self.batch_update_observable = Observable(self.logger)
         self.new_points = asyncio.Event()
 
         self.path = os.path.join('events', name)
@@ -243,6 +243,9 @@ class Event(object):
         self.riders_current_values = {}
         self.riders_pre_post_values = {}
         self.riders_predicted_points = {}
+        self.riders_updated = set()
+        self.riders_off_route_updated = set()
+        self.riders_pre_post_updated = set()
 
         tree_reader = TreeReader(self.app['trackers.data_repo'], treeish=self.git_hash) if self.git_hash else None
         has_static = tree_reader.exists(os.path.join('static')) if tree_reader else False
@@ -337,7 +340,7 @@ class Event(object):
 
                 objects.off_route_blocked_list = BlockedList.from_tracker(
                     objects.off_route_tracker, entire_block=not is_live,
-                    new_update_callbacks=(partial(self.rider_off_route_blocked_list_update_observable, self, rider['name']), ))
+                    new_update_callbacks=(partial(self.on_rider_off_route_update, rider['name']), ))
 
                 objects.pre_post_blocked_list = BlockedList.from_tracker(
                     objects.pre_post_tracker, entire_block=not is_live,
@@ -353,8 +356,12 @@ class Event(object):
                 tracker, entire_block=not is_live,
                 new_update_callbacks=(partial(self.rider_blocked_list_update_observable, self, rider['name']), ))
 
-        if analyse and is_live:
-            self.predicted_task = asyncio.ensure_future(self.predicted())
+        if is_live:
+            self.batch_update_task = asyncio.ensure_future(self.batch_update_loop())
+        else:
+            self.not_live_complete_trackers_task = asyncio.ensure_future(self.not_live_complete_trackers())
+            self.not_live_complete_trackers_task.add_done_callback(general_fut_done_callback)
+
         self.trackers_started = True
         self.logger.info('Started.')
 
@@ -363,9 +370,9 @@ class Event(object):
             await cancel_and_wait_task(self.starting_fut)
 
         if self.trackers_started:
-            if self.predicted_task:
-                await cancel_and_wait_task(self.predicted_task)
-                self.predicted_task = None
+            if self.batch_update_task:
+                await cancel_and_wait_task(self.batch_update_task)
+                self.batch_update_task = None
 
             for riders_objects in self.riders_objects.values():
                 if riders_objects.tracker:
@@ -383,8 +390,16 @@ class Event(object):
             del self.riders_objects
             del self.riders_current_values
             del self.riders_predicted_points
+            del self.riders_updated
+            del self.riders_off_route_updated
+            del self.riders_pre_post_updated
 
             self.trackers_started = False
+
+    async def not_live_complete_trackers(self):
+        await asyncio.wait([rider_objs.tracker.completed for rider_objs in self.riders_objects.values()])
+        riders = set(self.riders_objects.keys())
+        await self.batch_update(riders, riders, riders)
 
     async def on_rider_new_points(self, rider_name, tracker, new_points):
         if new_points:
@@ -396,8 +411,14 @@ class Event(object):
             # if 'rider_status' in values:
             #     with suppress(KeyError):
             #         del values['position']
+            self.riders_updated.add(rider_name)
+            self.new_points.set()
             await self.rider_new_values_observable(self, rider_name, values)
+
+    async def on_rider_off_route_update(self, rider_name, blocked_list, update):
+        self.riders_off_route_updated.add(rider_name)
         self.new_points.set()
+        await self.rider_off_route_blocked_list_update_observable(self, rider_name, blocked_list, update)
 
     pre_post_update_main_keys = {'time', 'battery', 'tk_status', 'tk_config'}
 
@@ -420,23 +441,31 @@ class Event(object):
                     values_updated = True
 
             if values_updated:
+                self.riders_updated.add(rider_name)
                 await self.rider_new_values_observable(self, rider_name, values)
+
+            self.riders_pre_post_updated.add(rider_name)
+            self.new_points.set()
             await self.rider_pre_post_new_values_observable(self, rider_name, pre_post_values)
 
     async def on_rider_not_pre_post(self, rider_name):
         self.riders_pre_post_values[rider_name] = values = {}
         await self.rider_pre_post_new_values_observable(self, rider_name, values)
+        self.riders_pre_post_updated.add(rider_name)
+        self.new_points.set()
 
     async def on_rider_reset_points(self, rider_name, tracker):
-        values = self.riders_current_values[rider_name]
-        values.clear()
-        await self.rider_new_values_observable(self, rider_name, values)
+        self.riders_current_values[rider_name].clear()
+        self.riders_pre_post_values[rider_name].clear()
+        self.riders_predicted_points[rider_name].clear()
 
-        pre_post_values = self.riders_pre_post_values[rider_name]
-        pre_post_values.clear()
-        await self.rider_pre_post_new_values_observable(self, rider_name, pre_post_values)
-
+        self.riders_updated.add(rider_name)
+        self.riders_pre_post_updated.add(rider_name)
+        self.riders_off_route_updated.add(rider_name)
         self.new_points.set()
+
+        await self.rider_new_values_observable(self, rider_name, {})
+        await self.rider_pre_post_new_values_observable(self, rider_name, {})
 
     def rider_sort_key_func(self, riders_predicted_points, rider_name):
         rider_values = self.riders_current_values.get(rider_name, {})
@@ -446,71 +475,91 @@ class Event(object):
         dist_on_route = riders_predicted_points.get(rider_name, {}).get('dist_route') or rider_values.get('dist_route', 0)
         return not finished, time_to_finish, not has_dist_on_route, 0 - dist_on_route
 
-    async def predicted(self):
+    async def batch_update_loop(self):
+        batch_update_interval = self.config.get('batch_update_interval') or 2
+        predicted_update_interval = self.config.get('predicted_update_interval') or 10
         while True:
-            # Sleep at least 5 secs
-            await asyncio.sleep(5)
-            # Sleep another 15 sec or when new points are available.
+            await asyncio.sleep(batch_update_interval)
             with suppress(asyncio.TimeoutError):
-                await asyncio.wait_for(self.new_points.wait(), 15)
-
+                await asyncio.wait_for(self.new_points.wait(), predicted_update_interval - batch_update_interval)
             try:
-                time = datetime.now()
-                riders_predicted_points = {rider_objects.rider_name: rider_objects.analyse_tracker.get_predicted_position(time) or {}
-                                           for rider_objects in self.riders_objects.values() if rider_objects.analyse_tracker}
-                if not riders_predicted_points:
-                    break
-
-                sort_key_func = partial(self.rider_sort_key_func, riders_predicted_points)
-                rider_names_sorted = list(sorted(riders_predicted_points.keys(), key=sort_key_func))
-
-                leader = rider_names_sorted[0]
-                leader_objects = self.riders_objects[leader]
-                leader_points = []
-                last_point = None
-                for point in leader_objects.analyse_tracker.points:
-                    if 'dist_route' in point:
-                        going_forward = point['dist_route'] > last_point['dist_route'] if last_point else True
-                        if going_forward:
-                            leader_points.append((point['dist_route'], point['time']))
-                            last_point = point
-                if 'dist_route' in riders_predicted_points[leader]:
-                    leader_points.append((riders_predicted_points[leader]['dist_route'], time))
-
-                if leader_points:
-                    for rider_name in rider_names_sorted[1:]:
-                        rider_predicted_points = riders_predicted_points.get(rider_name)
-                        rider_values = self.riders_current_values.get(rider_name)
-                        if rider_values and 'position_time' in rider_values:
-                            rider_dist_route = None
-                            rider_time = None
-                            if rider_predicted_points and 'dist_route' in rider_predicted_points:
-                                rider_dist_route = rider_predicted_points['dist_route']
-                                rider_time = time
-                            elif rider_values and 'dist_route' in rider_values:
-                                rider_dist_route = rider_values['dist_route']
-                                rider_time = time
-                            if rider_dist_route:
-                                i = bisect(leader_points, (rider_dist_route, ))
-                                if i < len(leader_points):
-                                    point1 = leader_points[i - 1]
-                                    point2 = leader_points[i]
-                                    try:
-                                        interpolate = (rider_dist_route - point1[0]) / (point2[0] - point1[0])
-                                    except FloatingPointError:
-                                        pass
-                                    else:
-                                        interpolated_time = ((point2[1] - point1[1]) * interpolate) + point1[1]
-                                        time_diff = rider_time - interpolated_time
-                                        rider_predicted_points['leader_time_diff'] = time_diff.total_seconds()
-
-                self.riders_predicted_points = {key: value for key, value in riders_predicted_points.items() if value}
-                await self.rider_predicted_updated_observable(self, self.riders_predicted_points, time)
+                await self.batch_update(self.riders_updated, self.riders_off_route_updated, self.riders_pre_post_updated)
             except asyncio.CancelledError:
                 raise
             except Exception:
-                self.logger.exception('Error in predicted:')
+                self.logger.exception('Error in batch_update:')
+            self.riders_updated = set()
+            self.riders_off_route_updated = set()
+            self.riders_pre_post_updated = set()
             self.new_points.clear()
+
+    async def batch_update(self, riders_updated, riders_off_route_updated, riders_pre_post_updated):
+        time = datetime.now()
+        riders_predicted_points = {
+            rider_objects.rider_name: rider_objects.analyse_tracker.get_predicted_position(time) or {}
+            for rider_objects in self.riders_objects.values() if isinstance(rider_objects.analyse_tracker, AnalyseTracker)}
+
+        sort_key_func = partial(self.rider_sort_key_func, riders_predicted_points)
+        rider_names_sorted = list(sorted(self.riders_objects.keys(), key=sort_key_func))
+
+        leader = rider_names_sorted[0]
+        leader_objects = self.riders_objects[leader]
+        leader_points = []
+        last_point = None
+        if leader_objects.analyse_tracker:
+            for point in leader_objects.analyse_tracker.points:
+                if 'dist_route' in point:
+                    going_forward = point['dist_route'] > last_point['dist_route'] if last_point else True
+                    if going_forward:
+                        leader_points.append((point['dist_route'], point['time']))
+                        last_point = point
+        if 'dist_route' in riders_predicted_points.get(leader, ()):
+            leader_points.append((riders_predicted_points[leader]['dist_route'], time))
+
+        if leader_points:
+            for rider_name in rider_names_sorted[1:]:
+                leader_time_diff = self.get_leader_time_diff(rider_name, riders_predicted_points,
+                                                             leader, leader_points, time)
+                if leader_time_diff is not None:
+                    if rider_name in riders_predicted_points:
+                        riders_predicted_points[rider_name]['leader_time_diff'] = leader_time_diff
+                    self.riders_current_values[rider_name]['leader_time_diff'] = leader_time_diff
+                else:
+                    with suppress(KeyError):
+                        del self.riders_current_values[rider_name]['leader_time_diff']
+
+        self.riders_predicted_points = {key: value for key, value in riders_predicted_points.items() if value}
+        await self.batch_update_observable(self, time, riders_updated, riders_off_route_updated, riders_pre_post_updated)
+
+    def get_leader_time_diff(self, rider_name, riders_predicted_points, leader, leader_points, time):
+        rider_predicted_points = riders_predicted_points.get(rider_name)
+        rider_values = self.riders_current_values.get(rider_name)
+        if rider_values and 'finished_time' in rider_values:
+            leader_values = self.riders_current_values.get(leader)
+            if 'finished_time' in leader_values:
+                return rider_values['finished_time'] - leader_values['finished_time']
+
+        if rider_values and 'position_time' in rider_values:
+            rider_dist_route = None
+            rider_time = None
+            if rider_predicted_points and 'dist_route' in rider_predicted_points:
+                rider_dist_route = rider_predicted_points['dist_route']
+                rider_time = time
+            elif rider_values and 'dist_route' in rider_values:
+                rider_dist_route = rider_values['dist_route']
+                rider_time = rider_values['position_time']
+            if rider_dist_route:
+                i = bisect(leader_points, (rider_dist_route,))
+                if i < len(leader_points):
+                    point1 = leader_points[i - 1]
+                    point2 = leader_points[i]
+                    try:
+                        interpolate = (rider_dist_route - point1[0]) / (point2[0] - point1[0])
+                    except FloatingPointError:
+                        pass
+                    else:
+                        interpolated_time = ((point2[1] - point1[1]) * interpolate) + point1[1]
+                        return rider_time - interpolated_time
 
     async def convert_to_static(self, tree_writer):
         try:
@@ -568,6 +617,8 @@ async def start_implicit_static_event_tracker(event, rider_name, sub_type, tree_
             point['time'] = datetime.fromtimestamp(point['time'])
         if 'server_time' in point:
             point['server_time'] = datetime.fromtimestamp(point['server_time'])
+        if 'finished_time' in point:
+            point['finished_time'] = datetime.fromtimestamp(point['finished_time'])
     # print(event.name, rider_name, sub_type, len(points))
 
     await tracker.new_points(points)

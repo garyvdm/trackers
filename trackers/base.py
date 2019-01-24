@@ -161,6 +161,7 @@ class BlockedList(object):
         self.get_source = get_source
         self.kwargs = kwargs
         self.full, _ = get_blocked_list(get_source(), {}, **self.kwargs)
+        self.last = self.full
         self.new_update_observable = Observable(logger, callbacks=new_update_callbacks)
 
     @staticmethod
@@ -178,3 +179,7 @@ class BlockedList(object):
     async def on_new_items(self):
         self.full, update = get_blocked_list(self.get_source(), self.full, **self.kwargs)
         await self.new_update_observable(self, update)
+
+    def get_update_from_last(self):
+        self.last, update = get_blocked_list(self.get_source(), self.last, **self.kwargs)
+        return update

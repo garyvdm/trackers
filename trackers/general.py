@@ -39,6 +39,8 @@ async def static_start_event_tracker(app, event, rider_name, tracker_data, start
             point['time'] = datetime.fromtimestamp(point['time'])
         if 'server_time' in point:
             point['server_time'] = datetime.fromtimestamp(point['server_time'])
+        if 'finished_time' in point:
+            point['finished_time'] = datetime.fromtimestamp(point['finished_time'])
 
     await tracker.new_points(points)
     tracker.completed.set_result(None)
