@@ -520,8 +520,9 @@ class TKStorageTracker(Tracker):
         now = datetime.datetime.now()
         tracker.initial_config_handle = None
 
+        base_start = config.get('base', {}).get('start', start)
         tracker.initial_config_handle = asyncio.get_event_loop().call_later(
-            (start - now).total_seconds(),
+            (base_start - now).total_seconds(),
             tracker.set_base_config)
 
         if end:
