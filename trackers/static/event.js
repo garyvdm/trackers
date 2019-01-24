@@ -938,6 +938,7 @@ function update_rider_table(){
 }
 
 function update_rider_table_specific(container, detail_level, sorted_riders, riders_values_l, current_time) {
+    var expect_off_route = config.expect_off_route || false;
     var rider_rows = sorted_riders.map(function (rider){
         var rider_items = riders_client_items[rider.name];
         var values = riders_values_l[rider.name] || {};
@@ -954,9 +955,10 @@ function update_rider_table_specific(container, detail_level, sorted_riders, rid
                 var time = new Date(values.finished_time * 1000);
                 finished_time = sprintf('%s %02i:%02i:%02i', days[time.getDay()], time.getHours(), time.getMinutes(), time.getSeconds() )
             }
-
         }
+        var last_position_long_ago = true;
         if (values.hasOwnProperty('position_time')) {
+            last_position_long_ago = (current_time - values.position_time > 5 * 60)
             last_position_time = format_time_delta_ago_with_date(current_time, values.position_time, date_options_delta);
         }
         if (values.hasOwnProperty('server_time')) {
@@ -974,7 +976,7 @@ function update_rider_table_specific(container, detail_level, sorted_riders, rid
             return '<tr rider_name="' + rider.name + '" class="rider">' +
                    '<td style="background: ' + (rider.color || 'black') + ';">&nbsp;&nbsp;&nbsp;</td>' +
                    '<td class="name">' + rider.name + '</td>' +
-                   '<td style="text-align: right">' + (last_position_time || '') + '</td>' +
+                   (state.live?'<td style="text-align: right">' + (last_position_time || '') + '</td>':'') +
                    '<td style="text-align: right">' + (last_server_time || '') + '</td>' +
                    '<td style="text-align: right">' + (values.battery ? sprintf('%i %%', values.battery) : '') + '</td>' +
                    '<td>' + (values.hasOwnProperty('tk_config')? values.tk_config : '') + '</td>' +
@@ -984,11 +986,11 @@ function update_rider_table_specific(container, detail_level, sorted_riders, rid
             return '<tr rider_name="' + rider.name + '" class="rider">' +
                    '<td style="background: ' + (rider.color || 'black') + ';">&nbsp;&nbsp;&nbsp;</td>' +
                    '<td class="name">' + rider.name + '</td>' +
-                   '<td style="text-align: right">' + (last_position_time || '') + '</td>' +
+                   (state.live?'<td style="text-align: right">' + (last_position_time || '') + '</td>':'') +
                    '<td>' + rider_status + '</td>' +
                    '<td style="text-align: right">' + (current_time - values.position_time < 15 * 60 && values.speed_from_last ? sprintf('%.1f', values.speed_from_last) || '': '') + '</td>' +
                    '<td style="text-align: right">' + (values.hasOwnProperty('dist_route') ? sprintf('%.1f', values.dist_route / 1000) : '') + '</td>' +
-                   '<td style="text-align: right">' + (values.hasOwnProperty('dist') ? sprintf('%.1f', values.dist / 1000) : '') + '</td>' +
+                   (expect_off_route?'<td style="text-align: right">' + (values.hasOwnProperty('dist') ? sprintf('%.1f', values.dist / 1000) : '') + '</td>':'') +
                    '<td style="text-align: right">' + leader_time_diff + '</td>' +
                    '<td style="text-align: right">' + (finished_time || '') + '</td>' +
                    '</tr>';
@@ -999,7 +1001,8 @@ function update_rider_table_specific(container, detail_level, sorted_riders, rid
                    '<td class="name">' + rider.name + '</td>' +
                    '<td style="text-align: right">' +
                         (finished_time || (values.hasOwnProperty('dist_route') ? sprintf('%.1f km', values.dist_route / 1000) : ''))
-                        + '<br>' + (rider_status || last_position_time || '') +'</td>' +
+                        + '<br>' + (rider_status || (state.live && last_position_long_ago?last_position_time:'') || '') +'</td>' +
+                   '<td style="text-align: right">' + leader_time_diff + '</td>' +
                    '</tr>';
         }
     });
@@ -1013,27 +1016,24 @@ function update_rider_table_specific(container, detail_level, sorted_riders, rid
             '<td>Battery</td>' +
             '<td>Config</td>' +
             '</tr>' + rider_rows.join('') + '</table>';
-//        parent.style.minWidth = '700px';
     }
     if (detail_level == 'progress') {
         container.innerHTML =
             '<table class="riders"><colgroup><col style="width:54px; max-width: 54px;"><col style="width:50%;"></colgroup><tr class="head">' +
             '<td></td>' +
             '<td>Name</td>' +
-            '<td>Last Position</td>' +
+            (state.live?'<td>Last Position</td>':'') +
             '<td>Status</td>' +
             '<td style="text-align: right">Current<br>Speed</td>' +
-            '<td style="text-align: right">Dist on<br>Main Route</td>' +
+            (expect_off_route?'<td style="text-align: right">Dist on<br>Main Route</td>':'') +
             '<td style="text-align: right">Dist</td>' +
             '<td style="text-align: right">Gap to<br>Leader</td>' +
             '<td style="text-align: right">Finish<br>Time</td>' +
             '</tr>' + rider_rows.join('') + '</table>';
-//        parent.style.minWidth = '700px';
     }
     if (detail_level == 'simple') {
         container.innerHTML =
             '<table class="riders"><colgroup><col style="width:54px; max-width: 54px;"><col style="width:50%;"></colgroup>' + rider_rows.join('') + '</table>';
-//        parent.style.minWidth = '250px';
     }
     riders_el = container.querySelectorAll('.rider');
     Array.prototype.forEach.call(riders_el, function (row){
