@@ -1158,6 +1158,10 @@ function update_selected_rider_point_markers(){
     config.riders.forEach(function (rider){
         var rider_name = rider.name;
         var rider_items = riders_client_items[rider_name];
+
+        // TODO use config loaded to delay this.
+        if (!rider_items.hasOwnProperty('point_markers')) return;
+
         if (!selected_riders.has(rider_name)) {
             Object.values(rider_items.point_markers).forEach(function (marker) {marker.setVisible(false)});
         } else if (riders_points.hasOwnProperty(rider_name)) {
