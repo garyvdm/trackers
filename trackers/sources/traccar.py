@@ -164,10 +164,15 @@ async def start_tracker(app, tracker_name, server_name, device_unique_id, start,
             f'{server_url}/api/devices',
             json={'uniqueId': device_unique_id, 'name': tracker_name})
         device_id = (await get_device_response.json())['id']
-    await session.post(f'{server_url}/api/permissions',
-                       json={'userId': server['user_id'], 'deviceId': device_id})
 
     tracker = Tracker('traccar.{}.{}-{}'.format(server_name, device_unique_id, tracker_name))
+
+    try:
+        await session.post(f'{server_url}/api/permissions',
+                           json={'userId': server['user_id'], 'deviceId': device_id})
+    except Exception as e:
+        tracker.logger.error(f'Error in set permissions: {e}')
+
     tracker.server = server
     tracker.device_id = device_id
     tracker.start = (start if start else (datetime.datetime.now() - datetime.timedelta(days=2)).replace(microsecond=0))
