@@ -120,6 +120,7 @@ async def make_aio_app(settings,
     app.router.add_route('POST', '/{event}/add_rider_point', handler=event_add_rider_point, name='event_add_rider_point')
     app.router.add_route('POST', '/{event}/add_rider_tracker', handler=event_add_rider_tracker, name='event_add_rider_tracker')
     app.router.add_route('GET', '/{event}/edit', handler=event_config_edit, name='event_config_edit')
+    app.router.add_route('POST', '/{event}/edit', handler=event_config_edit, name='event_config_edit_post')
 
     app.router.add_route('POST', '/client_error', handler=client_error_handler, name='client_error')
 
