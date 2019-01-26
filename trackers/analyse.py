@@ -199,7 +199,8 @@ class AnalyseTracker(Tracker):
                             time_from_prev_route_dist = point['time'] - self.prev_route_dist_time
                             max_travel_dist = 300000 * max(time_from_prev_route_dist.total_seconds(), 20) / 3600
                         else:
-                            max_travel_dist = None
+                            time_from_start = point['time'] - self.analyse_start_time
+                            max_travel_dist = 300000 * max(time_from_start.total_seconds(), 20) / 3600
 
                         closest = self.find_closest(
                             self.routes, point_point, 5000,
