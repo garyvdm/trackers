@@ -221,6 +221,10 @@ async def connection(app, settings, points_received_observables, send_queue,
                                         logger.error(f'Error in msg_item_to_point: msg={item!r} \n {e}')
                                         point = None
 
+                                        # 2019-01-26 16:20:25,339 ERROR [trackers.sources.tkstorage] Error in msg_item_to_point: msg=[2916, 1548434791.840158, 1, '(864768011468128,DW3B,000000,A,2751.53042S,02740.57318E,5.931,164603,190.00,1470.40,11,0)', 'TK13']  month must be in 1..12
+                                        # 2019-01-26 16:20:26,874 ERROR [trackers.sources.tkstorage] Error in msg_item_to_point: msg=[11115, 1548481354.80168, 1, '(864768011468284,DW3B,000000,A,2738.40946S,02758.44679E,3.529,054234,113.02,1602.00,13,0)', 'TK28'] month must be in 1..12
+                                        # 2019-01-26 16:20:27,112 ERROR [trackers.sources.tkstorage] Error in msg_item_to_point: msg=[12537, 1548493482.802952, 1, '(864768011468169,DW30,000000,A,2751.23359S,02800.88446E,16.810,090045,228.83,1628.60,12,0)', 'TK10'] month must be in 1..12
+
                                     if point and point.get('tk_id'):
                                         new_points.append(point)
 
