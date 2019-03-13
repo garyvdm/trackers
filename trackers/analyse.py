@@ -716,7 +716,7 @@ def find_c_point_from_precalc(to_point, point1, point2, c12, p1h, p2h, dp1p2):
         c_point = Point(lat=rad2deg(c_point_lat[0]), lng=rad2deg(c_point_lng[0]))
         c_dist = distance(to_point, c_point)
     else:
-        c_dist, c_point = min(((distance(to_point, p), p) for p in (point1, point2)))
+        c_dist, c_point = min(((distance(to_point, p), p) for p in (point1, point2)), key=itemgetter(0))
 
     return find_c_point_result(c_dist, c_point)
 
