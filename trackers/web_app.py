@@ -8,6 +8,7 @@ import hashlib
 import io
 import json
 import logging
+import os
 import re
 from base64 import urlsafe_b64encode
 from collections import defaultdict
@@ -31,6 +32,7 @@ from trackers.auth import ensure_authorized_event, get_git_author, get_identity,
 from trackers.base import cancel_and_wait_task, list_register, Observable
 from trackers.dulwich_helpers import TreeReader, TreeWriter
 from trackers.general import hash_bytes, json_dumps
+from trackers.persisted_func_cache import PersistedFuncCache
 from trackers.web_helpers import (
     coro_partial,
     etag_query_hash_response,
@@ -125,6 +127,11 @@ async def make_aio_app(settings,
 
     app.router.add_route('POST', '/client_error', handler=client_error_handler, name='client_error')
 
+    cache_path = settings['cache_path']
+    os.makedirs(cache_path, exist_ok=True)
+    app['svg_marker_cached'] = PersistedFuncCache(os.path.join(cache_path, f'0-svg_markers'), trackers.svg_marker.svg_marker)
+    app['svg_marker_cached'].load()
+
     app['trackers.app_setup_cm'] = app_setup_cm = await app_setup(app, settings)
     await app_setup_cm.__aenter__()
 
@@ -157,6 +164,7 @@ async def shutdown(app):
 
     logger.info('Module cleanup')
     await app['trackers.app_setup_cm'].__aexit__(None, None, None)
+    app['svg_marker_cached'].write_unwritten()
 
 
 def json_response(data, **kwargs):
@@ -306,6 +314,7 @@ async def event_state(request, event):
     if event.config.get('live', False):
         state = {'live': True}
     else:
+        await event_config_routes_process(event)
         await event.start_trackers()
         if event.not_live_complete_trackers_task.done():
             state = await get_event_state(request.app, event)
@@ -448,7 +457,7 @@ web_route_keys = (
 )
 
 
-def filter_event_config_for_web(config):
+def filter_event_config_for_web(app, config):
     'Filters out keys from event config that the tracker page does not need, adds svg_markers'
 
     config = copy.deepcopy(config)
@@ -466,15 +475,36 @@ def filter_event_config_for_web(config):
         with suppress(KeyError):
             del rider['tracker']
 
+        marker_text = rider.get('name_short') or rider['name']
+        marker_color = rider.get('color_marker') or 'white'
+        rider['markers'] = {
+            direction: app['svg_marker_cached'](marker_text, background_color=marker_color, color='black', direction=direction)
+            for direction in trackers.svg_marker.directions
+        }
+
     for marker in config.get('markers', ()):
         if 'svg_marker' in marker:
-            marker.update(trackers.svg_marker.svg_marker(**marker.pop('svg_marker')))
+            marker.update(app['svg_marker_cached'](**marker.pop('svg_marker')))
 
     return config
 
 
 async def on_event_config_routes_change(event):
-    event.client_config_body = json_dumps(filter_event_config_for_web(event.config))
+    event.app['home_pages'] = {}
+    event.processed = False
+    event.client_config_body = None
+    event.client_config_body_hash = None
+    event.client_routes_body = None
+    event.client_routes_body_hash = None
+
+    if event.config.get('live', False):
+        await event_config_routes_process(event)
+
+
+async def event_config_routes_process(event):
+    if event.processed:
+        return
+    event.client_config_body = json_dumps(filter_event_config_for_web(event.app, event.config))
     event.client_config_body_hash = hash_bytes(event.client_config_body.encode())
     filtered_routes = [
         {key: value for key, value in route.items() if key in web_route_keys}
@@ -489,9 +519,7 @@ async def on_event_config_routes_change(event):
         event.app['trackers.event_ws_sessions'][event.name],
         state,
     )
-    event.app['home_pages'] = {}
-    if event.config.get('live', False):
-        event.start_trackers_without_wait()
+    event.start_trackers_without_wait()
 
 
 async def on_event_rider_blocked_list_update(key, event, rider_name, blocked_list, update):

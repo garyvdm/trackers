@@ -1,6 +1,10 @@
+import logging
+from functools import lru_cache
 from subprocess import DEVNULL, PIPE, run
 
 from datauri import DataURI
+
+log = logging.getLogger(__name__)
 
 directions = {
     'n': lambda center, right: (
@@ -72,17 +76,26 @@ directions = {
 }
 
 
-def svg_marker(text, color='white', background_color='black', direction='se'):
-    text_element = f'<text id="label" y="18" x="12" style="font-size:13px;font-family:Roboto;fill:{color};">{text}</text>'
+@lru_cache()
+def _text_width(text, style):
+    # TODO: speed this up by doing 1 call for all texts.
+
+    log.debug(f'text_width {text}')
     text_query_file = (
         '<?xml version="1.0" ?>'
         '<svg  xmlns="http://www.w3.org/2000/svg" width="300px" height="36px" viewBox="0 0 300 36" version="1.1" >'
-           f'{text_element}'
+           f'<text id="label" style="{style}">{text}</text>'
         '</svg>'
     )  # NOQA E131
     text_width_text = run(['inkscape', '-f', '-', '--query-width', '--query-id', 'label'],
                           input=text_query_file, encoding='utf8', stdout=PIPE, stderr=DEVNULL).stdout
-    text_width = int(round(float(text_width_text)))
+    return float(text_width_text)
+
+
+def svg_marker(text, color='white', background_color='black', direction='se'):
+    text_style = f'font-size:13px;font-family:Roboto;fill:{color};'
+
+    text_width = int(round(_text_width(text, text_style)))
     rect_width = text_width + 24
     rect_height = 26
 
@@ -98,7 +111,7 @@ def svg_marker(text, color='white', background_color='black', direction='se'):
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view_box}" width="{img_width}px" height="{img_height}px" >'
             f'<rect width="{rect_width}" height="{rect_height}" rx="3" ry="3" fill="{background_color}"></rect>'
             f'<path d="{arrow}" fill="{background_color}"></path>'
-            f'<text y="18" x="12" style="font-size:13px;font-family:Roboto;fill:{color};">{text}</text>'
+            f'<text y="18" x="12" style="{text_style}">{text}</text>'
         f'</svg>'
     )   # NOQA E131
 

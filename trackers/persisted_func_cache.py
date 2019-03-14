@@ -5,7 +5,8 @@ import msgpack
 
 class PersistedFuncCache(object):
 
-    def __init__(self, path):
+    def __init__(self, path, func=None):
+        self.func = func
         self.path = path
         self.load()
         self.unwritten_cache_items = []
@@ -15,7 +16,7 @@ class PersistedFuncCache(object):
         self.cache = {}
         try:
             with open(self.path, 'rb') as f:
-                unpacker = msgpack.Unpacker(f, use_list=False)
+                unpacker = msgpack.Unpacker(f, use_list=False, raw=False)
 
                 while True:
                     try:
@@ -49,3 +50,12 @@ class PersistedFuncCache(object):
                 msgpack.pack(items, f)
         except Exception:
             self.logger.exception('Error writing unwritten: ')
+
+    def key(self, *args, **kwargs):
+        return args, tuple(sorted(kwargs.items()))
+
+    def pack(self, result):
+        return result
+
+    def unpack(self, packed):
+        return packed
