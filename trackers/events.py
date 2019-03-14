@@ -249,7 +249,7 @@ class Event(object):
 
         tree_reader = TreeReader(self.app['trackers.data_repo'], treeish=self.git_hash) if self.git_hash else None
         has_static = tree_reader.exists(os.path.join('static')) if tree_reader else False
-        has_static_analyse = has_static and self.config.get('static_analyse', False)
+        has_static_analyse = has_static and self.config.get('static_analyse', False) and not replay
 
         if analyse and not has_static_analyse:
             loop = asyncio.get_event_loop()

@@ -79,8 +79,11 @@ async def replay(replay_tracker, org_tracker, event_start_time, replay_start, of
         if new_points:
             await replay_tracker.new_points(new_points)
         if new_time:
-            await asyncio.sleep((new_time - now).total_seconds())
+            delay = (new_time - now).total_seconds()
+            replay_tracker.logger.debug(f'Sleep for {delay} sec. till {new_time}')
+            await asyncio.sleep(delay)
         else:
+            replay_tracker.logger.debug(f'Sleep 1')
             await asyncio.sleep(1)
 
 
