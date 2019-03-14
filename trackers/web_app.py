@@ -25,6 +25,7 @@ from more_itertools import chunked, first
 import trackers.auth
 import trackers.bin_utils
 import trackers.events
+import trackers.svg_marker
 from trackers.analyse import AnalyseTracker
 from trackers.auth import ensure_authorized_event, get_git_author, get_identity, show_identity
 from trackers.base import cancel_and_wait_task, list_register, Observable
@@ -448,7 +449,7 @@ web_route_keys = (
 
 
 def filter_event_config_for_web(config):
-    'Filters out keys from event config that the tracker page does not need.'
+    'Filters out keys from event config that the tracker page does not need, adds svg_markers'
 
     config = copy.deepcopy(config)
 
@@ -464,6 +465,11 @@ def filter_event_config_for_web(config):
             del rider['trackers']
         with suppress(KeyError):
             del rider['tracker']
+
+    for marker in config.get('markers', ()):
+        if 'svg_marker' in marker:
+            marker.update(trackers.svg_marker.svg_marker(**marker.pop('svg_marker')))
+
     return config
 
 

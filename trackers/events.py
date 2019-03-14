@@ -494,6 +494,8 @@ class Event(object):
             self.new_points.clear()
 
     async def batch_update(self, riders_updated, riders_off_route_updated, riders_pre_post_updated):
+        if not self.riders_objects:
+            return
         time = datetime.now()
         riders_predicted_points = {
             rider_objects.rider_name: rider_objects.analyse_tracker.get_predicted_position(time) or {}
