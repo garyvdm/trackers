@@ -508,17 +508,7 @@ function on_new_config(){
         }
 
         (config.markers || {}).forEach(function (marker_data) {
-            var marker;
-            if (!marker_data.hasOwnProperty('marker_text')) {
-                marker = new google.maps.Marker(marker_data);
-            } else {
-                marker = new RichMarker({
-                    position: new google.maps.LatLng(marker_data.position.lat, marker_data.position.lng),
-                    content: '<div class="rider-marker" style="background: black; color: white;" title="' + marker_data.title + '">' + marker_data.marker_text + '</div>' +
-                             '<div class="rider-marker-pointer" style="border-color: transparent black black transparent;"></div>',
-                    flat: true,
-                });
-            }
+            var marker = new google.maps.Marker(marker_data);
             marker.setMap(map);
             event_markers.push(marker);
         });
@@ -1285,13 +1275,18 @@ my_position_el.onclick = function(){
 function geo_location_success(position){
     var map_position = new google.maps.LatLng(position.coords.latitude, position.coords.longitude)
     if (!my_position_marker){
-        var marker_html = '<div class="rider-marker" style="background: black; color: white;">Me</div>' +
-                          '<div class="rider-marker-pointer" style="border-color: transparent black black transparent;"></div>';
-        my_position_marker = new RichMarker({
+
+        my_position_marker = new google.maps.Marker({
+            icon: {
+                anchor: {'x': 21.5, 'y': 35},
+                url: 'data:image/svg+xml;charset=utf8;base64,PD94bWwgdmVyc2lvbj0iMS4wIiA/PjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB2aWV3Qm94PSItMSAtMSA0MyAzNiIgd2lkdGg9IjQzcHgiIGhlaWdodD0iMzZweCIgPjxyZWN0IHdpZHRoPSI0MSIgaGVpZ2h0PSIyNiIgcng9IjMiIHJ5PSIzIiBmaWxsPSJibGFjayI+PC9yZWN0PjxwYXRoIGQ9Ik0yMC41LDM0bC04LC04bDE2LDB6IiBmaWxsPSJibGFjayI+PC9wYXRoPjx0ZXh0IHk9IjE4IiB4PSIxMiIgc3R5bGU9ImZvbnQtc2l6ZToxM3B4O2ZvbnQtZmFtaWx5OlJvYm90bztmaWxsOndoaXRlOyI+TWU8L3RleHQ+PC9zdmc+'
+            },
+            shape: {
+                coords: (1, 1, 42, 27),
+                type: 'rect'
+            },
             map: map,
             position: map_position,
-            flat: true,
-            content: marker_html
         })
     } else {
         my_position_marker.setPosition(map_position);
