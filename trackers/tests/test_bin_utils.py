@@ -109,11 +109,11 @@ class TestAddGpxToEventRoutes(asynctest.TestCase, TestEventWithMockTracker):
             }
         ])
 
-        self.assertAlmostEqual(event.config, {
+        self.assertEqual(event.config, {
             'markers': [
                 {
                     'title': 'Start',
-                    'marker_text': 'Start',
+                    'svg_marker': {'direction': 'sw', 'text': 'Start'},
                     'position': {'lat': -27.9813, 'lng': -26.09321},
                 }
             ]

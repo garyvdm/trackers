@@ -288,7 +288,10 @@ async def add_gpx_to_event_routes(app, settings, args):
     markers = [
         {
             'title': wpt.find('gpx:name', gpx_ns).text,
-            'marker_text': wpt.find('gpx:name', gpx_ns).text,
+            'svg_marker': {
+                'direction': 'sw',
+                'text': wpt.find('gpx:name', gpx_ns).text,
+            },
             'position': {
                 'lat': round(float(wpt.attrib['lat']), 6),
                 'lng': round(float(wpt.attrib['lon']), 6),
