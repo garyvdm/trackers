@@ -473,7 +473,7 @@ def consume_config_from_point(app, point):
 async def start_event_tracker(app, event, rider_name, tracker_data, start, end):
     return await TKStorageTracker.start(
         app, rider_name, tracker_data['id'], start, end,
-        tracker_data.get('config') or event.config.get('tk_config'),
+        tracker_data.get('config') or event.config.get('tk_config') or {},
     )
 
 
@@ -494,7 +494,7 @@ async def start_individual_tracker(app, settings, request):
 class TKStorageTracker(Tracker):
 
     @classmethod
-    async def start(cls, app, tracker_name, id, start, end, config=None):
+    async def start(cls, app, tracker_name, id, start, end, config={}):
         tracker = cls(f'tkstorage.{id}-{tracker_name}')
         tracker.tracker_name = tracker_name
         tracker.app = app
@@ -525,9 +525,10 @@ class TKStorageTracker(Tracker):
         tracker.initial_config_handle = None
 
         base_start = config.get('base', {}).get('start', start)
-        tracker.initial_config_handle = asyncio.get_event_loop().call_later(
-            (base_start - now).total_seconds(),
-            tracker.set_base_config)
+        if base_start:
+            tracker.initial_config_handle = asyncio.get_event_loop().call_later(
+                (base_start - now).total_seconds(),
+                tracker.set_base_config)
 
         if end:
             asyncio.get_event_loop().call_later((end - now).total_seconds(), tracker.completed.set_result, None)
