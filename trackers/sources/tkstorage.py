@@ -34,6 +34,8 @@ async def config(app, settings):
     app['tkstorage.values_changed'] = values_changed = Observable(logger)
     app['tkstorage.trackers'] = {}
     app['tkstorage.trackers_changed'] = trackers_changed = Observable(logger)
+    app['tkstorage.sms_gateway_status'] = {}
+    app['tkstorage.sms_gateway_status_changed'] = sms_gateway_status_changed = Observable(logger)
     app['tkstorage.config'] = settings.get('tkstorage_config', True)
 
     connection_task = asyncio.ensure_future(connection(app, settings, points_received_observables, send_queue,
@@ -47,6 +49,7 @@ async def config(app, settings):
         app['tkstorage.admin_ws_sessions'] = []
         values_changed.subscribe(partial(send_values_changed_to_admin_ws, app))
         trackers_changed.subscribe(partial(send_trackers_changed_to_admin_ws, app))
+        sms_gateway_status_changed.subscribe(partial(send_sms_gateway_status_changed_to_admin_ws, app))
 
         app.router.add_route('GET', '/tkstorage_admin/tkstorage_websocket', handler=admin_ws, name='tkstorage_admin_ws')
         app.router.add_route('GET', '/tk/{id}',
@@ -211,6 +214,9 @@ async def connection(app, settings, points_received_observables, send_queue,
                                 if 'trackers' in msg:
                                     app['tkstorage.trackers'] = msg['trackers']
                                     await app['tkstorage.trackers_changed'](msg['trackers'])
+                                if 'sms_gateway_status' in msg:
+                                    app['tkstorage.sms_gateway_status'] = msg['sms_gateway_status']
+                                    await app['tkstorage.sms_gateway_status_changed'](msg['sms_gateway_status'])
                             if isinstance(msg, list):
                                 logging.debug(f'Downloaded {len(msg)} points.')
                                 new_points = []
@@ -599,7 +605,8 @@ async def admin_ws(request):
             exit_stack.enter_context(list_register(app['trackers.ws_sessions'], ws))
             await web_app.message_to_multiple_wss(app, [ws], {
                 'values': {objects.tk_id: objects.values for objects in trackers_objects.values()},
-                'trackers': app['tkstorage.trackers']
+                'trackers': app['tkstorage.trackers'],
+                'sms_gateway_status': app['tkstorage.sms_gateway_status'],
             })
             exit_stack.enter_context(list_register(app['tkstorage.admin_ws_sessions'], ws))
             async for msg in ws:
@@ -640,6 +647,10 @@ async def send_values_changed_to_admin_ws(app, values_changed):
 
 async def send_trackers_changed_to_admin_ws(app, trackers):
     await web_app.message_to_multiple_wss(app, app['tkstorage.admin_ws_sessions'], {'trackers': trackers})
+
+
+async def send_sms_gateway_status_changed_to_admin_ws(app, sms_gateway_status):
+    await web_app.message_to_multiple_wss(app, app['tkstorage.admin_ws_sessions'], {'sms_gateway_status': sms_gateway_status})
 
 
 async def main():

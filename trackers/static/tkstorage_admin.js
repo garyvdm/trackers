@@ -82,7 +82,8 @@ function ws_onclose(event) {
 }
 
 var values = {};
-var trackers = {}
+var trackers = {};
+
 
 function ws_onmessage(event){
     set_status('&#x2713; Connected');
@@ -101,6 +102,18 @@ function ws_onmessage(event){
         Object.assign(values, data.changed_values);
         update_values();
     }
+    if (data.hasOwnProperty('sms_gateway_status')) {
+        var status = data.sms_gateway_status;
+        var el = document.getElementById('sms_gateway_status');
+        if (!status) {
+            el.innerHTML = '&nbsp;';
+        } else if (status.hasOwnProperty('error')) {
+            el.innerText = status.error;
+        } else {
+            el.innerText = status.telephony.network_operator_name + ' ' + status.battery.level;
+        }
+    }
+
 
 
 }
