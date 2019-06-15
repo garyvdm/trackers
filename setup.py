@@ -19,6 +19,7 @@ setuptools.setup(
         'dulwich',
         'fixtures',
         'htmlwrite',
+        'geographiclib',
         'jsonpointer',
         'libsass',
         'more-itertools',
