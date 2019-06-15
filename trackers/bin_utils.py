@@ -260,6 +260,7 @@ def add_gpx_to_event_routes_parser():
     parser.add_argument('--circular-range', action='store', type=int,
                         help="Set to about 1/2 of distance (m) of circular route. To help with find closest point.")
     parser.add_argument('--print', action='store_true')
+    parser.add_argument('--replace-main', action='store_true')
 
     return parser
 
@@ -305,7 +306,10 @@ async def add_gpx_to_event_routes(app, settings, args):
         writer = TreeWriter(app['trackers.data_repo'])
         event = await trackers.events.Event.load(app, event_name, writer)
         await process_route(settings, route)
-        event.routes.append(route)
+        if args.replace_main:
+            event.routes[0] = route
+        else:
+            event.routes.append(route)
         process_secondary_route_details(event.routes)
         if 'markers' not in event.config:
             event.config['markers'] = []
