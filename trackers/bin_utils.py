@@ -30,7 +30,7 @@ from trackers.analyse import (
     ramer_douglas_peucker_sections,
     route_with_distance_and_index,
 )
-from trackers.dulwich_helpers import TreeWriter
+from trackers.dulwich_helpers import TreeReader, TreeWriter
 
 defaults_yaml = f"""
     data_path: {relpath(join(__file__, '../../data'))}
@@ -488,3 +488,14 @@ async def analyse(app, settings, args):
     event = await trackers.events.Event.load(app, event_name, tree_writer)
     await event.start_trackers(analyse=True)
     await event.stop_and_complete_trackers()
+
+
+@async_command(partial(event_command_parser, description="Print riders names and trackers"), basic=True)
+async def print_names_and_trackers(app, settings, args):
+    event_name = event_name_clean(args.event_name, settings)
+    tree_reader = TreeReader(app['trackers.data_repo'])
+    event = await trackers.events.Event.load(app, event_name, tree_reader)
+    for rider in event.config['riders']:
+        tracker_ids = [tracker.get('id', '') for tracker in rider.get('trackers', ())]
+        for tracker in tracker_ids:
+            print(f'{tracker}\t{rider["name"]}')

@@ -50,6 +50,7 @@ setuptools.setup(
             'update_bounds=trackers.bin_utils:update_bounds',
             'load_riders_from_csv=trackers.bin_utils:load_riders_from_csv',
             'run_analyse=trackers.bin_utils:analyse',
+            'print_names_and_trackers=trackers.bin_utils:print_names_and_trackers',
 
             'run_qunit_tests=trackers.client_test_tools:qunit_runner',
             'gen_key=trackers.auth:gen_key',
