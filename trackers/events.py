@@ -25,8 +25,10 @@ from trackers.persisted_func_cache import PersistedFuncCache
 
 logger = logging.getLogger(__name__)
 
+min_time = datetime.fromtimestamp(0)
 
 # TODO: this is no longer specific to events. Move to somewhere
+
 
 async def load_with_watcher(app, ref=b'HEAD', **kwargs):
     try:
@@ -430,15 +432,21 @@ class Event(object):
             values = self.riders_current_values[rider_name]
             for point in new_points:
                 pre_post_values.update(point)
-                has_values_update, values_update = spy(((k, v) for k, v in point.items() if k in self.pre_post_update_main_keys))
-                if has_values_update:
-                    values_update = list(values_update)
-                    values.update(values_update)
-                    values_updated = True
+
+                # TODO, rather than do this check, we should make sure the values come in in the right order.
+                point_is_newer = point['time'] > values.get('time', min_time)
+
+                if point_is_newer:
+                    has_values_update, values_update = spy(((k, v) for k, v in point.items() if k in self.pre_post_update_main_keys))
+                    if has_values_update:
+                        values_update = list(values_update)
+                        values.update(values_update)
+                        values_updated = True
                 if 'position' in point:
                     pre_post_values['position_time'] = point['time']
-                    values['position_time'] = point['time']
-                    values_updated = True
+                    if point_is_newer:
+                        values['position_time'] = point['time']
+                        values_updated = True
 
             if values_updated:
                 self.riders_updated.add(rider_name)
