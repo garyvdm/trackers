@@ -1323,13 +1323,20 @@ function mouseover_other_chart(event, other_series){
 }
 
 function graphs_sync_other_extremes(event) {
-    var thisChart = event.target;
     if (event.trigger !== 'syncExtremes') { // Prevent feedback loop
+        var thisChart = event.target;
+        var min = event.min;
+        var max = event.max;
+        if (thisChart.chart['sync_other_with_no_zoom']) {
+            min = min || event.dataMin;
+            max = max || event.dataMax;
+        }
+
         Object.values(graph_charts).forEach(function (chart) {
             if (chart !== thisChart) {
                 var axis = chart.xAxis[0];
                 if (axis.setExtremes) { // It is null while updating
-                    axis.setExtremes(event.min, event.max, undefined, false, { trigger: 'syncExtremes' });
+                    axis.setExtremes(min, max, undefined, false, { trigger: 'syncExtremes' });
                 }
             }
         });
@@ -1381,7 +1388,7 @@ function update_graph() {
                         endOnTick: false,
                         startOnTick: false,
                         crosshair: true,
-                        events: { setExtremes: graphs_sync_other_extremes },
+                        events: { afterSetExtremes: graphs_sync_other_extremes },
                     },
                     yAxis: [
                         {
@@ -1419,7 +1426,7 @@ function update_graph() {
                     }}),
                 });
                 graph_charts.speed_time = Highcharts.chart('graph_speed_time', {
-                    chart: { type: 'line', height: null, zoomType: 'x', },
+                    chart: { type: 'spline', height: null, zoomType: 'x', },
                     title: { text: 'Speed / Time', style: {display: 'none'}},
                     xAxis: {
                         title: 'Time',
@@ -1427,7 +1434,7 @@ function update_graph() {
                         endOnTick: false,
                         startOnTick: false,
                         crosshair: true,
-                        events: { setExtremes: graphs_sync_other_extremes },
+                        events: { afterSetExtremes: graphs_sync_other_extremes },
                     },
                     yAxis: [
                         {
@@ -1470,14 +1477,14 @@ function update_graph() {
                 graph_contain.innerHTML = '<div id="graph_speed_dist"></div><div id="graph_elevation_dist"></div>';
 
                 graph_charts.speed_dist = Highcharts.chart('graph_speed_dist', {
-                    chart: { type: 'line', height: null, zoomType: 'x', },
+                    chart: { type: 'spline', height: null, zoomType: 'x', },
                     title: { text: 'Speed / Distance', style: {display: 'none'}},
                     xAxis: {
                         title: 'Distance',
                         endOnTick: false,
                         startOnTick: false,
                         crosshair: true,
-                        events: { setExtremes: graphs_sync_other_extremes },
+                        events: { afterSetExtremes: graphs_sync_other_extremes },
                     },
                     yAxis: [
                         {
@@ -1514,6 +1521,8 @@ function update_graph() {
                         },
                     }}),
                 });
+                graph_charts.speed_dist.sync_other_with_no_zoom = true;
+
                 graph_charts.elevation_dist = Highcharts.chart('graph_elevation_dist', {
                     chart: { type: 'line', height: null, zoomType: 'x', },
                     title: { text: 'Elevation Distance', },
@@ -1522,7 +1531,7 @@ function update_graph() {
                         endOnTick: false,
                         startOnTick: false,
                         crosshair: true,
-                        events: { setExtremes: graphs_sync_other_extremes },
+                        events: { afterSetExtremes: graphs_sync_other_extremes },
                     },
                     yAxis: [
                         {
