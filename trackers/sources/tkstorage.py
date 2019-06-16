@@ -544,6 +544,8 @@ class TKStorageTracker(Tracker):
     def use_point(self, point):
         time = point.get('time')
         server_time = point.get('server_time')
+        if point['tk_id'] == 'TK24' and time == datetime.datetime(2019, 6, 23, 2, 0, 2):
+            return False
         if time_between(time, self.start, self.end):
             return True
         if time_between(time, self.config_read_start, self.end) or time_between(server_time, self.config_read_start, self.end):
