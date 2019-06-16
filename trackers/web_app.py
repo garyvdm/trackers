@@ -958,7 +958,7 @@ async def event_admin(request, event):
                             trackers = [{'id': tracker} for tracker in request.app['tkstorage.trackers']]
                             for tracker in trackers:
                                 tracker_objects = trackers_objects.get(tracker['id'])
-                                if trackers_objects:
+                                if trackers_objects is not None and tracker_objects:
                                     active = tracker_objects.values.get('active')
                                     if active:
                                         tracker['active'] = active
