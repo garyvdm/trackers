@@ -124,6 +124,7 @@ function on_new_state_received(new_state) {
                 Object.values(paths || {}).forEach(function (path){ path.setMap(null) });
             });
             if (rider_items.marker) rider_items.marker.setMap(null);
+            if (rider_items.rich_marker) rider_items.rich_marker.setMap(null);
             var series = elevation_chart.get(rider_name);
             if (series) series.remove();
             Object.values(rider_items.point_markers).forEach(function (marker) {marker.setMap(null)});
