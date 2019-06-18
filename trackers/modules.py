@@ -8,6 +8,7 @@ async def config_modules(app, settings):
     import trackers.sources.tkstorage
     import trackers.sources.trackleaders
     import trackers.sources.matrix
+    import trackers.sources.garmin_inreach
 
     modules = (
         trackers.sources.map_my_tracks.config,
@@ -16,6 +17,7 @@ async def config_modules(app, settings):
         trackers.sources.tkstorage.config,
         trackers.sources.trackleaders.config,
         trackers.sources.matrix.config,
+        trackers.sources.garmin_inreach.config,
     )
 
     source_trackers = {
@@ -25,6 +27,7 @@ async def config_modules(app, settings):
         'tkstorage': trackers.sources.tkstorage.start_event_tracker,
         'trackleaders': trackers.sources.trackleaders.start_event_tracker,
         'matrix': trackers.sources.matrix.start_event_tracker,
+        'garmin_inreach': trackers.sources.garmin_inreach.start_event_tracker,
     }
 
     exit_stack = AsyncExitStack()

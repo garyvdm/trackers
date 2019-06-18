@@ -1,12 +1,10 @@
 import asyncio
 import datetime
-import functools
 import logging
+import xml.etree.ElementTree as xml
 from contextlib import asynccontextmanager
 
 import aiohttp
-from aiohttp.web import Application as WebApplication
-from jsonpointer import resolve_pointer
 
 from trackers.base import print_tracker, Tracker
 
@@ -15,18 +13,10 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def config(app, settings):
-    app['spot.session'] = session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=1))
-    app['spot.rate_limit_sem'] = asyncio.Semaphore()
-
-    if isinstance(app, WebApplication):
-        import trackers.web_app
-        app.router.add_route('GET', '/spot/{feed_id}',
-                             handler=trackers.web_app.individual_page,
-                             name='spot_individual_page')
-        app.router.add_route('GET', '/spot/{feed_id}/websocket',
-                             handler=functools.partial(trackers.web_app.individual_ws, get_individual_key,
-                                                       functools.partial(start_individual_tracker, app, settings)),
-                             name='spot_individual_ws')
+    app['garmin_inreach.session'] = session = aiohttp.ClientSession(
+        connector=aiohttp.TCPConnector(limit=1),
+        raise_for_status=True,
+    )
 
     try:
         yield
@@ -34,56 +24,24 @@ async def config(app, settings):
         await session.close()
 
 
-def get_individual_key(request):
-    return "spot-{feed_id}".format_map(request.match_info)
-
-
-async def start_individual_tracker(app, settings, request):
-    feed_id = request.match_info['feed_id']
-    start = datetime.datetime.now() - datetime.timedelta(days=7)
-    return await start_tracker(app, 'individual', feed_id, start, None)
-
-
-async def api_call_inner(app, feed_id, params, fut):
-    url = f'https://api.findmespot.com/spot-main-web/consumer/rest-api/2.0/public/feed/{feed_id}/message.json'
-    session = app['spot.session']
-    rate_limit_sem = app['spot.rate_limit_sem']
-    async with rate_limit_sem:
-        async with session.get(url, params=params) as response:
-            response.raise_for_status()
-            data = await response.json()
-
-        error = resolve_pointer(data, '/response/errors/error', None)
-        if error and error.get('code') != 'E-0195':
-            fut.set_exception(RuntimeError('{text} ({code}): {description}'.format_map(error)))
-        else:
-            fut.set_result(data)
-
-        await asyncio.sleep(2)  # Rate limit
-
-
-def api_call(app, feed_id, params):
-    fut = asyncio.Future()
-    task = asyncio.ensure_future(api_call_inner(app, feed_id, params, fut))
-    task.add_done_callback(lambda fut: fut.result())
-    return fut
-
-
 async def start_event_tracker(app, event, rider_name, tracker_data, start, end):
-    return await start_tracker(app, rider_name, tracker_data['feed_id'], start, end)
+    return await start_tracker(app, rider_name, tracker_data['feed_id'], tracker_data['password'], start, end)
 
 
-async def start_tracker(app, tracker_name, feed_id, start, end):
-    tracker = Tracker('spot.{}-{}'.format(feed_id, tracker_name))
-    monitor_task = asyncio.ensure_future(monitor_feed(app, tracker, feed_id, start, end))
+async def start_tracker(app, tracker_name, feed_id, password, start, end):
+    tracker = Tracker('garmin_inreach.{}-{}'.format(feed_id, tracker_name))
+    monitor_task = asyncio.ensure_future(monitor_feed(app, tracker, feed_id, password, start, end))
     tracker.stop = monitor_task.cancel
     tracker.completed = monitor_task
     return tracker
 
 
-async def monitor_feed(app, tracker, feed_id, start, end):
+async def monitor_feed(app, tracker, feed_id, password, start, end):
     try:
         seen_ids = set()
+        session: aiohttp.ClientSession = app['garmin_inreach.session']
+        auth = aiohttp.BasicAuth(feed_id, password)
+        url = f'https://eur.inreach.garmin.com/Feed/Share/{feed_id}'
         if not start:
             start = datetime.datetime.utcnow()
         else:
@@ -96,13 +54,14 @@ async def monitor_feed(app, tracker, feed_id, start, end):
         while True:
             try:
                 now = datetime.datetime.utcnow()
-                if end and now > end:
-                    now = end
                 if now > start:
-                    params = {'startDate': last.isoformat(timespec='seconds') + '-0000', 'endDate': now.isoformat(timespec='seconds') + '-0000'}
+                    params = {'d1': last.isoformat(timespec='seconds') + 'z'}
+                    if end and now > end:
+                        params['d2'] = end.isoformat(timespec='seconds') + 'z'
+                    async with session.get(url, params=params, auth=auth) as response:
+                        kml_text = await response.text()
                     last = now
-                    data = await api_call(app, feed_id, params)
-                    await process_data(tracker, data, now, seen_ids)
+                    await process_data(tracker, kml_text, now, seen_ids)
 
                 if end and now >= end:
                     break
@@ -121,27 +80,36 @@ async def monitor_feed(app, tracker, feed_id, start, end):
         tracker.logger.exception('Error in monitor_feed:')
 
 
-async def process_data(tracker, data, now, seen_ids):
-    error = resolve_pointer(data, '/response/errors/error')
-    if error:
-        tracker.logger.debug(f'{error["description"]}')
+async def process_data(tracker, kml_text, now, seen_ids):
+    xml_doc = xml.fromstring(kml_text)
 
-    messages = resolve_pointer(data, '/response/feedMessageResponse/messages/message', ())
+    kml_ns = {
+        'kml': 'http://www.opengis.net/kml/2.2',
+    }
+
+    placemarks = xml_doc.findall('./kml:Document/kml:Folder/kml:Placemark', kml_ns)
+
     new_points = []
-    for message in messages:
-        if message['id'] not in seen_ids:
-            seen_ids.add(message['id'])
-            if message['altitude']:
-                p = [message['latitude'], message['longitude'], message['altitude']]
-            else:
-                p = [message['latitude'], message['longitude']]
-            new_points.append({
-                'position': p,
-                'battery': message['batteryState'],
-                'time': datetime.datetime.utcfromtimestamp(message['unixTime']),
-                'server_time': now,
-                'message_type': message['messageType'],  # TODO translate into tracker status
-            })
+    for placemark in placemarks:
+        extended_data = {data_el.attrib['name']: data_el.find('kml:value', kml_ns).text
+                         for data_el in placemark.findall('kml:ExtendedData/kml:Data', kml_ns)}
+        if extended_data and extended_data['Id'] not in seen_ids:
+            seen_ids.add(extended_data['Id'])
+            lat = float(extended_data['Latitude'])
+            lng = float(extended_data['Longitude'])
+            elevation = float(extended_data['Elevation'].partition(' ')[0])
+            time_utc = datetime.datetime.fromisoformat(placemark.find('kml:TimeStamp/kml:when', kml_ns).text[:-1]).replace(tzinfo=datetime.timezone.utc)
+            time = time_utc.astimezone().replace(tzinfo=None)
+            point = {
+                'position': [lat, lng, elevation],
+                'time': time,
+                'battery': None,
+            }
+            if extended_data['Event'] == 'Tracking turned off from device.':
+                point['tk_config'] = 'Off'
+            if extended_data['Event'] == 'Tracking turned on from device.':
+                point['tk_config'] = 'On'
+            new_points.append(point)
     if new_points:
         await tracker.new_points(new_points)
 
@@ -167,7 +135,7 @@ async def main():
     settings = {}
     async with config(app, settings):
         tracker = await start_tracker(
-            app, 'foobar', '0RrHLaqkrQHCYYj52QMZEP6fhOLd8g6E5', datetime.datetime(2019, 1, 16), None)
+            app, 'JanV', 'JanV', '', datetime.datetime(2019, 6, 17), None)
         print_tracker(tracker)
 
         run_fut = asyncio.Future()
