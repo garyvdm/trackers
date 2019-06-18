@@ -88,11 +88,13 @@ async def server_ws_task(app, settings, session, server_name, server, position_r
         url = '{}/api/socket'.format(server['url'])
         logger = logging.getLogger('{}.{}'.format(__name__, server_name))
         reconnect_sleep_time = 5
+        connect_error_shown = False
         while True:
             try:
                 await ensure_login(app, server_name)
                 logger.debug('Connecting to ws {}'.format(url))
                 async with session.ws_connect(url) as ws:
+                    connect_error_shown = False
                     reconnect_sleep_time = 1
                     async for msg in ws:
                         if msg.type == aiohttp.WSMsgType.TEXT:
@@ -110,7 +112,11 @@ async def server_ws_task(app, settings, session, server_name, server, position_r
             except asyncio.CancelledError:
                 raise
             except aiohttp.client_exceptions.ClientError as e:
-                logger.error('Error in ws_task: {!r}'.format(e))
+                if not connect_error_shown:
+                    logger.error(f'Error in ws_task: {e}')
+                    connect_error_shown = True
+                else:
+                    logger.debug(f'Error in ws_task: {e}')
                 await logout(app, server_name)
             except Exception:
                 logger.exception('Error in ws_task: ')

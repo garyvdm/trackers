@@ -591,7 +591,7 @@ class TKStorageTracker(Tracker):
 
     def set_base_config(self):
         if self.config and 'base' in self.config:
-            self.logger.info('Setting base config')
+            self.logger.debug('Setting base config')
             asyncio.ensure_future(self.objects.add_desired_config('base_config', self.config['base'], rank=0))
 
 
