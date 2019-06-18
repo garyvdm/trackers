@@ -242,9 +242,10 @@ async def home(request):
         host = 'trackrace.tk'
     page = request.app['home_pages'].get('host')
     if not page:
-        events = tuple(sorted(request.app['trackers.events'].values(),
-                              key=lambda event: event.config.get('event_start'),
-                              reverse=True))
+        events = request.app['trackers.events'].values()
+        events = filter(lambda event: event.config.get('public', True), events)
+        events = sorted(events, key=lambda event: event.config.get('event_start'), reverse=True)
+        events = tuple(events)
         if host != 'trackrace.tk':
             events = [event for event in events if host in event.config.get('hosts', ())]
         live_events = [event for event in events if event.config.get('live', False)]
