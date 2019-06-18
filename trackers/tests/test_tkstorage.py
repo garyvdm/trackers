@@ -87,6 +87,32 @@ class TestToPoint(unittest.TestCase):
             },
         )
 
+    def test_missing_date_before(self):
+        server_time = datetime.datetime(2018, 6, 9, 23, 58, 00)
+        self.assertEqual(
+            msg_item_to_point([1990, server_time.timestamp(), 1, '(864768011468169,DW3B,000000,A,3124.00405S,02355.82419E,9.061,215900,190.21,1273.30,11,0)', 'TK05']),
+            {
+                'num_sat': 11,
+                'position': (-31.4000675, 23.930403166666668, 1273.3),
+                'server_time': datetime.datetime(2018, 6, 9, 23, 58),
+                'time': datetime.datetime(2018, 6, 9, 23, 59),
+                'tk_id': 'TK05',
+            },
+        )
+
+    def test_missing_date_after(self):
+        server_time = datetime.datetime(2018, 6, 10, 00, 1, 00)
+        self.assertEqual(
+            msg_item_to_point([1990, server_time.timestamp(), 1, '(864768011468169,DW3B,000000,A,3124.00405S,02355.82419E,9.061,215900,190.21,1273.30,11,0)', 'TK05']),
+            {
+                'num_sat': 11,
+                'position': (-31.4000675, 23.930403166666668, 1273.3),
+                'server_time': datetime.datetime(2018, 6, 10, 0, 1),
+                'time': datetime.datetime(2018, 6, 9, 23, 59),
+                'tk_id': 'TK05'
+            },
+        )
+
     def test_ZC03_msg(self):
 
         def stub_ZC03_parse(msg):

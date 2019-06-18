@@ -224,7 +224,9 @@ async def connection(app, settings, points_received_observables, send_queue,
                                     try:
                                         point = msg_item_to_point(item)
                                     except Exception as e:
-                                        logger.error(f'Error in msg_item_to_point: msg={item!r} \n {e}')
+                                        msg = copy(item)
+                                        msg[1] = datetime.datetime.fromtimestamp(msg[1])
+                                        logger.error(f'Error in msg_item_to_point: msg={msg!r} \n {e}')
                                         point = None
 
                                         # 2019-01-26 16:20:25,339 ERROR [trackers.sources.tkstorage] Error in msg_item_to_point: msg=[2916, 1548434791.840158, 1, '(864768011468128,DW3B,000000,A,2751.53042S,02740.57318E,5.931,164603,190.00,1470.40,11,0)', 'TK13']  month must be in 1..12
@@ -321,7 +323,7 @@ def msg_item_to_point(msg_item):
         data = data_split(data[1:-1])
         msg_code = data[1]
         if msg_code == 'ZC20':
-            point['time'] = parse_date_time(data[2], data[3])
+            point['time'] = parse_date_time(data[2], data[3], server_time)
             # battery_level = zc20_battery_levels.get(data[4])
             battery_voltage = int(data[5])
             # power_voltage = int(data[6])
@@ -336,12 +338,12 @@ def msg_item_to_point(msg_item):
             lat = parse_coordinate(data[4], 'S')
             lng = parse_coordinate(data[5], 'W')
             alt = float(data[9])
-            point['time'] = parse_date_time(data[2], data[7])
+            point['time'] = parse_date_time(data[2], data[7], server_time)
             point['position'] = (lat, lng, alt) if alt else (lat, lng)
 
             point['num_sat'] = int(data[10])
         if msg_code == 'ZC03':
-            point['time'] = parse_date_time(data[2], data[3])
+            point['time'] = parse_date_time(data[2], data[3], server_time)
             msg = data[4]
             # print(msg)
             point.update(ZC03_parse(msg))
@@ -424,17 +426,30 @@ def data_split(data):
     return split
 
 
-def parse_date_time(date_raw, time_raw):
+def parse_date_time(date_raw: str, time_raw: str, server_time: datetime.datetime):
     # TODO pay attention to time zone.
     date_raw = date_raw
     time_raw = time_raw
-    day = int(date_raw[0:2])
-    month = int(date_raw[2:4])
-    year = int(date_raw[4:6]) + 2000
+
     hour = int(time_raw[0:2])
-    min = int(time_raw[2:4])
+    minutes = int(time_raw[2:4])
     sec = int(time_raw[4:6])
-    return datetime.datetime(year, month, day, hour, min, sec, tzinfo=datetime.timezone.utc).astimezone().replace(tzinfo=None)
+
+    if date_raw == '000000':
+        utc_server_time = server_time.astimezone(datetime.timezone.utc)
+        utc_time00 = datetime.datetime(utc_server_time.year, utc_server_time.month, utc_server_time.day,
+                                       hour, minutes, sec, tzinfo=datetime.timezone.utc)
+        utc_timeP1 = utc_time00 + datetime.timedelta(days=1)
+        utc_timeM1 = utc_time00 + datetime.timedelta(days=-1)
+
+        utc_time = min(utc_time00, utc_timeP1, utc_timeM1, key=lambda t: abs((utc_server_time - t).total_seconds()))
+    else:
+        day = int(date_raw[0:2])
+        month = int(date_raw[2:4])
+        year = int(date_raw[4:6]) + 2000
+        utc_time = datetime.datetime(year, month, day, hour, minutes, sec, tzinfo=datetime.timezone.utc)
+
+    return utc_time.astimezone().replace(tzinfo=None)
 
 
 def parse_coordinate(raw, neg):
