@@ -150,9 +150,9 @@ class AnalyseTracker(Tracker):
             self.reset()
 
     async def process_initial_points(self):
+        await self.on_new_points(self.org_tracker, self.org_tracker.points)
         self.org_tracker.new_points_observable.subscribe(self.on_new_points)
         self.org_tracker.reset_points_observable.subscribe(self.on_reset_points)
-        await self.on_new_points(self.org_tracker, self.org_tracker.points)
 
     async def on_new_points(self, tracker, new_points):
         self.logger.debug(
