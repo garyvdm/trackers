@@ -802,7 +802,7 @@ function on_new_rider_values(rider_name){
                         position: position,
                     };
                     // TODO choose marker based on direction
-                    Object.assign(marker_data, rider.markers['sw']);
+                    Object.assign(marker_data, rider.markers['nw']);
                     rider_items.rich_marker = new google.maps.Marker(marker_data);
 //                    rider_items.rich_marker.addListener('click', select_rider.bind(null, rider_name, true));
                 } else {
