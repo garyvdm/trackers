@@ -48,19 +48,20 @@ async def monitor_feed(app, tracker, feed_id, password, start, end):
             start = start.astimezone(datetime.timezone.utc).replace(tzinfo=None)
         if end:
             end = end.astimezone(datetime.timezone.utc).replace(tzinfo=None)
-        last = start
         # From this point on now, last, start, and end are all utc and tz naive.
 
         while True:
             try:
                 now = datetime.datetime.utcnow()
                 if now > start:
+                    last = tracker.points[-1]['time'] if tracker.points else start
+                    last = last.astimezone(datetime.timezone.utc)
                     params = {'d1': last.isoformat(timespec='seconds') + 'z'}
                     if end and now > end:
                         params['d2'] = end.isoformat(timespec='seconds') + 'z'
+                    # tracker.logger.debug(f'Getting data. {params}')
                     async with session.get(url, params=params, auth=auth) as response:
                         kml_text = await response.text()
-                    last = now
                     await process_data(tracker, kml_text, now, seen_ids)
 
                 if end and now >= end:
@@ -110,6 +111,7 @@ async def process_data(tracker, kml_text, now, seen_ids):
             if extended_data['Event'] == 'Tracking turned on from device.':
                 point['tk_config'] = 'On'
             new_points.append(point)
+    tracker.logger.debug(f'Got {len(new_points)} new points. {len(placemarks)} placemarks.')
     if new_points:
         await tracker.new_points(new_points)
 
@@ -117,11 +119,11 @@ async def process_data(tracker, kml_text, now, seen_ids):
 async def wait_for_next_check(tracker):
     now = datetime.datetime.now()
     if tracker.points:
-        next_check_on_last_point_time = tracker.points[-1]['time'] + datetime.timedelta(minutes=5, seconds=15)
+        next_check_on_last_point_time = tracker.points[-1]['time'] + datetime.timedelta(minutes=11)
     else:
         next_check_on_last_point_time = datetime.datetime(year=1980, month=1, day=1)
 
-    next_check_on_now = now + datetime.timedelta(minutes=2, seconds=30)
+    next_check_on_now = now + datetime.timedelta(minutes=1)
     next_check = max(next_check_on_now, next_check_on_last_point_time)
     next_check_sec = (next_check - now).total_seconds()
     tracker.logger.debug(f'Next check: {next_check_sec} sec -- {next_check}')
