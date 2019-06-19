@@ -65,3 +65,8 @@ class Combined(Tracker):
         self.sub_to_be_completed -= 1
         if self.sub_to_be_completed <= 0:
             self.completed.set_result(None)
+
+    def set_finished(self):
+        super().set_finished()
+        for sub_tracker in self.trackers:
+            sub_tracker.set_finished()

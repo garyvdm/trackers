@@ -17,7 +17,7 @@ import more_itertools
 from aiohttp import web, WSMsgType
 
 from trackers.analyse import distance, Point
-from trackers.base import cancel_and_wait_task, list_register, Observable, print_tracker, Tracker
+from trackers.base import cancel_and_wait_task, list_register, Observable, print_tracker, run_forget_task, Tracker
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +64,8 @@ async def config(app, settings):
     finally:
         logger.debug('Shutdown.')
         await cancel_and_wait_task(connection_task)
+        for tracker_objects in trackers_objects.values():
+            await tracker_objects.stop_config_apply_loop()
 
 
 def get_tracker_objects(app, tk_id):
@@ -72,6 +74,7 @@ def get_tracker_objects(app, tk_id):
     if not tracker_objects:
         tracker_objects = TrackerObjects(app, tk_id)
         trackers_objects[tk_id] = tracker_objects
+        tracker_objects.start_config_apply_loop()
     return tracker_objects
 
 
@@ -85,7 +88,8 @@ class TrackerObjects(object):
     values: Dict = field(default_factory=dict)
 
     desired_configs: Dict = field(default_factory=dict)
-    ensure_config_fut: Optional[asyncio.Future] = field(default=None)
+    config_apply_loop_fut: Optional[asyncio.Future] = field(default=None)
+    desired_configs_changed: asyncio.Event = field(default_factory=asyncio.Event)
 
     def get_highest_rank_desired_config(self):
         sorted_configs = sorted(self.desired_configs.keys(),
@@ -93,55 +97,66 @@ class TrackerObjects(object):
                                 reverse=True)
         return more_itertools.first(sorted_configs, None)
 
-    async def add_desired_config(self, config_id, config, rank=0):
+    # TODO only allow one tracker to apply config.
+
+    def add_desired_config(self, config_id, config, rank=0):
         self.desired_configs[config_id] = DesiredConfig(config_id, config, rank)
-        highest_rank_config_id = self.get_highest_rank_desired_config()
-        if config_id == highest_rank_config_id:
-            await self.start_ensure_config()
+        self.desired_configs_changed.set()
 
         # TODO this is messy. Clean this up
         self.values['desired_configs'] = self.desired_configs
-        await self.app['tkstorage.values_changed']({self.tk_id: self.values})
+        run_forget_task(self.app['tkstorage.values_changed']({self.tk_id: self.values}))
 
-    async def del_desired_config(self, config_id):
+    def del_desired_config(self, config_id):
         if config_id in self.desired_configs:
-            config_id_before = self.get_highest_rank_desired_config()
             del self.desired_configs[config_id]
-            highest_rank_config_id = self.get_highest_rank_desired_config()
-            if highest_rank_config_id != config_id_before:
-                await self.start_ensure_config()
+            self.desired_configs_changed.set()
 
             # TODO this is messy. Clean this up
             self.values['desired_configs'] = self.desired_configs
-            await self.app['tkstorage.values_changed']({self.tk_id: self.values})
+            run_forget_task(self.app['tkstorage.values_changed']({self.tk_id: self.values}))
 
-    async def start_ensure_config(self):
-        if self.app['tkstorage.config']:
-            if self.ensure_config_fut:
-                await cancel_and_wait_task(self.ensure_config_fut)
-            self.ensure_config_fut = asyncio.ensure_future(self.ensure_config())
-            self.ensure_config_fut.add_done_callback(self.ensure_config_done)
+    def start_config_apply_loop(self):
+        self.config_apply_loop_fut = asyncio.ensure_future(self.config_apply_loop())
 
-    def ensure_config_done(self, fut):
-        self.ensure_config_fut = None
+    async def stop_config_apply_loop(self):
+        await cancel_and_wait_task(self.config_apply_loop_fut)
 
-    async def ensure_config(self):
-        apply_count = -1
+    async def config_apply_loop(self):
         delay = 10
+        apply_count = -1
         while True:
-            commands = await self.apply_config('first' if apply_count % 4 == 0 else False)
-            if not commands:
-                break
-            await asyncio.sleep(delay)
-            delay = min(delay * 2, 300)
-            apply_count += 1
+            try:
+                if self.desired_configs_changed.is_set():
+                    apply_count = -1
+                    delay = 10
+                    self.desired_configs_changed.clear()
+                else:
+                    delay = min(delay * 2, 300)
+                    apply_count += 1
+
+                commands = None
+
+                commands = await self.apply_config('first' if apply_count % 4 == 0 else False)
+                waits = (self.desired_configs_changed.wait(), )
+                if commands:
+                    waits = waits + (asyncio.sleep(delay), )
+                waits = tuple(asyncio.ensure_future(fut) for fut in waits)
+                try:
+                    await asyncio.wait(waits, return_when=asyncio.FIRST_COMPLETED)
+                except asyncio.CancelledError:
+                    for fut in waits:
+                        await cancel_and_wait_task(fut)
+                    raise
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception('')
 
     async def apply_config(self, urgent):
         if self.desired_configs:
             highest_rank_config_id = self.get_highest_rank_desired_config()
             desired_config = self.desired_configs[highest_rank_config_id].config
-
-            logger.debug(f'Desired: {desired_config} Current: {self.config}')
 
             commands = []
             desired_routetrack = desired_config.get('routetrack', False)
@@ -168,8 +183,13 @@ class TrackerObjects(object):
                 else:
                     commands.append(f'*checkoff*')
 
-            logger.debug(f'Sending commands {commands} for config {desired_config}')
             if commands:
+                verb = 'Sending' if self.app['tkstorage.config'] else 'Would send'
+                action = f'{verb} commands {commands} Urgent: {urgent}'
+            else:
+                action = 'No action'
+            logger.debug(f'{self.tk_id}: Desired: {desired_config} Current: {self.config} {action}')
+            if commands and self.app['tkstorage.config']:
                 await self.app['tkstorage.send_queue'].put({'id': self.tk_id, 'commands': commands, 'urgent': urgent})
             return commands
 
@@ -546,7 +566,9 @@ class TKStorageTracker(Tracker):
         tracker.initial_config_handle = None
 
         base_start = config.get('base', {}).get('start', start)
-        if base_start:
+        if base_start and now < end:
+            if now > start:
+                base_start = base_start + datetime.timedelta(seconds=60)
             tracker.initial_config_handle = asyncio.get_event_loop().call_later(
                 (base_start - now).total_seconds(),
                 tracker.set_base_config)
@@ -583,11 +605,11 @@ class TKStorageTracker(Tracker):
                         dist = distance(Point(*rule['point']), Point(*last_poistion[:2]))
                         if dist < rule['dist']:
                             self.logger.debug(f'Using config rule {i}')
-                            await self.objects.add_desired_config('rules', rule['config'], rank=20)
+                            self.objects.add_desired_config('rules', rule['config'], rank=20)
                             break
                 else:
                     self.logger.debug('Clear config rule.')
-                    await self.objects.del_desired_config('rules')
+                    self.objects.del_desired_config('rules')
 
     def stop(self):
         if not self.completed.done():
@@ -595,11 +617,21 @@ class TKStorageTracker(Tracker):
             if self.initial_config_handle:
                 self.initial_config_handle.cancel()
 
+    def set_finished(self):
+        for rule in self.config_rules:
+            if rule['type'] == 'finished':
+                self.objects.add_desired_config('finished', rule['config'], rank=30)
+
+    def reset_points(self):
+        super().reset_points()
+        self.objects.del_desired_config('rules')
+        self.objects.del_desired_config('finished')
+
     def on_completed(self, fut):
         self.points_received_observables.unsubscribe(self.points_received)
 
         self.objects.values['active'].subtract((self.tracker_name, ))
-        asyncio.ensure_future(self.app['tkstorage.values_changed']({self.id: self.objects.values})).add_done_callback(lambda fut: fut.result)
+        run_forget_task(self.app['tkstorage.values_changed']({self.id: self.objects.values}))
 
         # TODO maybe do this if finished but not stopped
         # asyncio.ensure_future(self.objects.del_desired_config('base_config'))
@@ -607,7 +639,7 @@ class TKStorageTracker(Tracker):
     def set_base_config(self):
         if self.config and 'base' in self.config:
             self.logger.debug('Setting base config')
-            asyncio.ensure_future(self.objects.add_desired_config('base_config', self.config['base'], rank=0))
+            self.objects.add_desired_config('base_config', self.config['base'], rank=0)
 
 
 async def admin_ws(request):
@@ -635,10 +667,10 @@ async def admin_ws(request):
                             await send_queue.put(data)
                         if 'config' in data:
                             tracker_objects = get_tracker_objects(app, data['id'])
-                            await tracker_objects.add_desired_config('admin_console', data['config'], rank=100)
+                            tracker_objects.add_desired_config('admin_console', data['config'], rank=100)
                         if 'del_config' in data:
                             tracker_objects = get_tracker_objects(app, data['id'])
-                            await tracker_objects.del_desired_config('admin_console')
+                            tracker_objects.del_desired_config('admin_console')
 
                     except Exception:
                         request.app['exception_recorder']()

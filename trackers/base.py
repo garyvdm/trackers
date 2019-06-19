@@ -24,6 +24,7 @@ class Tracker(object):
         else:
             completed = asyncio.ensure_future(completed)
         self.completed = completed
+        self.finished = False
 
     def __repr__(self):
         return f'<{type(self).__name__}({self.name})>'
@@ -34,6 +35,7 @@ class Tracker(object):
 
     async def reset_points(self):
         self.points = []
+        self.finished = False
         await self.reset_points_observable(self)
 
     def stop(self):
@@ -45,6 +47,9 @@ class Tracker(object):
             await self.completed
         except asyncio.CancelledError:
             raise
+
+    def set_finished(self):
+        self.finished = True
 
 
 class Observable(object):
@@ -87,6 +92,12 @@ def general_fut_done_callback(fut):
         pass
     except Exception:
         logging.exception('')
+
+
+def run_forget_task(coro):
+    fut = asyncio.ensure_future(coro)
+    fut.add_done_callback(general_fut_done_callback)
+    return fut
 
 
 @contextlib.contextmanager

@@ -228,7 +228,7 @@ class AnalyseTracker(Tracker):
                         if closest.route_i == 0 and abs(route_dist - last_route_point.distance) < 100:
                             # This is for when we get a point at the finish.
                             self.logger.debug('Finished')
-                            self.finished = True
+                            self.set_finished()
                             point['finished_time'] = point['time']
                             point['rider_status'] = 'Finished'
                     else:
@@ -316,7 +316,7 @@ class AnalyseTracker(Tracker):
                     new_pre_post_points.append(point)
 
                 if 'rider_status' in point:
-                    self.finished = True
+                    self.set_finished()
                     self.pre_post_track_id += 1
 
                 is_last_point = i == last_point_i
@@ -339,13 +339,17 @@ class AnalyseTracker(Tracker):
         delay = (time - datetime.now() + timedelta(minutes=5)).total_seconds()
         if delay > 0:
             await asyncio.sleep(delay)
-        self.finished = True
+        self.set_finished()
         point = {
             'finished_time': time,
             'time': time,
             'rider_status': 'Finished',
         }
         await self.new_points([point])
+
+    def set_finished(self):
+        super().set_finished()
+        self.org_tracker.set_finished()
 
     def get_predicted_position(self, time):
         # TODO if time > a position received - then interpolate between those positions.
