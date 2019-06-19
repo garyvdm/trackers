@@ -214,10 +214,15 @@ function update_values() {
         }
 
         var config_cell = ''
+        var actual_config = ''
         if (tk_values.hasOwnProperty('tk_config')) {
+            actual_config = tk_values.tk_config.value
             config_cell += sprintf(
                 '%s<div class="ago">%s</div>', tk_values.tk_config.value,
                 format_time_delta_ago_with_date(now, tk_values.tk_config.time, date_options))
+        }
+        if (tk_values.hasOwnProperty('desired_config_text') && tk_values.desired_config_text != actual_config) {
+            config_cell += sprintf('<div>(%s)</div>', tk_values.desired_config_text)
         }
         if (tk_values.hasOwnProperty('desired_configs')) {
             Object.keys(tk_values.desired_configs).forEach(function (config_id){

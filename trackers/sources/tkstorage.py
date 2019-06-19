@@ -101,20 +101,23 @@ class TrackerObjects(object):
 
     def add_desired_config(self, config_id, config, rank=0):
         self.desired_configs[config_id] = DesiredConfig(config_id, config, rank)
-        self.desired_configs_changed.set()
-
-        # TODO this is messy. Clean this up
-        self.values['desired_configs'] = self.desired_configs
-        run_forget_task(self.app['tkstorage.values_changed']({self.tk_id: self.values}))
+        self._desired_changed()
 
     def del_desired_config(self, config_id):
         if config_id in self.desired_configs:
             del self.desired_configs[config_id]
-            self.desired_configs_changed.set()
 
-            # TODO this is messy. Clean this up
-            self.values['desired_configs'] = self.desired_configs
-            run_forget_task(self.app['tkstorage.values_changed']({self.tk_id: self.values}))
+    def _desired_changed(self):
+        self.desired_configs_changed.set()
+        if self.desired_configs:
+            highest_rank_config_id = self.get_highest_rank_desired_config()
+            desired_config = self.desired_configs[highest_rank_config_id].config
+            self.values['desired_config_text'] = config_text_from_config(desired_config)
+        else:
+            self.values['desired_config_text'] = ''
+
+        self.values['desired_configs'] = self.desired_configs
+        run_forget_task(self.app['tkstorage.values_changed']({self.tk_id: self.values}))
 
     def start_config_apply_loop(self):
         self.config_apply_loop_fut = asyncio.ensure_future(self.config_apply_loop())
@@ -483,6 +486,25 @@ def parse_coordinate(raw, neg):
 config_keys = {'tk_routetrack', 'tk_rupload', 'tk_rsampling', 'tk_check', }
 
 
+def config_text_from_config(c):
+    config_texts = []
+    routetrack = c.get('routetrack')
+    if routetrack:
+        t = 'on' if routetrack == True else f'on for {routetrack} hrs'  # NOQA
+        if 'rupload' in c and 'rsampling' in c:
+            if c["rupload"] == c["rsampling"]:
+                config_texts.append(f'Routetrack {t} {c["rupload"]} sec upload')
+            else:
+                config_texts.append(f'Routetrack {t} {c["rupload"]} sec upload, {c["rsampling"]} sec sample')
+        else:
+            config_texts.append(f'Routetrack {t}')
+    if c.get('check'):
+        config_texts.append(f'Check on {c["check"]} min upload')
+    if not config_texts:
+        config_texts.append(f'Off')
+    return '\n'.join(config_texts)
+
+
 # TODO make this a method of TrackerObjects
 def consume_config_from_point(app, point):
     config_items = [(key[3:], value) for key, value in point.items() if key in config_keys]
@@ -491,22 +513,7 @@ def consume_config_from_point(app, point):
         c.update(config_items)
         # Do we want to rm the config keys
         point = copy(point)
-        config_texts = []
-        routetrack = c.get('routetrack')
-        if routetrack:
-            t = 'on' if routetrack == True else f'on for {routetrack} hrs'  # NOQA
-            if 'rupload' in c and 'rsampling' in c:
-                if c["rupload"] == c["rsampling"]:
-                    config_texts.append(f'Routetrack {t} {c["rupload"]} sec upload')
-                else:
-                    config_texts.append(f'Routetrack {t} {c["rupload"]} sec upload, {c["rsampling"]} sec sample')
-            else:
-                config_texts.append(f'Routetrack {t}')
-        if c.get('check'):
-            config_texts.append(f'Check on {c["check"]} min upload')
-        if not config_texts:
-            config_texts.append(f'Off')
-        point['tk_config'] = '\n'.join(config_texts)
+        point['tk_config'] = config_text_from_config(c)
         # print(repr(point['tk_config']))
     return point
 
