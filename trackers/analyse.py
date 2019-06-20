@@ -284,7 +284,7 @@ class AnalyseTracker(Tracker):
                             # This is for when they are near to the finish, and the tracker turns off too soon.
                             seconds_to_finish = abs(route_dist - last_route_point.distance) / (dist_from_last / seconds)
                             est_finish_time = point['time'] + timedelta(seconds=seconds_to_finish)
-                            self.do_est_finish_fut = asyncio.ensure_future(self.do_est_finish(est_finish_time))
+                            # self.do_est_finish_fut = asyncio.ensure_future(self.do_est_finish(est_finish_time))
 
                     if not pre_post:
                         if not on_route or (not self.going_forward and speed_from_last and speed_from_last > 3):
