@@ -86,6 +86,7 @@ class TrackerObjects(object):
     points: List[Dict] = field(default_factory=list)
     config: Dict = field(default_factory=dict)
     values: Dict = field(default_factory=dict)
+    active_trackers: Dict = field(default_factory=Counter)
 
     desired_configs: Dict = field(default_factory=dict)
     config_apply_loop_fut: Optional[asyncio.Future] = field(default=None)
@@ -101,15 +102,14 @@ class TrackerObjects(object):
 
     def add_desired_config(self, config_id, config, rank=0):
         self.desired_configs[config_id] = DesiredConfig(config_id, config, rank)
-        self._desired_changed()
+        self.desired_configs_changed.set()
 
     def del_desired_config(self, config_id):
         if config_id in self.desired_configs:
             del self.desired_configs[config_id]
-        self._desired_changed()
+        self.desired_configs_changed.set()
 
     def _desired_changed(self):
-        self.desired_configs_changed.set()
         if self.desired_configs:
             highest_rank_config_id = self.get_highest_rank_desired_config()
             desired_config = self.desired_configs[highest_rank_config_id].config
@@ -118,6 +118,20 @@ class TrackerObjects(object):
             self.values['desired_config_text'] = ''
 
         self.values['desired_configs'] = self.desired_configs
+        run_forget_task(self.app['tkstorage.values_changed']({self.tk_id: self.values}))
+
+    def add_active_tracker(self, name):
+        self.active_trackers.update((name, ))
+        self._update_active_tracker()
+
+    def remove_active_tracker(self, name):
+        self.active_trackers.subtract((name, ))
+        self._update_active_tracker()
+
+    def _update_active_tracker(self):
+        self.values['active'] = [tracker for tracker, count in self.active_trackers.items() if count]
+        self.values['prev_active'] = [tracker for tracker, count in self.active_trackers.items() if not count]
+
         run_forget_task(self.app['tkstorage.values_changed']({self.tk_id: self.values}))
 
     def start_config_apply_loop(self):
@@ -141,9 +155,10 @@ class TrackerObjects(object):
                     delay = min(delay * 4, 1800)
                     apply_count += 1
 
-                commands = None
-
                 commands = await self.apply_config('first' if apply_count % 4 == 0 else False)
+
+                self._desired_changed()
+
                 waits = (self.desired_configs_changed.wait(), )
                 if commands:
                     waits = waits + (asyncio.sleep(delay), )
@@ -558,8 +573,7 @@ class TKStorageTracker(Tracker):
         tracker.config_rules = tracker.config.get('rules', [])
 
         tracker.objects = tracker_objects = get_tracker_objects(app, id)
-        tracker_objects.values.setdefault('active', Counter()).update((tracker_name, ))
-        await app['tkstorage.values_changed']({id: tracker_objects.values})
+        tracker.objects.add_active_tracker(tracker_name)
 
         # await app['tkstorage.initial_download'].wait()
         try:
@@ -646,8 +660,7 @@ class TKStorageTracker(Tracker):
         self.objects.del_desired_config('rules')
         self.objects.del_desired_config('finished')
 
-        self.objects.values['active'].subtract((self.tracker_name, ))
-        run_forget_task(self.app['tkstorage.values_changed']({self.id: self.objects.values}))
+        self.objects.remove_active_tracker(self.tracker_name)
 
         # TODO maybe do this if finished but not stopped
         # asyncio.ensure_future(self.objects.del_desired_config('base_config'))

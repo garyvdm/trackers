@@ -109,12 +109,12 @@ function ws_onmessage(event){
             el.innerHTML = '&nbsp;';
         } else if (status.hasOwnProperty('error')) {
             el.innerText = status.error;
-        } else {
+        } else if (status.hasOwnProperty('telephony')) {
             el.innerText = status.telephony.network_operator_name + ' ' + status.battery.level;
+        } else {
+            el.innerHTML = '&nbsp;';
         }
     }
-
-
 
 }
 
@@ -126,7 +126,7 @@ function update_trackers() {
 
         return '' +
             sprintf('<tr tk_id="%s" >', id) +
-            sprintf('<td>%s<br><a href="tel:%s">%s</a><br>%s<br><span id="active"></span></td>', id, tracker.phone_number, tracker.phone_number, tracker.device_id) +
+            sprintf('<td>%s<br><a href="tel:%s">%s</a><br>%s<br><span id="active"></span><br>(<span id="prev_active"></span>)</td>', id, tracker.phone_number, tracker.phone_number, tracker.device_id) +
             '<td style="text-align: right"></td>' +
             '<td></td>' +
             '<td></td>' +
@@ -184,9 +184,15 @@ function update_values() {
         var cells = row.cells;
 
         if (tk_values.hasOwnProperty('active')) {
-            row.querySelector('#active').innerText = Object.keys(tk_values.active).join(', ');
+            row.querySelector('#active').innerText = tk_values.active.join(', ');
         } else {
             row.querySelector('#active').innerText = '';
+        }
+
+        if (tk_values.hasOwnProperty('prev_active')) {
+            row.querySelector('#prev_active').innerText = tk_values.prev_active.join(', ');
+        } else {
+            row.querySelector('#prev_active').innerText = '';
         }
 
         if (tk_values.hasOwnProperty('last_connection')) {
@@ -221,7 +227,7 @@ function update_values() {
                 '%s<div class="ago">%s</div>', tk_values.tk_config.value,
                 format_time_delta_ago_with_date(now, tk_values.tk_config.time, date_options))
         }
-        if (tk_values.hasOwnProperty('desired_config_text') && tk_values.desired_config_text != actual_config) {
+        if (tk_values.hasOwnProperty('desired_config_text') && tk_values.desired_config_text && tk_values.desired_config_text != actual_config) {
             config_cell += sprintf('<div>(%s)</div>', tk_values.desired_config_text)
         }
         if (tk_values.hasOwnProperty('desired_configs')) {
