@@ -106,6 +106,7 @@ class TrackerObjects(object):
     def del_desired_config(self, config_id):
         if config_id in self.desired_configs:
             del self.desired_configs[config_id]
+        self._desired_changed()
 
     def _desired_changed(self):
         self.desired_configs_changed.set()
@@ -128,8 +129,10 @@ class TrackerObjects(object):
     async def config_apply_loop(self):
         delay = 10
         apply_count = -1
+        await asyncio.sleep(5)
         while True:
             try:
+                await asyncio.sleep(5)
                 if self.desired_configs_changed.is_set():
                     apply_count = -1
                     delay = 10
@@ -625,9 +628,11 @@ class TKStorageTracker(Tracker):
                 self.initial_config_handle.cancel()
 
     def set_finished(self):
-        for rule in self.config_rules:
-            if rule['type'] == 'finished':
-                self.objects.add_desired_config('finished', rule['config'], rank=30)
+        super().set_finished()
+        if not self.completed.done():
+            for rule in self.config_rules:
+                if rule['type'] == 'finished':
+                    self.objects.add_desired_config('finished', rule['config'], rank=30)
 
     def reset_points(self):
         super().reset_points()
@@ -636,6 +641,10 @@ class TKStorageTracker(Tracker):
 
     def on_completed(self, fut):
         self.points_received_observables.unsubscribe(self.points_received)
+
+        self.objects.del_desired_config('base_config')
+        self.objects.del_desired_config('rules')
+        self.objects.del_desired_config('finished')
 
         self.objects.values['active'].subtract((self.tracker_name, ))
         run_forget_task(self.app['tkstorage.values_changed']({self.id: self.objects.values}))
