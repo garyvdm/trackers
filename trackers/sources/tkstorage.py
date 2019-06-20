@@ -138,7 +138,7 @@ class TrackerObjects(object):
                     delay = 10
                     self.desired_configs_changed.clear()
                 else:
-                    delay = min(delay * 2, 300)
+                    delay = min(delay * 4, 1800)
                     apply_count += 1
 
                 commands = None
