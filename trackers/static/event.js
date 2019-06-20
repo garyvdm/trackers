@@ -1176,7 +1176,7 @@ function update_selected_rider_point_markers(){
                                 position: position,
                             });
 
-                            marker.addListener('click', point_marker_onclick.bind(null, marker, point));
+                            marker.addListener('click', point_marker_onclick.bind(null, marker, point, rider_name));
                             rider_items.point_markers[point.index] = marker;
                         }
                     }
@@ -1188,7 +1188,10 @@ function update_selected_rider_point_markers(){
     });
 }
 
-function point_marker_onclick(marker, point) {
+var current_point_info_window_point = null;
+
+function point_marker_onclick(marker, point, rider_name) {
+    current_point_info_window_point = [point, rider_name];
     var content = '<table>';
     var current_time = (new Date().getTime() / 1000) - time_offset;
     if (point.hasOwnProperty('time')) {
@@ -1247,9 +1250,28 @@ function point_marker_onclick(marker, point) {
                            format_time_delta(point.server_time_from_last));
     }
     content += '</table>';
+    content += '<div style="display: flex; justify-content: space-around;"><button onclick="point_marker_onclick_move(-1);">Previous Point</button> <button onclick="point_marker_onclick_move(+1);">Next Point</button></div>';
     point_info_window.setContent(content);
     point_info_window.open(map, marker);
     point_info_window.setPosition(marker.position);
+}
+
+function point_marker_onclick_move(direction) {
+    var old_point = current_point_info_window_point[0];
+    var rider_name = current_point_info_window_point[1];
+    var rider_items = riders_client_items[rider_name];
+    var rider_points = riders_points[rider_name];
+
+    for (var index = old_point.index + direction; index < rider_points.length && index >= 0; index += direction ) {
+        var point = rider_points[index];
+        var marker = rider_items.point_markers[index];
+
+        if (marker && marker.getVisible()) {
+            map.panTo(marker.getPosition());
+            point_marker_onclick(marker, point, rider_name);
+            break
+        }
+    }
 }
 
 load_state();
