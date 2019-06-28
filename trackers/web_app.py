@@ -138,8 +138,8 @@ async def make_aio_app(settings,
     app['load_with_watcher_task'] = asyncio.ensure_future(
         trackers.events.load_with_watcher(
             app,
-            new_event_observable=Observable(logger=trackers.events.logger, callbacks=(on_new_event, )),
-            removed_event_observable=Observable(logger=trackers.events.logger, callbacks=(on_removed_event, )),
+            new_event_observable=Observable('new_event', callbacks=(on_new_event, )),
+            removed_event_observable=Observable('removed_event', callbacks=(on_removed_event, )),
         ))
 
     return app

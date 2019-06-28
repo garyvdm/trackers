@@ -55,6 +55,8 @@ defaults_yaml = f"""
         loggers:
             aiohttp.access:
                 level: ERROR
+            observable:
+                level: ERROR
 
 """
 

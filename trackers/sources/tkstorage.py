@@ -26,16 +26,16 @@ web_app = None
 
 @asynccontextmanager
 async def config(app, settings):
-    app['tkstorage.points_received_observables'] = points_received_observables = defaultdict(partial(Observable, logger))
+    app['tkstorage.points_received_observables'] = points_received_observables = defaultdict(partial(Observable, 'tkstorage.points_received'))
     app['tkstorage.send_queue'] = send_queue = asyncio.Queue()
     app['tkstorage.all_points_len'] = 0
     app['tkstorage.initial_download'] = initial_download_done = asyncio.Event()
     app['tkstorage.trackers_objects'] = trackers_objects = dict()
-    app['tkstorage.values_changed'] = values_changed = Observable(logger)
+    app['tkstorage.values_changed'] = values_changed = Observable('tkstorage.values_changed')
     app['tkstorage.trackers'] = {}
-    app['tkstorage.trackers_changed'] = trackers_changed = Observable(logger)
+    app['tkstorage.trackers_changed'] = trackers_changed = Observable('tkstorage.trackers_changed')
     app['tkstorage.sms_gateway_status'] = {}
-    app['tkstorage.sms_gateway_status_changed'] = sms_gateway_status_changed = Observable(logger)
+    app['tkstorage.sms_gateway_status_changed'] = sms_gateway_status_changed = Observable('tkstorage.sms_gateway_status_changed')
     app['tkstorage.config'] = settings.get('tkstorage_config', True)
 
     connection_task = asyncio.ensure_future(connection(app, settings, points_received_observables, send_queue,

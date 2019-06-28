@@ -15,8 +15,8 @@ class Tracker(object):
         self.points = []
         self.status = None
         self.logger = logging.getLogger('trackers.{}'.format(name))
-        self.new_points_observable = Observable(self.logger, callbacks=new_points_callbacks)
-        self.reset_points_observable = Observable(self.logger, callbacks=reset_points_callbacks)
+        self.new_points_observable = Observable(f'{self.name}.new_points', callbacks=new_points_callbacks)
+        self.reset_points_observable = Observable(f'{self.name}.reset_points', callbacks=reset_points_callbacks)
 
         self.callback_tasks = []
         if completed is None:
@@ -54,11 +54,11 @@ class Tracker(object):
 
 class Observable(object):
 
-    def __init__(self, logger, callbacks=(), error_msg='Error calling callback: '):
+    def __init__(self, name, callbacks=(), error_msg='Error calling callback: '):
         self.callbacks = []
         self.callbacks.extend(callbacks)
         self.error_msg = error_msg
-        self.logger = logger
+        self.logger = logging.getLogger(f'observable.{name}')
 
     def subscribe(self, callback):
         self.callbacks.append(callback)
@@ -67,7 +67,8 @@ class Observable(object):
         self.callbacks.remove(callback)
 
     async def __call__(self, *args, **kwargs):
-        self.logger.debug(f'Calling {self.callbacks}')
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug(f'Calling {self.callbacks}(*{args}, **{kwargs})'[:1000])
         for callback in self.callbacks:
             try:
                 await callback(*args, **kwargs)
@@ -168,17 +169,17 @@ def get_blocked_list(source, existing, smallest_block_len=8, entire_block=False)
 
 class BlockedList(object):
 
-    def __init__(self, get_source, new_update_callbacks=(), **kwargs):
+    def __init__(self, source_name, get_source, new_update_callbacks=(), **kwargs):
         self.get_source = get_source
         self.kwargs = kwargs
         self.full, _ = get_blocked_list(get_source(), {}, **self.kwargs)
         self.last = self.full
-        self.new_update_observable = Observable(logger, callbacks=new_update_callbacks)
+        self.new_update_observable = Observable(f'{source_name}.blocked_list_new_update', callbacks=new_update_callbacks)
 
     @staticmethod
     def from_tracker(tracker, **kwargs):
         get_source = lambda: tracker.points
-        blocked_list = BlockedList(get_source, **kwargs)
+        blocked_list = BlockedList(tracker.name, get_source, **kwargs)
 
         async def tracker_change(tracker, *args):
             return await blocked_list.on_new_items()

@@ -81,7 +81,7 @@ async def load(app, ref=b'HEAD', **kwargs):
         await load_events(app, tree_reader, **kwargs)
 
 
-async def load_events(app, tree_reader, new_event_observable=Observable(logger), removed_event_observable=Observable(logger)):
+async def load_events(app, tree_reader, new_event_observable=Observable('new_event'), removed_event_observable=Observable('removed_event')):
     events = app['trackers.events']
     names = set(tree_reader.tree_items('events'))
     for name in events.keys() - names:
@@ -116,13 +116,13 @@ class Event(object):
         self.starting_fut = None
         self.batch_update_task = None
 
-        self.config_routes_change_observable = Observable(self.logger)
-        self.rider_new_values_observable = Observable(self.logger)
-        self.rider_pre_post_new_values_observable = Observable(self.logger)
-        self.rider_blocked_list_update_observable = Observable(self.logger)
-        self.rider_off_route_blocked_list_update_observable = Observable(self.logger)
-        self.rider_pre_post_blocked_list_update_observable = Observable(self.logger)
-        self.batch_update_observable = Observable(self.logger)
+        self.config_routes_change_observable = Observable(f'event.{name}.config_routes_change')
+        self.rider_new_values_observable = Observable(f'event.{name}.rider_new_values')
+        self.rider_pre_post_new_values_observable = Observable(f'event.{name}.rider_pre_post_new_values')
+        self.rider_blocked_list_update_observable = Observable(f'event.{name}.rider_blocked_list_update')
+        self.rider_off_route_blocked_list_update_observable = Observable(f'event.{name}.rider_off_route_blocked_list_update')
+        self.rider_pre_post_blocked_list_update_observable = Observable(f'event.{name}.rider_pre_post_blocked_list_update')
+        self.batch_update_observable = Observable(f'event.{name}.batch_update')
         self.new_points = asyncio.Event()
 
         self.path = os.path.join('events', name)

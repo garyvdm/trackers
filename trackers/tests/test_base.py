@@ -16,25 +16,24 @@ from trackers.base import (
 class TestObservable(asynctest.TestCase):
 
     async def test_normal(self):
-        logger = logging.getLogger('call_callbacks')
         callback = asynctest.CoroutineMock()
-        await Observable(logger, callbacks=[callback])(foo='bar')
+        await Observable('test', callbacks=[callback])(foo='bar')
         callback.assert_called_once_with(foo='bar')
 
     async def test_error(self):
-        logger = logging.getLogger('call_callbacks')
+        logger = logging.getLogger('observable.test')
         normal_callback = asynctest.CoroutineMock()
 
         async def raise_error_callback():
             raise Exception('foo')
 
         with self.assertLogs(logger) as (_, log_output):
-            await Observable(logger, callbacks=[raise_error_callback, normal_callback], error_msg='error_msg')()
+            await Observable('test', callbacks=[raise_error_callback, normal_callback], error_msg='error_msg')()
 
         # the error callback should not stop the following callbacks
         normal_callback.assert_called_once_with()
         self.assertEqual(len(log_output), 1)
-        self.assertTrue(log_output[0].startswith('ERROR:call_callbacks:error_msg'))
+        self.assertTrue(log_output[0].startswith('ERROR:observable.test:error_msg '))
 
     async def test_cancel_still_raises(self):
         logger = logging.getLogger('call_callbacks')

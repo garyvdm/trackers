@@ -69,7 +69,7 @@ class ProcessedStaticManager(object):
         self.resources = []
         self.processed_resources = {}
         self.urls = {}
-        self.resources_processed = Observable(logger, resources_processed)
+        self.resources_processed = Observable('static_manager_resources_processed', resources_processed)
         self.monitor_task = None
         self.watcher_availible = asyncio.Event()
 

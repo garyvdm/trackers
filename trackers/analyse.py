@@ -96,7 +96,7 @@ class AnalyseTracker(Tracker):
 
         self.off_route_tracker = Tracker(f'offroute.{self.name}', completed=self.completed)
         self.pre_post_tracker = Tracker(f'prepost.{self.name}', completed=self.completed)
-        self.not_pre_post_observable = Observable(self.logger)
+        self.not_pre_post_observable = Observable(f'{self.name}.not_pre_post')
 
         self.reset()
         self.do_est_finish_fut = None
