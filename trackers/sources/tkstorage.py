@@ -392,6 +392,11 @@ def msg_item_to_point(msg_item):
         # HACK Some trackers are out by this time sometimes.
         if 'time' in point and (server_time - point['time']).total_seconds() // 100 == 713664:
             point['time'] = point['time'] + datetime.timedelta(days=826)
+
+        # HACK Some trackers are out by one week.
+        if 'time' in point and (server_time.date() - point['time'].date()) == datetime.timedelta(weeks=1):
+            point['time'] = point['time'] + datetime.timedelta(weeks=1)
+
         return point
 
 
