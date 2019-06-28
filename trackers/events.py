@@ -465,7 +465,8 @@ class Event(object):
     async def on_rider_reset_points(self, rider_name, tracker):
         self.riders_current_values[rider_name].clear()
         self.riders_pre_post_values[rider_name].clear()
-        self.riders_predicted_points[rider_name].clear()
+        if rider_name in self.riders_predicted_points:
+            self.riders_predicted_points[rider_name].clear()
 
         self.riders_updated.add(rider_name)
         self.riders_pre_post_updated.add(rider_name)
