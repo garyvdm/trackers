@@ -960,20 +960,19 @@ async def event_admin(request, event):
                             for tracker in trackers:
                                 tracker_objects = trackers_objects.get(tracker['id'])
                                 if trackers_objects is not None and tracker_objects:
-                                    active = tracker_objects.values.get('active')
-                                    if active:
-                                        tracker['active'] = active
-                            trackers.sort(key=lambda tracker: 'active' in tracker)
+                                    active = tracker_objects.active_trackers
+                                    tracker['active_count'] = sum(active.values())
+                                    tracker['active_text'] = ', '.join([item for item, count in active.items() if count])
+                                else:
+                                    tracker['active_count'] = 0
+                                    tracker['active_text'] = ''
+                            trackers.sort(key=lambda tracker: tracker['active_count'])
 
                             with c(Tag('select', id='tkstorage_id', class_="browser-default")):
                                 w(Tag('option', value=''), '---')
                                 for tracker in trackers:
                                     active = tracker.get('active')
-                                    if active:
-                                        active_text = ', '.join([item for item, count in active.items() if count])
-                                    else:
-                                        active_text = ''
-                                    w(Tag('option', value=tracker['id']), f'{tracker["id"]} {active_text}')
+                                    w(Tag('option', value=tracker['id']), f'{tracker["id"]} {tracker["active_text"]}')
 
                             w(Tag('br'))
                             with c(Tag('label')):
