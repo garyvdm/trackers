@@ -101,8 +101,10 @@ class AnalyseTracker(Tracker):
         self.reset()
         self.do_est_finish_fut = None
 
-        self.process_initial_points_fut = asyncio.ensure_future(self.process_initial_points())
+        self.process_initial_points_fut = asyncio.ensure_future(self.on_new_points(self.org_tracker, self.org_tracker.points))
         self.process_initial_points_fut.add_done_callback(general_fut_done_callback)
+        self.org_tracker.new_points_observable.subscribe(self.on_new_points)
+        self.org_tracker.reset_points_observable.subscribe(self.on_reset_points)
 
         return self
 
@@ -148,11 +150,6 @@ class AnalyseTracker(Tracker):
             await self.off_route_tracker.reset_points()
             await self.pre_post_tracker.reset_points()
             self.reset()
-
-    async def process_initial_points(self):
-        await self.on_new_points(self.org_tracker, self.org_tracker.points)
-        self.org_tracker.new_points_observable.subscribe(self.on_new_points)
-        self.org_tracker.reset_points_observable.subscribe(self.on_reset_points)
 
     async def on_new_points(self, tracker, new_points):
         self.logger.debug(

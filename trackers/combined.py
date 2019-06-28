@@ -47,6 +47,7 @@ class Combined(Tracker):
             if is_sorted:
                 await self.new_points(points)
             else:
+                self.logger.debug('Points not sorted. Resting.')
                 all_points_sorted = list(sorted(chain(self.points, points), key=time_key))
                 await self.reset_points()
                 await self.new_points(all_points_sorted)

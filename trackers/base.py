@@ -67,14 +67,14 @@ class Observable(object):
         self.callbacks.remove(callback)
 
     async def __call__(self, *args, **kwargs):
+        self.logger.debug(f'Calling {self.callbacks}')
         for callback in self.callbacks:
             try:
                 await callback(*args, **kwargs)
             except asyncio.CancelledError:
                 raise
             except Exception:
-                print((args, kwargs))
-                self.logger.exception(self.error_msg)
+                self.logger.exception(f'{self.error_msg} ({callback, args, kwargs})')
 
 
 async def cancel_and_wait_task(task):
