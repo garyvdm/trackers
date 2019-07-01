@@ -555,7 +555,7 @@ class Event(object):
             rider_time = None
             if rider_predicted_points and 'dist_route' in rider_predicted_points:
                 rider_dist_route = rider_predicted_points['dist_route']
-                rider_time = time
+                rider_time = rider_predicted_points['time']
             elif rider_values and 'dist_route' in rider_values:
                 rider_dist_route = rider_values['dist_route']
                 rider_time = rider_values['position_time']

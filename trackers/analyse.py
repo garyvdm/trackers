@@ -121,6 +121,9 @@ class AnalyseTracker(Tracker):
 
         self.prev_point_with_position = None
         self.prev_point_with_position_point = None
+
+        self.non_prepost_prev_point_with_position = None
+
         self.prev_closest = None
         self.prev_route_dist = 0
         self.prev_route_dist_time = None
@@ -294,6 +297,7 @@ class AnalyseTracker(Tracker):
                             new_off_route_points.append({'position': point['position'], 'track_id': self.off_route_track_id})
                             self.is_off_route = False
                             self.off_route_track_id += 1
+                        self.non_prepost_prev_point_with_position = point
 
                     self.prev_point_with_position = point
                     self.prev_point_with_position_point = point_point
@@ -350,7 +354,7 @@ class AnalyseTracker(Tracker):
 
     def get_predicted_position(self, time):
         # TODO if time > a position received - then interpolate between those positions.
-        pp = self.prev_point_with_position
+        pp = self.non_prepost_prev_point_with_position
         closest = self.prev_closest
 
         if (
@@ -370,15 +374,17 @@ class AnalyseTracker(Tracker):
             point = {
                 'position': [point_point.lat, point_point.lng],
                 'dist_route': round(dist_route),
+                'time': time
             }
             if 'elevation' in closest.route:
                 point['route_elevation'] = round(route_elevation(closest.route, dist_route))
 
             return point
 
-        if not self.pre_post and pp:
+        if pp:
             point = {
                 'position': pp['position'],
+                'time': pp['time'],
             }
             if 'dist_route' in pp:
                 point['dist_route'] = pp['dist_route']
