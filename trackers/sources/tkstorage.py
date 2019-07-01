@@ -255,11 +255,13 @@ async def connection(app, settings, points_received_observables, send_queue,
                                 if 'trackers' in msg:
                                     app['tkstorage.trackers'] = msg['trackers']
                                     await app['tkstorage.trackers_changed'](msg['trackers'])
+                                    for tracker in app['tkstorage.trackers']:
+                                        app['tkstorage.points_received_observables'][tracker] = Observable(f'tkstorage.points_received.{tracker}')
                                 if 'sms_gateway_status' in msg:
                                     app['tkstorage.sms_gateway_status'] = msg['sms_gateway_status']
                                     await app['tkstorage.sms_gateway_status_changed'](msg['sms_gateway_status'])
                             if isinstance(msg, list):
-                                logging.debug(f'Downloaded {len(msg)} points.')
+                                logger.debug(f'Downloaded {len(msg)} points.')
                                 new_points = []
                                 for item in msg:
                                     try:
@@ -598,12 +600,12 @@ class TKStorageTracker(Tracker):
         if base_start and now < end:
             if now > start:
                 base_start = base_start + datetime.timedelta(seconds=60)
-            tracker.initial_config_handle = asyncio.get_event_loop().call_later(
+            tracker.initial_config_handle = run_forget_task(asyncio.get_event_loop().call_later(
                 (base_start - now).total_seconds(),
-                tracker.set_base_config)
+                tracker.set_base_config))
 
         if end:
-            asyncio.get_event_loop().call_later((end - now).total_seconds(), tracker.completed.set_result, None)
+            tracker.complete_on_end_time_reached_task = run_forget_task(tracker.complete_on_end_time_reached())
 
         return tracker
 
@@ -643,8 +645,6 @@ class TKStorageTracker(Tracker):
     def stop(self):
         if not self.completed.done():
             self.completed.set_result(None)
-            if self.initial_config_handle:
-                self.initial_config_handle.cancel()
 
     def set_finished(self):
         super().set_finished()
@@ -659,6 +659,12 @@ class TKStorageTracker(Tracker):
         self.objects.del_desired_config('finished')
 
     def on_completed(self, fut):
+        if self.initial_config_handle:
+            self.initial_config_handle.cancel()
+
+        if self.complete_on_end_time_reached_task:
+            self.complete_on_end_time_reached_task.cancel()
+
         self.points_received_observables.unsubscribe(self.points_received)
 
         self.objects.del_desired_config('base_config')
@@ -669,6 +675,11 @@ class TKStorageTracker(Tracker):
 
         # TODO maybe do this if finished but not stopped
         # asyncio.ensure_future(self.objects.del_desired_config('base_config'))
+
+    async def complete_on_end_time_reached(self):
+        await asyncio.sleep((self.end - datetime.datetime.now()).total_seconds())
+        await self.app['tkstorage.initial_download'].wait()
+        self.completed.set_result(None)
 
     def set_base_config(self):
         if self.config and 'base' in self.config:

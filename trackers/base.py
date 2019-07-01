@@ -55,6 +55,7 @@ class Tracker(object):
 class Observable(object):
 
     def __init__(self, name, callbacks=(), error_msg='Error calling callback: '):
+        self.name = name
         self.callbacks = []
         self.callbacks.extend(callbacks)
         self.error_msg = error_msg
