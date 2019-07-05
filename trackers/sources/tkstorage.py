@@ -594,15 +594,14 @@ class TKStorageTracker(Tracker):
         await tracker.points_received(tracker_objects.points)
 
         now = datetime.datetime.now()
-        tracker.initial_config_handle = None
+        tracker.initial_config_task = None
 
         base_start = config.get('base', {}).get('start', start)
         if base_start and now < end:
             if now > start:
                 base_start = base_start + datetime.timedelta(seconds=60)
-            tracker.initial_config_handle = run_forget_task(asyncio.get_event_loop().call_later(
-                (base_start - now).total_seconds(),
-                tracker.set_base_config))
+            delay = (now - base_start).total_seconds()
+            tracker.initial_config_task = run_forget_task(tracker.set_base_config(delay))
 
         if end:
             tracker.complete_on_end_time_reached_task = run_forget_task(tracker.complete_on_end_time_reached())
@@ -659,8 +658,8 @@ class TKStorageTracker(Tracker):
         self.objects.del_desired_config('finished')
 
     def on_completed(self, fut):
-        if self.initial_config_handle:
-            self.initial_config_handle.cancel()
+        if self.initial_config_task:
+            self.initial_config_task.cancel()
 
         if self.complete_on_end_time_reached_task:
             self.complete_on_end_time_reached_task.cancel()
@@ -681,7 +680,8 @@ class TKStorageTracker(Tracker):
         await self.app['tkstorage.initial_download'].wait()
         self.completed.set_result(None)
 
-    def set_base_config(self):
+    async def set_base_config(self, delay):
+        await asyncio.sleep(delay)
         if self.config and 'base' in self.config:
             self.logger.debug('Setting base config')
             self.objects.add_desired_config('base_config', self.config['base'], rank=0)
