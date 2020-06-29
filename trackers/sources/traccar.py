@@ -257,7 +257,7 @@ async def main():
         'traccar_servers': {
             'trackrace_tk':
                 {
-                    'url': 'http://traccar.trackrace.tk:8082',
+                    'url': 'http://traccar.trackrace.co.za:8082',
                     'auth': ['admin', ''],
                 }
         }

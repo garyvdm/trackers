@@ -239,14 +239,14 @@ async def get_event_state(app, event):
 async def home(request):
     host = request.headers.get('Host')
     if host.endswith(':5234'):
-        host = 'trackrace.tk'
+        host = 'trackrace.co.za'
     page = request.app['home_pages'].get('host')
     if not page:
         events = request.app['trackers.events'].values()
         events = filter(lambda event: event.config.get('public', True), events)
         events = sorted(events, key=lambda event: event.config.get('event_start'), reverse=True)
         events = tuple(events)
-        if host != 'trackrace.tk':
+        if host != 'trackrace.co.za':
             events = [event for event in events if host in event.config.get('hosts', ())]
         live_events = [event for event in events if event.config.get('live', False)]
         past_events = [event for event in events if not event.config.get('live', False)]
