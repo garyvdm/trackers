@@ -73,7 +73,7 @@ async def load(app, ref=b'HEAD', **kwargs):
         pass
     else:
         try:
-            app['config'] = yaml.load(tree_reader.get('config.yaml').data)
+            app['config'] = yaml.safe_load(tree_reader.get('config.yaml').data)
         except Exception:
             logger.exception('')
             app['config'] = {}
@@ -156,10 +156,10 @@ class Event(object):
 
         _, self.git_hash = tree_reader.lookup(self.path)
         config_bytes = tree_reader.get(self.config_path).data
-        self.config = yaml.load(config_bytes.decode())
+        self.config = yaml.safe_load(config_bytes.decode())
 
         if tree_reader.exists(self.routes_yaml_path):
-            self.routes = yaml.load(tree_reader.get(self.routes_yaml_path).data)
+            self.routes = yaml.safe_load(tree_reader.get(self.routes_yaml_path).data)
             for route in self.routes:
                 if route.get('data_hash'):
                     route_data_path = os.path.join(self.path, 'routes_data', route.get('data_hash'))

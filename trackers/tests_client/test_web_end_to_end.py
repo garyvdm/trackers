@@ -119,7 +119,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
             app, client_errors, server_errors = await stack.enter_async_context(tracker_web_server_fixture())
             app['trackers.events']['test_event'] = event = Event(
                 app, 'test_event',
-                yaml.load("""
+                yaml.safe_load("""
                     title: Test Event
                     live: True
                     riders:
@@ -141,7 +141,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
             app, client_errors, server_errors = await stack.enter_async_context(tracker_web_server_fixture())
             app['trackers.events']['test_event'] = event = Event(
                 app, 'test_event',
-                yaml.load("""
+                yaml.safe_load("""
                     title: Test Event
                     live: True
                     riders:
@@ -176,7 +176,7 @@ class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
 
             app['trackers.events']['test_event'] = event = Event(
                 app, 'test_event',
-                yaml.load("""
+                yaml.safe_load("""
                     title: Test Event
                     event_start: 2017-01-01 05:00:00
                     live: True

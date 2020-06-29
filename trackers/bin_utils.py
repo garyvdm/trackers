@@ -76,17 +76,17 @@ def get_base_argparser(*args, **kwargs):
 def get_combined_settings(specific_defaults_yaml=None, args=None):
     # TODO logic to combine logging config
 
-    defaults = yaml.load(defaults_yaml)
+    defaults = yaml.safe_load(defaults_yaml)
     settings = copy.deepcopy(defaults)
 
     if specific_defaults_yaml:
-        specific_defaults = yaml.load(specific_defaults_yaml)
+        specific_defaults = yaml.safe_load(specific_defaults_yaml)
         settings.update(specific_defaults)
 
     if 'TRACKERS_SETTINGS_FILE' in os.environ:
         try:
             with open(os.environ['TRACKERS_SETTINGS_FILE']) as f:
-                settings_from_file = yaml.load(f)
+                settings_from_file = yaml.safe_load(f)
         except FileNotFoundError:
             settings_from_file = {}
         settings.update(settings_from_file)
@@ -110,7 +110,7 @@ def get_combined_settings(specific_defaults_yaml=None, args=None):
         else:
             try:
                 with open(settings_file) as f:
-                    settings_from_file = yaml.load(f)
+                    settings_from_file = yaml.safe_load(f)
             except FileNotFoundError:
                 settings_from_file = {}
             settings.update(settings_from_file)
