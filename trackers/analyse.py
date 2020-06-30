@@ -22,41 +22,12 @@ from numpy import (
 )
 from numpy.linalg import norm
 from nvector import (
+    interpolate,
     lat_lon2n_E,
     n_E2lat_lon,
     n_EB_E2p_EB_E,
     unit,
 )
-
-try:
-    from nvector import interpolate
-
-except ImportError:
-    # Copy paste hack till this gets released: https://github.com/garyvdm/Nvector/pull/1
-    from numpy import nan
-
-    def interpolate(path, ti):
-        """
-        Return the interpolated point along the path
-
-        Parameters
-        ----------
-        path: tuple of n-vectors (positionA, po)
-
-        ti: real scalar
-            interpolation time assuming position A and B is at t0=0 and t1=1,
-            respectively.
-
-        Returns
-        -------
-        point: Nvector
-            point of interpolation along path
-        """
-
-        n_EB_E_t0, n_EB_E_t1 = path
-        n_EB_E_ti = unit(n_EB_E_t0 + ti * (n_EB_E_t1 - n_EB_E_t0), norm_zero_vector=nan)
-        return n_EB_E_ti
-
 
 from trackers.base import cancel_and_wait_task, general_fut_done_callback, Observable, Tracker
 from trackers.contrib.dataclass_tools import add_slots
