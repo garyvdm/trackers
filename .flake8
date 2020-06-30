@@ -1,0 +1,5 @@
+[flake8]
+ignore = E501,E711,I201,E731,W503,W504,W505
+exclude = ve*,.ve*,.eggs,node_modules,*_pb2.py,build
+application-import-names = trackers
+import-order-style = smarkets
