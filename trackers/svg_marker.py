@@ -87,7 +87,7 @@ def _text_width(text, style):
            f'<text id="label" style="{style}">{text}</text>'
         '</svg>'
     )  # NOQA E131
-    text_width_text = run(['inkscape', '-f', '-', '--query-width', '--query-id', 'label'],
+    text_width_text = run(['inkscape', '--pipe', '--query-width', '--query-id', 'label'],
                           input=text_query_file, encoding='utf8', stdout=PIPE, stderr=DEVNULL).stdout
     return float(text_width_text)
 
