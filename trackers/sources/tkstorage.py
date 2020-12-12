@@ -350,6 +350,8 @@ zc20_battery_levels = {
 def msg_item_to_point(msg_item):
     correct_len = more_itertools.first(more_itertools.windowed(msg_item, 5))
     connection_id, server_time, type, data, id = correct_len
+    if isinstance(id, bytes):
+        id = id.decode()
     # print(msg_item)
 
     if not id:
