@@ -129,7 +129,7 @@ async def make_aio_app(settings,
 
     cache_path = settings['cache_path']
     os.makedirs(cache_path, exist_ok=True)
-    app['svg_marker_cached'] = PersistedFuncCache(os.path.join(cache_path, f'0-svg_markers'), trackers.svg_marker.svg_marker)
+    app['svg_marker_cached'] = PersistedFuncCache(os.path.join(cache_path, f'1-svg_markers'), trackers.svg_marker.svg_marker)
     app['svg_marker_cached'].load()
 
     app['trackers.app_setup_cm'] = app_setup_cm = await app_setup(app, settings)
@@ -993,7 +993,7 @@ async def event_admin(request, event):
                                 var type_traccar = document.getElementById('type_traccar');
                                 var traccar_device_id = document.getElementById('traccar_device_id');
                                 var tracker_raw = document.getElementById('tracker_raw');
-                                
+
                                 function update_tracker() {
                                     if (type_tkstorage.checked) {
                                         tracker_raw.value = 'type: tkstorage\\nid: ' + tkstorage_id.value;

@@ -96,7 +96,7 @@ def _text_width(text, style):
 
 
 def svg_marker(text, color='white', background_color='black', direction='se'):
-    text_style = f'font-size:13px;font-family:Roboto;fill:{color};'
+    text_style = f'font-size:13px;font-family:Roboto,Arial,Helvetica,sans-serif;fill:{color};'
 
     text_width = int(round(_text_width(text, text_style)))
     rect_width = text_width + 24
@@ -146,4 +146,5 @@ if __name__ == '__main__':
 
     with open(path, 'wb') as f:
         f.write(image)
-    run(['xdg-open', path])
+    run(['firefox', path])
+    # run(['xdg-open', path])
