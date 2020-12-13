@@ -102,7 +102,7 @@ async def monitor_feed(app, tracker, feed_id, start, end):
                     params = {'startDate': last.isoformat(timespec='seconds') + '-0000', 'endDate': now.isoformat(timespec='seconds') + '-0000'}
                     last = now
                     data = await api_call(app, feed_id, params)
-                    await process_data(tracker, data, now, seen_ids)
+                    await process_data(tracker, data, datetime.datetime.now(), seen_ids)
 
                 if end and now >= end:
                     break
@@ -122,7 +122,7 @@ async def monitor_feed(app, tracker, feed_id, start, end):
 
 
 async def process_data(tracker, data, now, seen_ids):
-    error = resolve_pointer(data, '/response/errors/error')
+    error = resolve_pointer(data, '/response/errors/error', default=None)
     if error:
         tracker.logger.debug(f'{error["description"]}')
 
@@ -138,7 +138,8 @@ async def process_data(tracker, data, now, seen_ids):
             new_points.append({
                 'position': p,
                 'battery': message['batteryState'],
-                'time': datetime.datetime.utcfromtimestamp(message['unixTime']),
+                # TODO We need to be able to specify the timezone in the config, as it seems to vary.
+                'time': datetime.datetime.fromtimestamp(message['unixTime']),
                 'server_time': now,
                 'message_type': message['messageType'],  # TODO translate into tracker status
             })
