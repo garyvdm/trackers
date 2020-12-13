@@ -921,6 +921,9 @@ function get_rider_values_and_sorted_riders(){
         if (a_values.finished_time && !b_values.finished_time || a_values.finished_time < b_values.finished_time) return -1;
         if (!a_values.finished_time && b_values.finished_time || a_values.finished_time > b_values.finished_time) return 1;
 
+        if (a_values.leader_time_diff && b_values.leader_time_diff && a_values.leader_time_diff < b_values.leader_time_diff) return -1;
+        if (a_values.leader_time_diff && b_values.leader_time_diff && a_values.dist_route > b_values.dist_route) return 1;
+
         if (a_values.dist_route && !b_values.dist_route || a_values.dist_route > b_values.dist_route) return -1;
         if (!a_values.dist_route && b_values.dist_route || a_values.dist_route < b_values.dist_route) return 1;
         return 0;
