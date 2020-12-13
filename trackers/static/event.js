@@ -993,7 +993,7 @@ function update_rider_table_specific(container, detail_level, sorted_riders, rid
                    '<td class="name">' + rider.name + '</td>' +
                    (state.live?'<td style="text-align: right">' + (last_position_time || '') + '</td>':'') +
                    '<td style="text-align: right">' + (last_server_time || '') + '</td>' +
-                   '<td style="text-align: right">' + (values.battery ? sprintf('%i %%', values.battery) : '') + '</td>' +
+                   '<td style="text-align: right">' + (values.battery && typeof(values.battery) == 'number' ? sprintf('%i %%', values.battery) : values.battery || '') + '</td>' +
                    '<td>' + (values.hasOwnProperty('tk_config')? values.tk_config : '') + '</td>' +
                    '</tr>';
         }
@@ -1695,7 +1695,7 @@ function on_new_rider_points_graph(rider_name, list_name, items, new_items, old_
             }
 
             if (graph_charts.graph_battery.get(rider_name)) graph_charts.graph_battery.get(rider_name).setData(
-                items.filter(function(item) {return item.hasOwnProperty('battery')})
+                items.filter(function(item) {return item.hasOwnProperty('battery') && typeof(item.battery) == 'number'})
                 .map(function (item) {return [item.time * 1000, item.battery]})
             );
         }
