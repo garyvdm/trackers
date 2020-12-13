@@ -642,7 +642,7 @@ function adjust_elevation_chart_bounds() {
             }
             last_dist = point.dist;
         });
-        if (!blocks) {
+        if (!blocks.length) {
             elevation_chart.xAxis[0].setExtremes(null, null, true, false);
         } else {
             var riders_values_p = Object.values(get_riders_values_with_predicted());
@@ -651,7 +651,7 @@ function adjust_elevation_chart_bounds() {
                     return block.start <= rider.dist && rider.dist <= block.end
                 });
             });
-            if (filtered_blocks) {
+            if (filtered_blocks.length) {
                 blocks = filtered_blocks;
             }
             var min = blocks[0].start;
