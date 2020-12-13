@@ -79,17 +79,20 @@ directions = {
 @lru_cache()
 def _text_width(text, style):
     # TODO: speed this up by doing 1 call for all texts.
-
-    log.debug(f'text_width {text}')
-    text_query_file = (
-        '<?xml version="1.0" ?>'
-        '<svg  xmlns="http://www.w3.org/2000/svg" width="300px" height="36px" viewBox="0 0 300 36" version="1.1" >'
-           f'<text id="label" style="{style}">{text}</text>'
-        '</svg>'
-    )  # NOQA E131
-    text_width_text = run(['inkscape', '--pipe', '--query-width', '--query-id', 'label'],
-                          input=text_query_file, encoding='utf8', stdout=PIPE, stderr=DEVNULL).stdout
-    return float(text_width_text)
+    try:
+        log.debug(f'text_width {text}')
+        text_query_file = (
+            '<?xml version="1.0" ?>'
+            '<svg  xmlns="http://www.w3.org/2000/svg" width="300px" height="36px" viewBox="0 0 300 36" version="1.1" >'
+            f'<text id="label" style="{style}">{text}</text>'
+            '</svg>'
+        )  # NOQA E131
+        text_width_text = run(['inkscape', '--pipe', '--query-width', '--query-id', 'label'],
+                            input=text_query_file, encoding='utf8', stdout=PIPE, stderr=DEVNULL).stdout
+        return float(text_width_text)
+    except Exception:
+        logging.exception('Error getting marker text width:')
+        return 100
 
 
 def svg_marker(text, color='white', background_color='black', direction='se'):
