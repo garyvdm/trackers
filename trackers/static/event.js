@@ -1173,6 +1173,9 @@ function update_selected_rider_point_markers(){
     config.riders.forEach(function (rider){
         var rider_name = rider.name;
         var rider_items = riders_client_items[rider_name];
+        if (!rider_items) {
+            log_to_server(rider_name + ' not found in riders_client_items ' + Object.keys(riders_client_items))
+        }
 
         // TODO use config loaded to delay this.
         if (!rider_items.hasOwnProperty('point_markers')) return;
