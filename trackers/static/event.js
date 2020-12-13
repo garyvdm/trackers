@@ -942,7 +942,7 @@ function update_rider_table(){
         var riders_values_l = x[0];
         var sorted_riders = x[1];
 
-        document.getElementById('riders_options').className = (config.riders.length >= 10? 'big':'small')
+        document.getElementById('riders_options').className = (config.riders.length >= 5? 'big':'small')
 
         var current_time = (new Date().getTime() / 1000) - time_offset;
         update_rider_table_specific(
