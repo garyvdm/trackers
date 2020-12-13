@@ -625,17 +625,40 @@ var bounds_changed_timeout_id;
 function adjust_elevation_chart_bounds() {
     var bounds = map.getBounds();
     if (bounds) {
-        // TODO optimise this search.
-        var min = Infinity;
-        var max = -Infinity;
-        all_route_points.forEach( function (point) {
-            if (bounds.contains(point.latlng)) {
-                if (point.dist < min) min = point.dist;
-                if (point.dist > max) max = point.dist;
+        var blocks = []
+        var state = false;
+        var block_start;
+        var last_index = all_route_points.length - 1;
+        var last_dist = 0;
+        all_route_points.forEach( function (point, index) {
+            var contains = bounds.contains(point.latlng)
+            if (!state && contains) {
+                state = true;
+                block_start = last_dist;
             }
+            if (state && (!contains || index == last_index)) {
+                state = false;
+                blocks.push({start: block_start, end: point.dist})
+            }
+            last_dist = point.dist;
         });
-        var adjust = (max - min) * 0.01;
-        elevation_chart.xAxis[0].setExtremes(min - adjust, max + adjust, true, false);
+        if (!blocks) {
+            elevation_chart.xAxis[0].setExtremes(null, null, true, false);
+        } else {
+            var riders_values_p = Object.values(get_riders_values_with_predicted());
+            var filtered_blocks = blocks.filter(function (block){
+                return riders_values_p.some(function (rider){
+                    return block.start <= rider.dist && rider.dist <= block.end
+                });
+            });
+            if (filtered_blocks) {
+                blocks = filtered_blocks;
+            }
+            var min = blocks[0].start;
+            var max = blocks[blocks.length - 1].end;
+            var adjust = (max - min) * 0.01;
+            elevation_chart.xAxis[0].setExtremes(min - adjust, max + adjust, true, false);
+        }
     } else {
         elevation_chart.xAxis[0].setExtremes(null, null, true, false);
     }
@@ -872,21 +895,24 @@ var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 var riders_detail_level_el = document.getElementById('riders_detail_level');
 var riders_el = [];
 
-function get_rider_values_and_sorted_riders(){
-    var riders_values_l = riders_values;
+function get_riders_values_with_predicted(){
+    var result = riders_values;
     if (predicted_el.checked) {
-        riders_values_l = Object.assign({}, riders_values_l);
-        Object.keys(riders_values_l).forEach(function (rider_name) {
+        result = Object.assign({}, result);
+        Object.keys(result).forEach(function (rider_name) {
             if (riders_predicted.hasOwnProperty(rider_name)) {
-                var values = riders_values_l[rider_name];
+                var values = result[rider_name];
                 values = Object.assign({}, values);
                 Object.assign(values, riders_predicted[rider_name]);
-                riders_values_l[rider_name] = values;
+                result[rider_name] = values;
             }
         });
-
     }
+    return result
+}
 
+function get_rider_values_and_sorted_riders(){
+    var riders_values_l = get_riders_values_with_predicted();
     var sorted_riders = config.riders.slice();
     sorted_riders.sort(function (a, b){
         var a_values = riders_values_l[a.name] || {};
