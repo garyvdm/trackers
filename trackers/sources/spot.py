@@ -127,6 +127,8 @@ async def process_data(tracker, data, now, seen_ids):
         tracker.logger.debug(f'{error["description"]}')
 
     messages = resolve_pointer(data, '/response/feedMessageResponse/messages/message', ())
+    if isinstance(messages, dict):
+        messages = (messages, )
     new_points = []
     for message in messages:
         if message['id'] not in seen_ids:
