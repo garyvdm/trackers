@@ -973,7 +973,7 @@ function update_rider_table_specific(container, detail_level, sorted_riders, rid
         }
         var last_position_long_ago = true;
         if (values.hasOwnProperty('position_time')) {
-            last_position_long_ago = (current_time - values.position_time > 5 * 60)
+            last_position_long_ago = (current_time - values.position_time > 10 * 60)
             last_position_time = format_time_delta_ago_with_date(current_time, values.position_time, date_options_delta);
         }
         if (values.hasOwnProperty('server_time')) {
