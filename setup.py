@@ -23,7 +23,7 @@ setuptools.setup(
         'jsonpointer',
         'libsass',
         'more-itertools',
-        'msgpack-python',
+        'msgpack',
         'nvector',
         'numpy<1.15.0',
         'polyline',
