@@ -441,11 +441,11 @@ async def on_new_event(event):
     # event.rider_pre_post_blocked_list_update_observable.subscribe(partial(on_event_rider_blocked_list_update, 'riders_pre_post'))
     event.batch_update_observable.subscribe(on_event_batch_update)
     await on_event_config_routes_change(event)
-    event.app['home_pages'] = {}
+    event.app['home_pages'].clear()
 
 
 async def on_removed_event(event):
-    event.app['home_pages'] = {}
+    event.app['home_pages'].clear()
 
 
 web_route_keys = (
@@ -491,7 +491,7 @@ def filter_event_config_for_web(app, config):
 
 
 async def on_event_config_routes_change(event):
-    event.app['home_pages'] = {}
+    event.app['home_pages'].clear()
     event.processed = False
     event.client_config_body = None
     event.client_config_body_hash = None
