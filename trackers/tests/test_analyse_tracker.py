@@ -1,8 +1,7 @@
 import asyncio
-import datetime
 import pprint
 import unittest
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import asynctest
 
@@ -12,13 +11,13 @@ from trackers.bin_utils import process_secondary_route_details
 
 
 def d(date_string):
-    return datetime.datetime.strptime(date_string, '%Y/%m/%d %H:%M:%S')
+    return datetime.strptime(date_string, '%Y/%m/%d %H:%M:%S')
 
 
 def repr_point_value(value):
     if isinstance(value, timedelta):
         return repr(value)[9:]
-    if isinstance(value, datetime.datetime):
+    if isinstance(value, datetime):
         return f"d('{value:%Y/%m/%d %H:%M:%S}')"
     return repr(value)
 
@@ -175,11 +174,11 @@ class TestAnalyseTracker(asynctest.TestCase):
         tracker = Tracker('test')
         tracker.stop = lambda: tracker.completed.cancel()
 
-        t1 = datetime.datetime.now()
+        t1 = datetime.now()
         await tracker.new_points((
             {'time': t1, 'position': (-26.300822, 28.049444, 1800)},
         ))
-        break_time = datetime.timedelta(seconds=1)
+        break_time = timedelta(seconds=1)
         analyse_tracker = await AnalyseTracker.start(tracker, d('2017/01/01 05:00:00'), [], track_break_time=break_time)
 
         await asyncio.sleep(0.05)

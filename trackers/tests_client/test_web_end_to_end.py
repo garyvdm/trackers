@@ -1,9 +1,9 @@
 import asyncio
-import datetime
 import sys
 import tempfile
 import traceback
 from contextlib import asynccontextmanager, AsyncExitStack
+from datetime import datetime
 
 import asynctest
 import pkg_resources
@@ -90,7 +90,7 @@ async def ws_ready_is(session, expected_state):
 
 
 def d(date_string):
-    return datetime.datetime.strptime(date_string, '%Y/%m/%d %H:%M:%S')
+    return datetime.strptime(date_string, '%Y/%m/%d %H:%M:%S')
 
 
 class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):

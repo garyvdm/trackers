@@ -1,8 +1,8 @@
 import asyncio
-import datetime
 import json
 import logging
 import sys
+from datetime import datetime
 
 from trackers.analyse import AnalyseTracker, get_analyse_routes
 from trackers.base import Tracker
@@ -24,7 +24,7 @@ async def setup():
     with open('test_analyse_tracker_perf_data.json') as f:
         points = json.load(f)
     for point in points:
-        point['time'] = datetime.datetime.fromtimestamp(point['time'])
+        point['time'] = datetime.fromtimestamp(point['time'])
     await tracker.new_points(points)
 
 

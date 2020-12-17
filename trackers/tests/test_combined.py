@@ -1,5 +1,5 @@
 import asyncio
-import datetime
+from datetime import datetime
 
 import asynctest
 
@@ -8,7 +8,7 @@ from trackers.combined import Combined
 
 
 def d(date_string):
-    return datetime.datetime.strptime(date_string, '%Y/%m/%d %H:%M:%S')
+    return datetime.strptime(date_string, '%Y/%m/%d %H:%M:%S')
 
 
 class TestCombinedTracker(asynctest.TestCase):

@@ -1,9 +1,9 @@
 import asyncio
-import datetime
 import logging
 import re
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 from urllib.parse import parse_qs, urlparse
 
 import aiohttp
@@ -198,7 +198,7 @@ async def monitor_feed(app, tracker, name, event, end):
                     tracker.logger.debug('Reset points')
                     await tracker.reset_points()
                     await tracker.new_points(new_all_points)
-                if datetime.datetime.now() > end:
+                if datetime.now() > end:
                     break
             except asyncio.CancelledError:
                 raise
@@ -207,13 +207,13 @@ async def monitor_feed(app, tracker, name, event, end):
             except Exception:
                 tracker.logger.exception('Error in monitor_feed:')
 
-            now = datetime.datetime.now()
+            now = datetime.now()
             if tracker.points:
-                next_check_on_last_point_time = tracker.points[-1]['time'] + datetime.timedelta(minutes=5, seconds=30)
+                next_check_on_last_point_time = tracker.points[-1]['time'] + timedelta(minutes=5, seconds=30)
             else:
-                next_check_on_last_point_time = datetime.datetime(year=1980, month=1, day=1)
+                next_check_on_last_point_time = datetime(year=1980, month=1, day=1)
 
-            next_check_on_now = now + datetime.timedelta(minutes=1)
+            next_check_on_now = now + timedelta(minutes=1)
             next_check = max(next_check_on_now, next_check_on_last_point_time)
             next_check_sec = (next_check - now).total_seconds()
             tracker.logger.debug(f'Next check: {next_check_sec} sec -- {next_check}')

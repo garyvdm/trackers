@@ -1,8 +1,8 @@
 import asyncio
-import datetime
 import logging
 import xml.etree.ElementTree as xml
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 
 import aiohttp
 
@@ -43,19 +43,19 @@ async def monitor_feed(app, tracker, feed_id, password, start, end):
         auth = aiohttp.BasicAuth(feed_id, password)
         url = f'https://eur.inreach.garmin.com/Feed/Share/{feed_id}'
         if not start:
-            start = datetime.datetime.utcnow()
+            start = datetime.utcnow()
         else:
-            start = start.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+            start = start.astimezone(timezone.utc).replace(tzinfo=None)
         if end:
-            end = end.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+            end = end.astimezone(timezone.utc).replace(tzinfo=None)
         # From this point on now, last, start, and end are all utc and tz naive.
 
         while True:
             try:
-                now = datetime.datetime.utcnow()
+                now = datetime.utcnow()
                 if now > start:
                     last = tracker.points[-1]['time'] if tracker.points else start
-                    last = last.astimezone(datetime.timezone.utc)
+                    last = last.astimezone(timezone.utc)
                     params = {'d1': last.isoformat(timespec='seconds') + 'z'}
                     if end and now > end:
                         params['d2'] = end.isoformat(timespec='seconds') + 'z'
@@ -99,7 +99,7 @@ async def process_data(tracker, kml_text, now, seen_ids):
             lat = float(extended_data['Latitude'])
             lng = float(extended_data['Longitude'])
             elevation = float(extended_data['Elevation'].partition(' ')[0])
-            time_utc = datetime.datetime.fromisoformat(placemark.find('kml:TimeStamp/kml:when', kml_ns).text[:-1]).replace(tzinfo=datetime.timezone.utc)
+            time_utc = datetime.fromisoformat(placemark.find('kml:TimeStamp/kml:when', kml_ns).text[:-1]).replace(tzinfo=timezone.utc)
             time = time_utc.astimezone().replace(tzinfo=None)
             point = {
                 'position': [lat, lng, elevation],
@@ -117,13 +117,13 @@ async def process_data(tracker, kml_text, now, seen_ids):
 
 
 async def wait_for_next_check(tracker):
-    now = datetime.datetime.now()
+    now = datetime.now()
     if tracker.points:
-        next_check_on_last_point_time = tracker.points[-1]['time'] + datetime.timedelta(minutes=11)
+        next_check_on_last_point_time = tracker.points[-1]['time'] + timedelta(minutes=11)
     else:
-        next_check_on_last_point_time = datetime.datetime(year=1980, month=1, day=1)
+        next_check_on_last_point_time = datetime(year=1980, month=1, day=1)
 
-    next_check_on_now = now + datetime.timedelta(minutes=1)
+    next_check_on_now = now + timedelta(minutes=1)
     next_check = max(next_check_on_now, next_check_on_last_point_time)
     next_check_sec = (next_check - now).total_seconds()
     tracker.logger.debug(f'Next check: {next_check_sec} sec -- {next_check}')
@@ -137,7 +137,7 @@ async def main():
     settings = {}
     async with config(app, settings):
         tracker = await start_tracker(
-            app, 'JanV', 'JanV', '', datetime.datetime(2019, 6, 17), None)
+            app, 'JanV', 'JanV', '', datetime(2019, 6, 17), None)
         print_tracker(tracker)
 
         run_fut = asyncio.Future()

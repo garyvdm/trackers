@@ -1,10 +1,10 @@
 import asyncio
-import datetime
 import functools
 import logging
 import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 from functools import partial
 
 import aiohttp
@@ -141,7 +141,7 @@ def get_individual_key(request):
 async def start_individual_tracker(app, settings, request):
     unique_id = request.match_info['unique_id']
     server_name = 'local'
-    start = datetime.datetime.now() - datetime.timedelta(days=1)
+    start = datetime.now() - timedelta(days=1)
     return await start_tracker(app, unique_id,
                                server_name, unique_id,
                                start, None)
@@ -181,11 +181,11 @@ async def start_tracker(app, tracker_name, server_name, device_unique_id, start,
 
     tracker.server = server
     tracker.device_id = device_id
-    tracker.start = (start if start else (datetime.datetime.now() - datetime.timedelta(days=2)).replace(microsecond=0))
+    tracker.start = (start if start else (datetime.now() - timedelta(days=2)).replace(microsecond=0))
     tracker.end = end
     tracker.seen_ids = seen_ids = set()
 
-    initial_query_end = (end if end else (datetime.datetime.now() + datetime.timedelta(days=1)).replace(microsecond=0))
+    initial_query_end = (end if end else (datetime.now() + timedelta(days=1)).replace(microsecond=0))
     positions_response = await session.get(f'{server_url}/api/positions', params={
         'deviceId': device_id,
         'from': tracker.start.astimezone(dateutil.tz.UTC).isoformat(),
@@ -242,7 +242,7 @@ def traccar_position_translate(position):
         # server_time is null in websocket positions :-( Need to log an issue, and fix it.
         'server_time': (
             parse_datetime(position['serverTime']).astimezone().replace(tzinfo=None)
-            if position['serverTime'] else datetime.datetime.now()),
+            if position['serverTime'] else datetime.now()),
     }
     if 'batteryLevel' in position['attributes']:
         point['battery'] = position['attributes'].get('batteryLevel')

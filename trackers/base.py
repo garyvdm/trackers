@@ -217,7 +217,7 @@ def stream_store(path: Path, logger: logging.Logger):
         logging.info('Data file did not exist. Starting blank.')
 
     with path.open('ab', 0) as f:
-        packer = msgpack.fallback.Packer(datetime=True)
+        packer = msgpack.Packer(datetime=True)
 
         def write_items(items):
             packed = packer.pack(items)

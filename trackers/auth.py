@@ -1,7 +1,7 @@
-import datetime
 import functools
 import io
 import logging
+from datetime import timedelta
 
 import aioauth_client
 import aiohttp_session
@@ -25,7 +25,7 @@ async def config_aio_app(app, settings):
     app['oauth_providers_by_name'] = {provider['name']: provider for provider in settings['oauth_providers']}
     app['authorization'] = settings.get('authorization', True)
 
-    max_age = int(datetime.timedelta(days=30).total_seconds())
+    max_age = int(timedelta(days=30).total_seconds())
     storage = aiohttp_session.cookie_storage.EncryptedCookieStorage(settings['aiosession_encryption_key'], max_age=max_age)
     aiohttp_session.setup(app, storage)
 

@@ -1,6 +1,5 @@
 import asyncio
 import contextlib
-import datetime
 import json
 import logging
 import re
@@ -8,6 +7,7 @@ from collections import Counter, defaultdict
 from contextlib import asynccontextmanager
 from copy import copy
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from functools import partial
 from itertools import groupby
 from typing import Dict, List, Optional
@@ -268,7 +268,7 @@ async def connection(app, settings, points_received_observables, send_queue,
                                         point = msg_item_to_point(item)
                                     except Exception as e:
                                         msg = copy(item)
-                                        msg[1] = datetime.datetime.fromtimestamp(msg[1])
+                                        msg[1] = datetime.fromtimestamp(msg[1])
                                         logger.error(f'Error in msg_item_to_point: msg={msg!r} \n {e}')
                                         point = None
 
@@ -358,7 +358,7 @@ def msg_item_to_point(msg_item):
         return
 
     if type == MESSAGE_RECEIVED and data:
-        server_time = datetime.datetime.fromtimestamp(server_time)
+        server_time = datetime.fromtimestamp(server_time)
         point = {
             'server_time': server_time,
             'tk_id': id,
@@ -395,11 +395,11 @@ def msg_item_to_point(msg_item):
 
         # HACK Some trackers are out by this time sometimes.
         if 'time' in point and (server_time - point['time']).total_seconds() // 100 == 713664:
-            point['time'] = point['time'] + datetime.timedelta(days=826)
+            point['time'] = point['time'] + timedelta(days=826)
 
         # HACK Some trackers are out by one week.
-        if 'time' in point and (server_time.date() - point['time'].date()) == datetime.timedelta(weeks=1):
-            point['time'] = point['time'] + datetime.timedelta(weeks=1)
+        if 'time' in point and (server_time.date() - point['time'].date()) == timedelta(weeks=1):
+            point['time'] = point['time'] + timedelta(weeks=1)
 
         return point
 
@@ -476,7 +476,7 @@ def data_split(data):
     return split
 
 
-def parse_date_time(date_raw: str, time_raw: str, server_time: datetime.datetime):
+def parse_date_time(date_raw: str, time_raw: str, server_time: datetime):
     # TODO pay attention to time zone.
     date_raw = date_raw
     time_raw = time_raw
@@ -486,18 +486,18 @@ def parse_date_time(date_raw: str, time_raw: str, server_time: datetime.datetime
     sec = int(time_raw[4:6])
 
     if date_raw == '000000':
-        utc_server_time = server_time.astimezone(datetime.timezone.utc)
-        utc_time00 = datetime.datetime(utc_server_time.year, utc_server_time.month, utc_server_time.day,
-                                       hour, minutes, sec, tzinfo=datetime.timezone.utc)
-        utc_timeP1 = utc_time00 + datetime.timedelta(days=1)
-        utc_timeM1 = utc_time00 + datetime.timedelta(days=-1)
+        utc_server_time = server_time.astimezone(timezone.utc)
+        utc_time00 = datetime(utc_server_time.year, utc_server_time.month, utc_server_time.day,
+                              hour, minutes, sec, tzinfo=timezone.utc)
+        utc_timeP1 = utc_time00 + timedelta(days=1)
+        utc_timeM1 = utc_time00 + timedelta(days=-1)
 
         utc_time = min(utc_time00, utc_timeP1, utc_timeM1, key=lambda t: abs((utc_server_time - t).total_seconds()))
     else:
         day = int(date_raw[0:2])
         month = int(date_raw[2:4])
         year = int(date_raw[4:6]) + 2000
-        utc_time = datetime.datetime(year, month, day, hour, minutes, sec, tzinfo=datetime.timezone.utc)
+        utc_time = datetime(year, month, day, hour, minutes, sec, tzinfo=timezone.utc)
 
     return utc_time.astimezone().replace(tzinfo=None)
 
@@ -562,7 +562,7 @@ def get_individual_key(request):
 
 async def start_individual_tracker(app, settings, request):
     id = request.match_info['id']
-    start = datetime.datetime.now() - datetime.timedelta(days=2)
+    start = datetime.now() - timedelta(days=2)
     return await TKStorageTracker.start(app, id, id, start, None)
 
 
@@ -576,7 +576,7 @@ class TKStorageTracker(Tracker):
         tracker.id = id
         tracker.start = start
         tracker.end = end
-        tracker.config_read_start = start - datetime.timedelta(days=14)
+        tracker.config_read_start = start - timedelta(days=14)
         tracker.send_queue = app['tkstorage.send_queue']
         tracker.config = config or {}
         tracker.config_rules = tracker.config.get('rules', [])
@@ -595,13 +595,13 @@ class TKStorageTracker(Tracker):
         tracker.completed.add_done_callback(tracker.on_completed)
         await tracker.points_received(tracker_objects.points)
 
-        now = datetime.datetime.now()
+        now = datetime.now()
         tracker.initial_config_task = None
 
         base_start = config.get('base', {}).get('start', start)
         if base_start and now < end:
             if now > start:
-                base_start = base_start + datetime.timedelta(seconds=60)
+                base_start = base_start + timedelta(seconds=60)
             delay = (now - base_start).total_seconds()
             tracker.initial_config_task = run_forget_task(tracker.set_base_config(delay))
 
@@ -613,7 +613,7 @@ class TKStorageTracker(Tracker):
     def use_point(self, point):
         time = point.get('time')
         server_time = point.get('server_time')
-        if point['tk_id'] == 'TK24' and time == datetime.datetime(2019, 6, 23, 2, 0, 2):
+        if point['tk_id'] == 'TK24' and time == datetime(2019, 6, 23, 2, 0, 2):
             return False
         if time_between(time, self.start, self.end):
             return True
@@ -678,7 +678,7 @@ class TKStorageTracker(Tracker):
         # asyncio.ensure_future(self.objects.del_desired_config('base_config'))
 
     async def complete_on_end_time_reached(self):
-        await asyncio.sleep((self.end - datetime.datetime.now()).total_seconds())
+        await asyncio.sleep((self.end - datetime.now()).total_seconds())
         await self.app['tkstorage.initial_download'].wait()
         self.completed.set_result(None)
 
@@ -758,7 +758,7 @@ async def main():
     }
     async with config(app, settings):
         tracker = await TKStorageTracker.start(
-            app, 'gary', 'TK03', datetime.datetime(2018, 6, 5, 17), None)
+            app, 'gary', 'TK03', datetime(2018, 6, 5, 17), None)
         print_tracker(tracker)
         # await tracker.set_config({'check': 5})
         # await tracker.set_config({'routetrack': False, 'check': False})

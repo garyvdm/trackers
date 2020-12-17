@@ -1,8 +1,8 @@
 import asyncio
-import datetime
 import functools
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from itertools import chain
 from pathlib import Path
 from xml.etree import ElementTree
@@ -44,7 +44,7 @@ def get_individual_key(request):
 
 async def start_individual_tracker(app, settings, request):
     feed_id = request.match_info['feed_id']
-    start = datetime.datetime.now() - datetime.timedelta(days=7)
+    start = datetime.now() - timedelta(days=7)
     return await start_tracker(app, 'individual', feed_id, start, None)
 
 
@@ -63,11 +63,11 @@ async def start_tracker(app, tracker_name, feed_id, start, end):
 async def monitor_feed(app, tracker, feed_id, start: datetime, end: datetime):
     try:
         if not start:
-            start = datetime.datetime.utcnow()
+            start = datetime.utcnow()
         else:
-            start = start.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+            start = start.astimezone(timezone.utc).replace(tzinfo=None)
         if end:
-            end = end.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+            end = end.astimezone(timezone.utc).replace(tzinfo=None)
         last = start
         # From this point on now, last, start, and end are all utc and tz naive.
 
@@ -80,7 +80,7 @@ async def monitor_feed(app, tracker, feed_id, start: datetime, end: datetime):
 
             while True:
                 try:
-                    now = datetime.datetime.utcnow()
+                    now = datetime.utcnow()
                     if now > start:
                         new_messages = await get_new_messages(app, tracker, feed_id, start, end, last, seen_ids)
                         last = now
@@ -160,7 +160,7 @@ async def get_new_messages(app, tracker, feed_id, start: datetime, end: datetime
         if count < 51:
             need_to_query_more = False
         start += count
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.now(timezone.utc)
         messages = [xml_to_dict(item) for item in tree.findall('feedMessageResponse/messages/message')]
         index = 0
         for index, message in enumerate(messages):
@@ -195,7 +195,7 @@ async def messages_to_tracker(tracker, messages):
             'position': p,
             'battery': message['batteryState'],
             # TODO We need to be able to specify the timezone in the config, as it seems to vary.
-            'time': datetime.datetime.fromtimestamp(message['unixTime']),
+            'time': datetime.fromtimestamp(message['unixTime']),
             'server_time': message['sever_time'],
             'message_type': message['messageType'],  # TODO translate into tracker status
         })
@@ -204,13 +204,13 @@ async def messages_to_tracker(tracker, messages):
 
 
 async def wait_for_next_check(tracker):
-    now = datetime.datetime.now()
+    now = datetime.now()
     if tracker.points:
-        next_check_on_last_point_time = tracker.points[-1]['time'] + datetime.timedelta(minutes=5, seconds=15)
+        next_check_on_last_point_time = tracker.points[-1]['time'] + timedelta(minutes=5, seconds=15)
     else:
-        next_check_on_last_point_time = datetime.datetime(year=1980, month=1, day=1)
+        next_check_on_last_point_time = datetime(year=1980, month=1, day=1)
 
-    next_check_on_now = now + datetime.timedelta(minutes=2, seconds=30)
+    next_check_on_now = now + timedelta(minutes=2, seconds=30)
     next_check = max(next_check_on_now, next_check_on_last_point_time)
     next_check_sec = (next_check - now).total_seconds()
     tracker.logger.debug(f'Next check: {next_check_sec} sec -- {next_check}')
@@ -228,7 +228,7 @@ async def main():
     }
     async with config(app, settings):
         tracker = await start_tracker(
-            app, 'foobar', '09tTtcmfhXSAkVisZezCoD8RSrINdEezx', datetime.datetime(2019, 1, 16), None)
+            app, 'foobar', '09tTtcmfhXSAkVisZezCoD8RSrINdEezx', datetime(2019, 1, 16), None)
         print_tracker(tracker)
 
         run_fut = asyncio.Future()

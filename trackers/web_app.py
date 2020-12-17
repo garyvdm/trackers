@@ -3,7 +3,6 @@ import base64
 import contextlib
 import copy
 import csv
-import datetime
 import hashlib
 import io
 import json
@@ -13,6 +12,7 @@ import re
 from base64 import urlsafe_b64encode
 from collections import defaultdict
 from contextlib import asynccontextmanager, suppress
+from datetime import datetime, timezone
 from functools import partial, wraps
 from itertools import groupby
 from operator import itemgetter
@@ -232,7 +232,7 @@ async def get_event_state(app, event):
         'routes_hash': event.client_routes_body_hash,
         'riders_values': getattr(event, 'riders_current_values', {}),
         'client_hash': event.page[1],
-        'server_time': datetime.datetime.now(),
+        'server_time': datetime.now(),
     }
 
 
@@ -405,7 +405,7 @@ async def riders_csv(request, event):
     for point in tracker.points:
         if 'position' in point:
             writer.writerow((format(point['position'][0], '.6f'), format(point['position'][1], '.6f'),
-                             point['time'].astimezone(datetime.timezone.utc).isoformat()))
+                             point['time'].astimezone(timezone.utc).isoformat()))
     return etag_response(
         request, web.Response(
             text=out_file.getvalue(),
@@ -703,7 +703,7 @@ async def message_to_multiple_wss(app, wss, msg, log_level=logging.DEBUG, filter
 @event_handler
 @ensure_authorized_event
 async def event_set_start(request, event):
-    event.config['event_start'] = datetime.datetime.now().replace(microsecond=0)
+    event.config['event_start'] = datetime.now().replace(microsecond=0)
     author = await get_git_author(request)
     await event.save(f"{event.name}: Set event start", author=author, prevent_reload=False)
     return web.Response(text='Start time set to {}'.format(event.config['event_start']))
@@ -723,7 +723,7 @@ async def individual_ws(get_key, get_tracker, request):
                 await ws.send_str(json_dumps(msg))
             await send({
                 'client_hash': request.app['static_manager'].processed_resources['individual_page'].hash,
-                'server_time': datetime.datetime.now()
+                'server_time': datetime.now()
             })
 
             tracker_info = await exit_stack.enter_async_context(get_individual_tracker(request, get_key, get_tracker))
