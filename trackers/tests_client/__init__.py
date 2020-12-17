@@ -18,7 +18,7 @@ def suite():
     return testresources.OptimisingTestSuite(tests_with_scenarios)
 
 
-TEST_GOOGLE_API_KEY = 'AIzaSyCDXMpphQfDX44Zqmfzx9qpKJ0bs5NnQ_w'
+TEST_GOOGLE_API_KEY = 'AIzaSyD8qJMJRAfOvyG0J_LT2WNzBnem8s3vqPw'
 
 
 def free_port():
