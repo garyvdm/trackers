@@ -115,6 +115,7 @@ class Event(object):
         self.trackers_started = False
         self.starting_fut = None
         self.batch_update_task = None
+        self.not_live_complete_trackers_task = None
 
         self.config_routes_change_observable = Observable(f'event.{name}.config_routes_change')
         self.rider_new_values_observable = Observable(f'event.{name}.rider_new_values')
@@ -388,6 +389,8 @@ class Event(object):
                             pass
                 except Exception:
                     self.logger.exception('Unhandled tracker error: ')
+            if self.not_live_complete_trackers_task:
+                await self.not_live_complete_trackers_task
 
             del self.riders_objects
             del self.riders_current_values

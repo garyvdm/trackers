@@ -195,7 +195,7 @@ class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
 
         await event.stop_and_complete_trackers()
 
-    async def test_implicit_static(self):
+    async def test_static(self):
         data = '''
             tracker_end: 2019-01-01 00:00:00
             riders:
