@@ -3,7 +3,12 @@ import contextlib
 import functools
 import logging
 import pprint
+from datetime import datetime
+from pathlib import Path
+from itertools import chain
 
+import msgpack
+import msgpack.fallback
 
 logger = logging.getLogger(__name__)
 
@@ -196,3 +201,28 @@ class BlockedList(object):
     def get_update_from_last(self):
         self.last, update = get_blocked_list(self.get_source(), self.last, **self.kwargs)
         return update
+
+
+# TODO create async version that uses io executor
+@contextlib.contextmanager
+def stream_store(path: Path, logger: logging.Logger):
+    logging.debug('Reading data')
+    if path.exists():
+        with path.open('rb') as f:
+            unpacker = msgpack.Unpacker(f, raw=False, timestamp=3)
+            data = list(chain.from_iterable(unpacker))
+        logging.info('Data loaded: {} items'.format(len(data)))
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        data = []
+        logging.info('Data file did not exist. Starting blank.')
+
+    with path.open('ab', 0) as f:
+        packer = msgpack.fallback.Packer(datetime=True)
+
+        def write_items(items):
+            packed = packer.pack(items)
+            f.write(packed)
+            f.flush()
+
+        yield data, write_items

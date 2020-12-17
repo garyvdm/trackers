@@ -3,19 +3,23 @@ import datetime
 import functools
 import logging
 from contextlib import asynccontextmanager
+from itertools import chain
+from pathlib import Path
+from xml.etree import ElementTree
 
 import aiohttp
 from aiohttp.web import Application as WebApplication
-from jsonpointer import resolve_pointer
 
-from trackers.base import print_tracker, Tracker
+from trackers.base import print_tracker, Tracker, stream_store
 
 logger = logging.getLogger(__name__)
 
 
+# https://www.findmespot.com/en-us/support/spot-trace/get-help/general/spot-api-support
+
 @asynccontextmanager
 async def config(app, settings):
-    app['spot.session'] = session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=1))
+    app['spot.session'] = session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=1), raise_for_status=True)
     app['spot.rate_limit_sem'] = asyncio.Semaphore()
 
     if isinstance(app, WebApplication):
@@ -44,31 +48,6 @@ async def start_individual_tracker(app, settings, request):
     return await start_tracker(app, 'individual', feed_id, start, None)
 
 
-async def api_call_inner(app, feed_id, params, fut):
-    url = f'https://api.findmespot.com/spot-main-web/consumer/rest-api/2.0/public/feed/{feed_id}/message.json'
-    session = app['spot.session']
-    rate_limit_sem = app['spot.rate_limit_sem']
-    async with rate_limit_sem:
-        async with session.get(url, params=params) as response:
-            response.raise_for_status()
-            data = await response.json()
-
-        error = resolve_pointer(data, '/response/errors/error', None)
-        if error and error.get('code') != 'E-0195':
-            fut.set_exception(RuntimeError('{text} ({code}): {description}'.format_map(error)))
-        else:
-            fut.set_result(data)
-
-        await asyncio.sleep(2)  # Rate limit
-
-
-def api_call(app, feed_id, params):
-    fut = asyncio.Future()
-    task = asyncio.ensure_future(api_call_inner(app, feed_id, params, fut))
-    task.add_done_callback(lambda fut: fut.result())
-    return fut
-
-
 async def start_event_tracker(app, event, rider_name, tracker_data, start, end):
     return await start_tracker(app, rider_name, tracker_data['feed_id'], start, end)
 
@@ -81,9 +60,8 @@ async def start_tracker(app, tracker_name, feed_id, start, end):
     return tracker
 
 
-async def monitor_feed(app, tracker, feed_id, start, end):
+async def monitor_feed(app, tracker, feed_id, start: datetime, end: datetime):
     try:
-        seen_ids = set()
         if not start:
             start = datetime.datetime.utcnow()
         else:
@@ -93,27 +71,33 @@ async def monitor_feed(app, tracker, feed_id, start, end):
         last = start
         # From this point on now, last, start, and end are all utc and tz naive.
 
-        while True:
-            try:
-                now = datetime.datetime.utcnow()
-                if end and now > end:
-                    now = end
-                if now > start:
-                    params = {'startDate': last.isoformat(timespec='seconds') + '-0000', 'endDate': now.isoformat(timespec='seconds') + '-0000'}
-                    last = now
-                    data = await api_call(app, feed_id, params)
-                    await process_data(tracker, data, datetime.datetime.now(), seen_ids)
+        store_path = Path(app['trackers.settings']['cache_path'], 'spot', f'{feed_id}-{start.isoformat()}')
 
-                if end and now >= end:
-                    break
-            except asyncio.CancelledError:
-                raise
-            except (aiohttp.client_exceptions.ClientError, RuntimeError) as e:
-                tracker.logger.error('Error in monitor_feed: {!r}'.format(e))
-            except Exception:
-                tracker.logger.exception('Error in monitor_feed:')
+        with stream_store(store_path, tracker.logger) as (loaded_messages, write_messages):
+            seen_ids = {message['id'] for message in loaded_messages}
+            await messages_to_tracker(tracker, loaded_messages)
+            del loaded_messages
 
-            await wait_for_next_check(tracker)
+            while True:
+                try:
+                    now = datetime.datetime.utcnow()
+                    if now > start:
+                        new_messages = await get_new_messages(app, tracker, feed_id, start, end, last, seen_ids)
+                        last = now
+                        if new_messages:
+                            await messages_to_tracker(tracker, new_messages)
+                            write_messages(new_messages)
+
+                    if end and now >= end:
+                        break
+                except asyncio.CancelledError:
+                    raise
+                except (aiohttp.client_exceptions.ClientError, RuntimeError) as e:
+                    tracker.logger.error('Error in monitor_feed: {!r}'.format(e))
+                except Exception:
+                    tracker.logger.exception('Error in monitor_feed:')
+
+                await wait_for_next_check(tracker)
 
     except asyncio.CancelledError:
         raise
@@ -121,30 +105,100 @@ async def monitor_feed(app, tracker, feed_id, start, end):
         tracker.logger.exception('Error in monitor_feed:')
 
 
-async def process_data(tracker, data, now, seen_ids):
-    error = resolve_pointer(data, '/response/errors/error', default=None)
-    if error:
-        tracker.logger.debug(f'{error["description"]}')
+async def api_call_inner(app, feed_id, params, fut):
+    url = f'https://api.findmespot.com/spot-main-web/consumer/rest-api/2.0/public/feed/{feed_id}/message.xml'
+    session = app['spot.session']
+    rate_limit_sem = app['spot.rate_limit_sem']
+    async with rate_limit_sem:
+        async with session.get(url, params=params) as response:
+            text = await response.text()
+        tree = ElementTree.fromstring(text)
+        fut.set_result(tree)
 
-    messages = resolve_pointer(data, '/response/feedMessageResponse/messages/message', ())
-    if isinstance(messages, dict):
-        messages = (messages, )
+        await asyncio.sleep(2)  # Rate limit
+
+
+def api_call(app, feed_id, params):
+    fut = asyncio.Future()
+    task = asyncio.ensure_future(api_call_inner(app, feed_id, params, fut))
+    task.add_done_callback(lambda fut: fut.result())
+    return fut
+
+
+def xml_to_dict(item: ElementTree):
+    return {child.tag: child.text for child in item}
+
+
+async def get_new_messages(app, tracker, feed_id, start: datetime, end: datetime, last: datetime, seen_ids):
+    if last:
+        base_params = {'startDate': last.isoformat(timespec='seconds') + '-0000'}
+    else:
+        base_params = {'startDate': start.isoformat(timespec='seconds') + '-0000'}
+    if end:
+        base_params['endDate'] = end.isoformat(timespec='seconds') + '-0000'
+
+    need_to_query_more = True
+    start = 0
+    query_results = []
+    while need_to_query_more:
+        params = {**base_params, 'start': start}
+        tree: ElementTree = await api_call(app, feed_id, params)
+
+        for error in tree.findall('errors/error'):
+            error = xml_to_dict(error)
+            if error['code'] == 'E-0195':
+                level = logging.DEBUG
+            else:
+                level = logging.ERROR
+            tracker.logger.log(msg=f"{error['text']} ({error['code']}): {error['description']}", level=level)
+
+        count_el = tree.find('feedMessageResponse/count')
+        if count_el is not None:
+            count = int(count_el.text)
+        else:
+            count = 0
+        if count < 51:
+            need_to_query_more = False
+        start += count
+        now = datetime.datetime.now(datetime.timezone.utc)
+        messages = [xml_to_dict(item) for item in tree.findall('feedMessageResponse/messages/message')]
+        index = 0
+        for index, message in enumerate(messages):
+            id = message['id']
+            if id in seen_ids:
+                need_to_query_more = False
+                break
+            seen_ids.add(id)
+            message['sever_time'] = now
+            message['unixTime'] = int(message['unixTime'])
+            message['latitude'] = float(message['latitude'])
+            message['longitude'] = float(message['longitude'])
+            message['altitude'] = float(message['altitude'])
+
+        else:
+            index += 1
+
+        messages = messages[:index]
+        query_results.append(messages)
+    
+    return list(sorted(chain.from_iterable(query_results), key=lambda message: message['unixTime']))
+
+
+async def messages_to_tracker(tracker, messages):
     new_points = []
     for message in messages:
-        if message['id'] not in seen_ids:
-            seen_ids.add(message['id'])
-            if message['altitude']:
-                p = [message['latitude'], message['longitude'], message['altitude']]
-            else:
-                p = [message['latitude'], message['longitude']]
-            new_points.append({
-                'position': p,
-                'battery': message['batteryState'],
-                # TODO We need to be able to specify the timezone in the config, as it seems to vary.
-                'time': datetime.datetime.fromtimestamp(message['unixTime']),
-                'server_time': now,
-                'message_type': message['messageType'],  # TODO translate into tracker status
-            })
+        if message['altitude']:
+            p = [message['latitude'], message['longitude'], message['altitude']]
+        else:
+            p = [message['latitude'], message['longitude']]
+        new_points.append({
+            'position': p,
+            'battery': message['batteryState'],
+            # TODO We need to be able to specify the timezone in the config, as it seems to vary.
+            'time': datetime.datetime.fromtimestamp(message['unixTime']),
+            'server_time': message['sever_time'],
+            'message_type': message['messageType'],  # TODO translate into tracker status
+        })
     if new_points:
         await tracker.new_points(new_points)
 
@@ -166,11 +220,15 @@ async def wait_for_next_check(tracker):
 async def main():
     import signal
 
-    app = {}
-    settings = {}
+    settings = {
+        'cache_path': 'cache',
+    }
+    app = {
+        'trackers.settings': settings
+    }
     async with config(app, settings):
         tracker = await start_tracker(
-            app, 'foobar', '0RrHLaqkrQHCYYj52QMZEP6fhOLd8g6E5', datetime.datetime(2019, 1, 16), None)
+            app, 'foobar', '09tTtcmfhXSAkVisZezCoD8RSrINdEezx', datetime.datetime(2019, 1, 16), None)
         print_tracker(tracker)
 
         run_fut = asyncio.Future()
