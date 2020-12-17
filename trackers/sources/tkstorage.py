@@ -202,7 +202,7 @@ class TrackerObjects(object):
                 if desired_check:
                     commands.append(f'*checkm*{desired_check}*')
                 else:
-                    commands.append(f'*checkoff*')
+                    commands.append('*checkoff*')
 
             if commands:
                 verb = 'Sending' if self.app['tkstorage.config'] else 'Would send'
@@ -528,7 +528,7 @@ def config_text_from_config(c):
     if c.get('check'):
         config_texts.append(f'Check on {c["check"]} min upload')
     if not config_texts:
-        config_texts.append(f'Off')
+        config_texts.append('Off')
     return '\n'.join(config_texts)
 
 

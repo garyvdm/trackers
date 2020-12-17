@@ -7,7 +7,7 @@ import asynctest
 from trackers.base import BlockedList, get_blocked_list, Tracker
 from trackers.general import index_and_hash_list
 
-source = index_and_hash_list([{'x': l} for l in 'Lorem ipsum dolor sit amet posuere.'], 0, hashlib.sha1())
+source = index_and_hash_list([{'x': text} for text in 'Lorem ipsum dolor sit amet posuere.'], 0, hashlib.sha1())
 # pprint.pprint(source)
 
 expected_full = {

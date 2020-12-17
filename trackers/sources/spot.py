@@ -10,7 +10,7 @@ from xml.etree import ElementTree
 import aiohttp
 from aiohttp.web import Application as WebApplication
 
-from trackers.base import print_tracker, Tracker, stream_store
+from trackers.base import print_tracker, stream_store, Tracker
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +180,7 @@ async def get_new_messages(app, tracker, feed_id, start: datetime, end: datetime
 
         messages = messages[:index]
         query_results.append(messages)
-    
+
     return list(sorted(chain.from_iterable(query_results), key=lambda message: message['unixTime']))
 
 

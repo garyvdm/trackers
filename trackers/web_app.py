@@ -129,7 +129,7 @@ async def make_aio_app(settings,
 
     cache_path = settings['cache_path']
     os.makedirs(cache_path, exist_ok=True)
-    app['svg_marker_cached'] = PersistedFuncCache(os.path.join(cache_path, f'1-svg_markers'), trackers.svg_marker.svg_marker)
+    app['svg_marker_cached'] = PersistedFuncCache(os.path.join(cache_path, '1-svg_markers'), trackers.svg_marker.svg_marker)
     app['svg_marker_cached'].load()
 
     app['trackers.app_setup_cm'] = app_setup_cm = await app_setup(app, settings)

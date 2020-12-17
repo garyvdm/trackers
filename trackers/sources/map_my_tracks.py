@@ -91,9 +91,9 @@ async def get_activites(client_session, author, logger=None, pages=5, warn_scrap
         activites = []
         for i in range(1, pages):
             if i == 1:
-                url = 'http://www.mapmytracks.com/{}'.format(quote(author), i)
+                url = f'http://www.mapmytracks.com/{quote(author)}'
             else:
-                url = 'http://www.mapmytracks.com/user-embeds/get-tracks/{}/{}'.format(quote(author), i)
+                url = f'http://www.mapmytracks.com/user-embeds/get-tracks/{quote(author)}/{i}'
             async with client_session.post(url) as response:
                 response.raise_for_status()
                 text = await response.text()

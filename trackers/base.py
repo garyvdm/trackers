@@ -3,9 +3,8 @@ import contextlib
 import functools
 import logging
 import pprint
-from datetime import datetime
-from pathlib import Path
 from itertools import chain
+from pathlib import Path
 
 import msgpack
 import msgpack.fallback

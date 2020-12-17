@@ -83,7 +83,7 @@ async def replay(replay_tracker, org_tracker, event_start_time, replay_start, of
             replay_tracker.logger.debug(f'Sleep for {delay} sec. till {new_time}')
             await asyncio.sleep(delay)
         else:
-            replay_tracker.logger.debug(f'Sleep 1')
+            replay_tracker.logger.debug('Sleep 1')
             await asyncio.sleep(1)
 
 

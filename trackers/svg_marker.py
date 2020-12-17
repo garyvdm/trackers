@@ -88,7 +88,7 @@ def _text_width(text, style):
             '</svg>'
         )  # NOQA E131
         text_width_text = run(['inkscape', '--pipe', '--query-width', '--query-id', 'label'],
-                            input=text_query_file, encoding='utf8', stdout=PIPE, stderr=DEVNULL).stdout
+                              input=text_query_file, encoding='utf8', stdout=PIPE, stderr=DEVNULL).stdout
         return float(text_width_text)
     except Exception:
         logging.exception('Error getting marker text width:')
@@ -112,7 +112,7 @@ def svg_marker(text, color='white', background_color='black', direction='se'):
     image = (
         f'<?xml version="1.0" ?>'
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view_box}" width="{img_width}px" height="{img_height}px" >'
-            f'<rect width="{rect_width}" height="{rect_height}" rx="3" ry="3" fill="{background_color}"></rect>'
+            f'<rect width="{rect_width}" height="{rect_height}" rx="3" ry="3" fill="{background_color}"></rect>'  # NOQA E128
             f'<path d="{arrow}" fill="{background_color}"></path>'
             f'<text y="18" x="12" style="{text_style}">{text}</text>'
         f'</svg>'
