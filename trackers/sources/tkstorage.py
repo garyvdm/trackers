@@ -599,7 +599,7 @@ class TKStorageTracker(Tracker):
         tracker.initial_config_task = None
 
         base_start = config.get('base', {}).get('start', start)
-        if base_start and now < end:
+        if config and base_start and now < end:
             if now > start:
                 base_start = base_start + timedelta(seconds=60)
             delay = (now - base_start).total_seconds()
