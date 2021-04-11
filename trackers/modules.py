@@ -2,7 +2,6 @@ from contextlib import AsyncExitStack
 
 
 async def config_modules(app, settings):
-    import trackers.sources.map_my_tracks
     import trackers.sources.traccar
     import trackers.sources.spot
     import trackers.sources.tkstorage
@@ -11,7 +10,6 @@ async def config_modules(app, settings):
     import trackers.sources.garmin_inreach
 
     modules = (
-        trackers.sources.map_my_tracks.config,
         trackers.sources.traccar.config,
         trackers.sources.spot.config,
         trackers.sources.tkstorage.config,
@@ -21,7 +19,6 @@ async def config_modules(app, settings):
     )
 
     source_trackers = {
-        'mapmytracks': trackers.sources.map_my_tracks.start_event_tracker,
         'traccar': trackers.sources.traccar.start_event_tracker,
         'spot': trackers.sources.spot.start_event_tracker,
         'tkstorage': trackers.sources.tkstorage.start_event_tracker,
