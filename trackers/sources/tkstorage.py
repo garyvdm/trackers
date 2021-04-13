@@ -563,7 +563,10 @@ def get_individual_key(request):
 async def start_individual_tracker(app, settings, request):
     id = request.match_info['id']
     start = datetime.now() - timedelta(days=2)
-    return await TKStorageTracker.start(app, id, id, start, None)
+    print(id, start)
+    tracker = await TKStorageTracker.start(app, id, id, start, None)
+    print_tracker(tracker)
+    return tracker
 
 
 class TKStorageTracker(Tracker):
@@ -594,6 +597,7 @@ class TKStorageTracker(Tracker):
         tracker.points_received_observables.subscribe(tracker.points_received)
         tracker.completed.add_done_callback(tracker.on_completed)
         await tracker.points_received(tracker_objects.points)
+        print(len(tracker_objects.points))
 
         now = datetime.now()
         tracker.initial_config_task = None
@@ -607,6 +611,8 @@ class TKStorageTracker(Tracker):
 
         if end:
             tracker.complete_on_end_time_reached_task = run_forget_task(tracker.complete_on_end_time_reached())
+        else:
+            tracker.complete_on_end_time_reached_task = None
 
         return tracker
 
@@ -758,7 +764,7 @@ async def main():
     }
     async with config(app, settings):
         tracker = await TKStorageTracker.start(
-            app, 'gary', 'TK03', datetime(2018, 6, 5, 17), None)
+            app, 'gary', 'TK05', datetime(2021, 4, 10, 6), None)
         print_tracker(tracker)
         # await tracker.set_config({'check': 5})
         # await tracker.set_config({'routetrack': False, 'check': False})
@@ -779,6 +785,6 @@ async def main():
         await tracker.complete()
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
