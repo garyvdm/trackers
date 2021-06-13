@@ -236,9 +236,12 @@ async def get_event_state(app, event):
     }
 
 
+address_host_re = re.compile(r"\d+\.\d+\.\d+\.\d+(:\d+)?")
+
+
 async def home(request):
     host = request.headers.get('Host')
-    if host.endswith(':5234'):
+    if address_host_re.match(host):
         host = 'trackrace.co.za'
     page = request.app['home_pages'].get('host')
     if not page:
