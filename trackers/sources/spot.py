@@ -10,7 +10,7 @@ from xml.etree import ElementTree
 import aiohttp
 from aiohttp.web import Application as WebApplication
 
-from trackers.base import print_tracker, stream_store, Tracker
+from trackers.base import print_tracker, stream_store, Tracker, RateLimitingSemaphore
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def config(app, settings):
     app['spot.session'] = session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=1), raise_for_status=True)
-    app['spot.rate_limit_sem'] = asyncio.Semaphore()
+    app['spot.rate_limit_sem'] = RateLimitingSemaphore(0.5)
 
     if isinstance(app, WebApplication):
         import trackers.web_app
@@ -105,24 +105,14 @@ async def monitor_feed(app, tracker, feed_id, start: datetime, end: datetime):
         tracker.logger.exception('Error in monitor_feed:')
 
 
-async def api_call_inner(app, feed_id, params, fut):
+async def api_call(app, feed_id, params):
     url = f'https://api.findmespot.com/spot-main-web/consumer/rest-api/2.0/public/feed/{feed_id}/message.xml'
     session = app['spot.session']
     rate_limit_sem = app['spot.rate_limit_sem']
     async with rate_limit_sem:
         async with session.get(url, params=params) as response:
             text = await response.text()
-        tree = ElementTree.fromstring(text)
-        fut.set_result(tree)
-
-        await asyncio.sleep(2)  # Rate limit
-
-
-def api_call(app, feed_id, params):
-    fut = asyncio.Future()
-    task = asyncio.ensure_future(api_call_inner(app, feed_id, params, fut))
-    task.add_done_callback(lambda fut: fut.result())
-    return fut
+    return ElementTree.fromstring(text)
 
 
 def xml_to_dict(item: ElementTree):
@@ -142,6 +132,7 @@ async def get_new_messages(app, tracker, feed_id, start: datetime, end: datetime
     query_results = []
     while need_to_query_more:
         params = {**base_params, 'start': start}
+
         tree: ElementTree = await api_call(app, feed_id, params)
 
         for error in tree.findall('errors/error'):
