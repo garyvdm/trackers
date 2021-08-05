@@ -924,7 +924,7 @@ async def event_admin(request, event):
                                 function set_status(status) {
                                     var now = new moment().local().format('YYYY-MM-DDTHH:mm:ss');
                                     var val = 'rider_status: '+status+'\\ntime: ' + now;
-                                    if (status == 'Finished') val += '\\nfinish_time: ' + now;
+                                    if (status == 'Finished') val += '\\nfinished_time: ' + now;
                                     document.getElementById('point').value = val
                                 }
                             '''))
