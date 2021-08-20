@@ -518,7 +518,7 @@ class Event(object):
 
         leader = rider_names_sorted[0]
         leader_objects = self.riders_objects[leader]
-        leader_points = []
+        leader_points = [(0, self.event_start)]
         last_point = None
         if leader_objects.analyse_tracker:
             for point in leader_objects.analyse_tracker.points:
@@ -566,8 +566,11 @@ class Event(object):
             if rider_dist_route:
                 i = bisect(leader_points, (rider_dist_route,))
                 if i < len(leader_points):
-                    point1 = leader_points[i - 1]
                     point2 = leader_points[i]
+                    for back in range(i - 1, -1, -1):
+                        point1 = leader_points[back]
+                        if point1[0] < point2[0]:
+                            break
                     try:
                         interpolate = (rider_dist_route - point1[0]) / (point2[0] - point1[0])
                     except FloatingPointError:
