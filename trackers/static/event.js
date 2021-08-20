@@ -1194,7 +1194,7 @@ function update_selected_rider_point_markers(){
             var bounds = map.getBounds();
             var color = rider.color || 'black';
 
-            if (map.getZoom() >= 14) {
+            if (map.getZoom() >= 12) {
                 Object.values(rider_items.point_markers).forEach(function (marker) {marker.setVisible(true)});
                 riders_points[rider_name].forEach(function (point){
                     if (!rider_items.point_markers.hasOwnProperty(point.index) && point.hasOwnProperty('position')) {

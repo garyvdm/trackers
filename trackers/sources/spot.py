@@ -82,8 +82,10 @@ async def monitor_feed(app, tracker, feed_id, start: datetime, end: datetime):
                 try:
                     now = datetime.utcnow()
                     if now > start:
+                        if tracker.points:
+                            last = (tracker.points[-1]['time'] + timedelta(seconds=1)).astimezone(timezone.utc).replace(tzinfo=None)
+
                         new_messages = await get_new_messages(app, tracker, feed_id, start, end, last, seen_ids)
-                        last = now - timedelta(minutes=1)
                         if new_messages:
                             await messages_to_tracker(tracker, new_messages)
                             write_messages(new_messages)
@@ -105,12 +107,13 @@ async def monitor_feed(app, tracker, feed_id, start: datetime, end: datetime):
         tracker.logger.exception('Error in monitor_feed:')
 
 
-async def api_call(app, feed_id, params):
+async def api_call(tracker, app, feed_id, params):
     url = f'https://api.findmespot.com/spot-main-web/consumer/rest-api/2.0/public/feed/{feed_id}/message.xml'
-    session = app['spot.session']
+    session: aiohttp.ClientSession = app['spot.session']
     rate_limit_sem = app['spot.rate_limit_sem']
     async with rate_limit_sem:
         async with session.get(url, params=params) as response:
+            tracker.logger.debug(f'GET {response.url}')
             text = await response.text()
     return ElementTree.fromstring(text)
 
@@ -133,7 +136,7 @@ async def get_new_messages(app, tracker, feed_id, start: datetime, end: datetime
     while need_to_query_more:
         params = {**base_params, 'start': start}
 
-        tree: ElementTree = await api_call(app, feed_id, params)
+        tree: ElementTree = await api_call(tracker, app, feed_id, params)
 
         for error in tree.findall('errors/error'):
             error = xml_to_dict(error)
@@ -153,26 +156,18 @@ async def get_new_messages(app, tracker, feed_id, start: datetime, end: datetime
         start += count
         now = datetime.now(timezone.utc)
         messages = [xml_to_dict(item) for item in tree.findall('feedMessageResponse/messages/message')]
-        index = 0
-        for index, message in enumerate(messages):
+        for message in messages:
             id = message['id']
-            if id in seen_ids:
-                need_to_query_more = False
-                break
-            seen_ids.add(id)
-            message['sever_time'] = now
-            message['unixTime'] = int(message['unixTime'])
-            message['latitude'] = float(message['latitude'])
-            message['longitude'] = float(message['longitude'])
-            message['altitude'] = float(message['altitude'])
+            if id not in seen_ids:
+                seen_ids.add(id)
+                message['sever_time'] = now
+                message['unixTime'] = int(message['unixTime'])
+                message['latitude'] = float(message['latitude'])
+                message['longitude'] = float(message['longitude'])
+                message['altitude'] = float(message['altitude'])
+                query_results.append(message)
 
-        else:
-            index += 1
-
-        messages = messages[:index]
-        query_results.append(messages)
-
-    return list(sorted(chain.from_iterable(query_results), key=lambda message: message['unixTime']))
+    return list(sorted(query_results, key=lambda message: message['unixTime']))
 
 
 async def messages_to_tracker(tracker, messages):
@@ -219,7 +214,7 @@ async def main():
     }
     async with config(app, settings):
         tracker = await start_tracker(
-            app, 'foobar', '09tTtcmfhXSAkVisZezCoD8RSrINdEezx', datetime(2019, 1, 16), None)
+            app, 'foobar', '0qQbQ6WcQ9ied8YOJB3NN0WzfT0XUNI8q', datetime(2021, 8, 19), None)
         print_tracker(tracker)
 
         run_fut = asyncio.Future()
