@@ -531,8 +531,7 @@ class Event(object):
             leader_points.append((riders_predicted_points[leader]['dist_route'], time))
 
         if leader_points:
-            with suppress(KeyError):
-                del self.riders_current_values[leader]['leader_time_diff']
+            self.riders_current_values[leader]['leader_time_diff'] = timedelta(0)
             for rider_name in rider_names_sorted[1:]:
                 leader_time_diff = self.get_leader_time_diff(rider_name, riders_predicted_points,
                                                              leader, leader_points, time)
