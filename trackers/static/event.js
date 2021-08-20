@@ -983,12 +983,14 @@ function update_rider_table_specific(container, detail_level, sorted_riders, rid
             last_server_time = format_time_delta_ago_with_date(current_time, values.server_time, date_options_delta)
         }
         if (values.hasOwnProperty('leader_time_diff')) {
-            var total_min = Math.round(values.leader_time_diff / 60);
+            var neg = values.leader_time_diff < 0
+            var total_min = Math.round(Math.abs(values.leader_time_diff) / 60);
             var min = total_min % 60;
             var hours = Math.floor(total_min / 60);
             // TODO more than a day
             if (total_min < 60) { leader_time_diff = sprintf(':%02i', min) }
             else { leader_time_diff = sprintf('%i:%02i', hours, min) }
+            if (neg) { leader_time_diff = '- ' + leader_time_diff }
         }
         if (detail_level == 'tracker') {
             return '<tr rider_name="' + rider.name + '" class="rider">' +
