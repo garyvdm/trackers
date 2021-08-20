@@ -83,7 +83,7 @@ async def monitor_feed(app, tracker, feed_id, start: datetime, end: datetime):
                     now = datetime.utcnow()
                     if now > start:
                         new_messages = await get_new_messages(app, tracker, feed_id, start, end, last, seen_ids)
-                        last = now
+                        last = now - timedelta(minutes=1)
                         if new_messages:
                             await messages_to_tracker(tracker, new_messages)
                             write_messages(new_messages)
