@@ -591,7 +591,7 @@ function on_new_routes(){
             elevation_chart.addSeries({
                 marker: {enabled: false, symbol: 'circle', radius: 2},
                 color: (i==1?'black':'#444444'),
-                turboThreshold: 5000,
+                turboThreshold: 15000,
                 name: 'route-' + i,
                 data: elevation_points.map(function (item) { return {
                     x: item.dist,
