@@ -57,6 +57,8 @@ defaults_yaml = f"""
                 level: ERROR
             observable:
                 level: ERROR
+            charset_normalizer:
+                level: ERROR
 
 """
 
@@ -68,8 +70,8 @@ def get_base_argparser(*args, **kwargs):
                         help='File to load settings from.')
     parser.add_argument('--google-api-key', action='store',
                         help='Google api key. ')
-    parser.add_argument('--debug', action='store_true',
-                        help='Set logging level to DEBUG.')
+    parser.add_argument("--debug", nargs='*', metavar='logger',
+                        help="Which loggers to set to debug. Arg on it's own will set debug for all loggers.")
     return parser
 
 
@@ -116,10 +118,13 @@ def get_combined_settings(specific_defaults_yaml=None, args=None):
             settings.update(settings_from_file)
 
     logging.config.dictConfig(settings['logging'])
-    if args and args.debug:
-        logging.getLogger('trackers').setLevel(logging.DEBUG)
-        logging.getLogger('web_app').setLevel(logging.DEBUG)
-        # logging.getLogger('asyncio').setLevel(logging.DEBUG)
+    if args:
+        if args.debug == []:
+            args.debug = ['trackers', 'web_app']
+        
+        if args.debug:
+            for logger_name in args.debug:
+                logging.getLogger(logger_name).setLevel(logging.DEBUG)
 
     settings['debug'] = args and args.debug
 
