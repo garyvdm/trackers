@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
 import aiohttp
+from yarl import URL
 
 from trackers.base import print_tracker, Tracker
 
@@ -25,7 +26,7 @@ async def config(app, settings):
 
 
 async def start_event_tracker(app, event, rider_name, tracker_data, start, end):
-    return await start_tracker(app, rider_name, tracker_data['feed_id'], tracker_data['password'], start, end)
+    return await start_tracker(app, rider_name, tracker_data['feed_id'], tracker_data.get('password'), start, end)
 
 
 async def start_tracker(app, tracker_name, feed_id, password, start, end):
@@ -40,8 +41,9 @@ async def monitor_feed(app, tracker, feed_id, password, start, end):
     try:
         seen_ids = set()
         session: aiohttp.ClientSession = app['garmin_inreach.session']
-        auth = aiohttp.BasicAuth(feed_id, password)
-        url = f'https://eur.inreach.garmin.com/Feed/Share/{feed_id}'
+        if password:
+            session.auth = aiohttp.BasicAuth(feed_id, password)
+        url = URL(f'https://eur.inreach.garmin.com/Feed/Share/{feed_id}')
         if not start:
             start = datetime.utcnow()
         else:
@@ -59,8 +61,9 @@ async def monitor_feed(app, tracker, feed_id, password, start, end):
                     params = {'d1': last.isoformat(timespec='seconds') + 'z'}
                     if end and now > end:
                         params['d2'] = end.isoformat(timespec='seconds') + 'z'
-                    # tracker.logger.debug(f'Getting data. {params}')
-                    async with session.get(url, params=params, auth=auth) as response:
+                    url_with_params = url.update_query(params)
+                    tracker.logger.debug(f'Getting data. {url_with_params}')
+                    async with session.get(url_with_params) as response:
                         kml_text = await response.text()
                     await process_data(tracker, kml_text, now, seen_ids)
 
