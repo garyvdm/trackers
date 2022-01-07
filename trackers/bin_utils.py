@@ -55,10 +55,13 @@ defaults_yaml = f"""
         loggers:
             aiohttp.access:
                 level: ERROR
+                qualname: aiohttp.access
             observable:
                 level: ERROR
+                qualname: aiohttp.access
             charset_normalizer:
                 level: ERROR
+                qualname: charset_normalizer
 
 """
 
