@@ -100,8 +100,9 @@ def get_combined_settings(specific_defaults_yaml=None, args=None):
         settings_file = args.settings_file
         if settings_file is None:
             paths = (
-                '/etc/trackers.yaml',
                 'settings.yaml',
+                '../settings.yaml',
+                '/etc/trackers.yaml',
                 relpath(join(__file__, '../../settings.yaml', ))
             )
 
