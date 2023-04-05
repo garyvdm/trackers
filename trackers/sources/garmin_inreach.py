@@ -40,9 +40,11 @@ async def start_tracker(app, tracker_name, feed_id, password, start, end):
 async def monitor_feed(app, tracker, feed_id, password, start, end):
     try:
         seen_ids = set()
-        session: aiohttp.ClientSession = app['garmin_inreach.session']
         if password:
-            session.auth = aiohttp.BasicAuth(feed_id, password)
+            auth = aiohttp.BasicAuth(feed_id, password)
+        else:
+            auth = None
+        session: aiohttp.ClientSession = app['garmin_inreach.session']
         url = URL(f'https://share.garmin.com/Feed/Share/{feed_id}')
         if not start:
             start = datetime.utcnow()
@@ -63,7 +65,7 @@ async def monitor_feed(app, tracker, feed_id, password, start, end):
                         params['d2'] = end.isoformat(timespec='seconds') + 'z'
                     url_with_params = url.update_query(params)
                     tracker.logger.debug(f'Getting data. {url_with_params}')
-                    async with session.get(url_with_params) as response:
+                    async with session.get(url_with_params, auth=auth) as response:
                         kml_text = await response.text()
                     # tracker.logger.debug(f"Response: \n {kml_text}")
                     await process_data(tracker, kml_text, now, seen_ids)
