@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from itertools import chain
 from pathlib import Path
+from typing import cast
 from xml.etree import ElementTree
 
 import aiohttp
@@ -63,7 +64,7 @@ async def start_tracker(app, tracker_name, feed_id, start, end):
 async def monitor_feed(app, tracker, feed_id, start: datetime, end: datetime):
     try:
         if not start:
-            start = datetime.utcnow()
+            start = datetime.utcnow().replace(tzinfo=None)
         else:
             start = start.astimezone(timezone.utc).replace(tzinfo=None)
         if end:
@@ -80,7 +81,7 @@ async def monitor_feed(app, tracker, feed_id, start: datetime, end: datetime):
 
             while True:
                 try:
-                    now = datetime.utcnow()
+                    now = datetime.utcnow().replace(tzinfo=None)
                     if now > start:
                         if tracker.points:
                             last = (tracker.points[-1]['time'] + timedelta(seconds=1)).astimezone(timezone.utc).replace(tzinfo=None)
@@ -182,7 +183,7 @@ async def messages_to_tracker(tracker, messages):
             'battery': message['batteryState'],
             # TODO We need to be able to specify the timezone in the config, as it seems to vary.
             'time': datetime.fromtimestamp(message['unixTime']),
-            'server_time': message['sever_time'],
+            'server_time': cast(datetime, message['sever_time']).astimezone().replace(tzinfo=None),
             'message_type': message['messageType'],  # TODO translate into tracker status
         })
     if new_points:
@@ -214,7 +215,7 @@ async def main():
     }
     async with config(app, settings):
         tracker = await start_tracker(
-            app, 'foobar', '0qQbQ6WcQ9ied8YOJB3NN0WzfT0XUNI8q', datetime(2021, 8, 19), None)
+            app, 'foobar', '0Iejmjaumysr3dcqnMb96E3TnpaqlB60L', datetime(2023, 4, 8), None)
         print_tracker(tracker)
 
         run_fut = asyncio.Future()
