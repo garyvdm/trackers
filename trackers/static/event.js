@@ -469,6 +469,7 @@ setInterval(function(){
     }
 }, 1000);
 
+
 function on_new_config(){
     if (config) {
         time_show_days = config['time_show_days'] || false;
@@ -491,6 +492,7 @@ function on_new_config(){
                     adjust_elevation_chart_bounds();
                 }, 200);
                 update_selected_rider_point_markers();
+                show_hide_route_marker_on_zoom();
             });
             map.addListener('click', function(e) {
                 console.log(e.latLng.toUrlValue())
@@ -512,7 +514,9 @@ function on_new_config(){
             var marker = new google.maps.Marker(marker_data);
             marker.setMap(map);
             event_markers.push(marker);
+            marker_data["marker"] = marker;
         });
+        show_hide_route_marker_on_zoom();
 
         if (config.hasOwnProperty('bounds')) {
             map.fitBounds(config.bounds);
@@ -1223,6 +1227,11 @@ function update_selected_rider_point_markers(){
             }
         }
     });
+}
+
+function show_hide_route_marker_on_zoom(){
+    var zoom = map.getZoom();
+    config.markers.forEach(function (marker) { if (marker.hasOwnProperty('min_zoom')) {marker.marker.setVisible(zoom > marker.min_zoom);} });
 }
 
 var current_point_info_window_point = null;
