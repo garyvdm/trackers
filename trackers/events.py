@@ -4,16 +4,17 @@ import logging
 import os
 from bisect import bisect
 from collections import defaultdict
-from contextlib import closing, suppress
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from functools import partial
 from itertools import chain
 from typing import List
 
-import aionotify
 import msgpack
 import yaml
+from asyncinotify import Inotify, Mask
+from dulwich.repo import Repo
 from more_itertools import spy
 
 from trackers.analyse import AnalyseTracker, get_analyse_routes
@@ -45,45 +46,38 @@ async def load_with_watcher(app, ref=b"HEAD", **kwargs):
     try:
         await load(app, ref=ref, **kwargs)
 
-        repo = app["trackers.data_repo"]
+        repo: Repo = app["trackers.data_repo"]
 
         if hasattr(repo.refs, "refpath"):
-            while True:
-                refnames, sha = repo.refs.follow(ref)
-                paths = [repo.refs.refpath(ref) for ref in refnames]
-                logger.debug(f"Watching paths {paths}")
+            sha: bytes
+            refnames, sha = repo.refs.follow(ref)
+            paths = [repo.refs.refpath(ref) for ref in refnames]
+            logger.debug(f"Watching paths {paths}")
 
-                try:
-                    with closing(aionotify.Watcher()) as watcher:
-                        await watcher.setup(asyncio.get_event_loop())
-                        for path in paths:
-                            watcher.watch(
-                                path.decode(),
-                                flags=aionotify.Flags.MODIFY
-                                + aionotify.Flags.DELETE_SELF
-                                + aionotify.Flags.MOVE_SELF,
-                            )
-                        await watcher.get_event()
-                except OSError as e:
-                    logger.error(e)
-                    break
-
-                await asyncio.sleep(0.1)
-
-                new_sha = repo.refs[ref]
-                if sha != new_sha:
-                    logger.info(
-                        "Ref {} changed {} -> {}. Reloading.".format(
-                            ref.decode(), sha.decode()[:6], new_sha.decode()[:6]
-                        )
+            with Inotify() as inotify:
+                for path in paths:
+                    inotify.add_watch(
+                        path.decode(),
+                        Mask.MODIFY | Mask.DELETE_SELF | Mask.MOVE_SELF,
                     )
-                    await load(app, ref=ref, **kwargs)
+                async for _ in inotify:
+                    await asyncio.sleep(0.5)
+                    new_sha: bytes = repo.refs[ref]
+                    if sha != new_sha:
+                        logger.info(
+                            f"Ref {ref.decode()} changed "
+                            f"{sha.decode()[:6]} -> {new_sha.decode()[:6]}. Reloading."
+                        )
+                        await load(app, ref=ref, **kwargs)
+                        sha = new_sha
+                    else:
+                        logger.debug(f"Ref {ref.decode()} unchanged {sha.decode()[:6]}.")
         else:
             logger.debug("No inotify reload on memory repo")
     except asyncio.CancelledError:
         raise
     except Exception:
-        logger.exception("Error in load_with_watcher: ")
+        logger.exception("Error in load_with_inotify: ")
 
 
 async def load(app, ref=b"HEAD", **kwargs):

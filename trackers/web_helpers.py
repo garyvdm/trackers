@@ -5,14 +5,14 @@ import logging
 import mimetypes
 import os.path
 from collections import namedtuple
-from contextlib import closing, suppress
+from contextlib import suppress
 from copy import copy
 from functools import partial
 
-import aionotify
 import pkg_resources
 import sass
 from aiohttp.web import HTTPFound, HTTPNotModified, Response
+from asyncinotify import Inotify, Mask
 from slugify import slugify
 
 from trackers.base import Observable, cancel_and_wait_task
@@ -97,7 +97,7 @@ class ProcessedStaticManager(object):
             "static_manager_resources_processed", resources_processed
         )
         self.monitor_task = None
-        self.watcher_availible = asyncio.Event()
+        self.inotify_availible = asyncio.Event()
 
     def add_resource(
         self,
@@ -166,28 +166,27 @@ class ProcessedStaticManager(object):
 
     async def monitor_and_process_resources(self):
         while True:
-            with closing(aionotify.Watcher()) as watcher:
-                self.current_watcher = watcher
-                self.watcher_availible.set()
+            with Inotify() as inotify:
+                self.current_inotify = inotify
+                self.inotify_availible.set()
                 try:
                     try:
-                        await self.process_resources(watcher)
+                        await self.process_resources(inotify)
                     except Exception as e:
                         if logger.isEnabledFor(logging.DEBUG):
                             logger.exception("Error in process_resources: ")
                         else:
                             logger.error("Error in process_resources: %s", e)
-                    await watcher.setup(asyncio.get_event_loop())
-                    await watcher.get_event()
+                    await anext(aiter(inotify))
                 except OSError as e:
                     logger.error(e)
                     break
-                self.watcher_availible.clear()
-                self.current_watcher = None
+                self.inotify_availible.clear()
+                self.current_inotify = None
                 logger.info("Reprocessing static resources.")
                 await asyncio.sleep(1)
 
-    async def process_resources(self, watcher=None):
+    async def process_resources(self, inotify=None):
         self.processed_resources = {}
         self.urls = {}
 
@@ -221,7 +220,7 @@ class ProcessedStaticManager(object):
                 resource.resource_name,
                 resource.body_processor,
                 resource.body_loader,
-                watcher,
+                inotify,
             )
 
             if "content_type" not in response_kwarg:
@@ -267,23 +266,21 @@ class ProcessedStaticManager(object):
             return etag_response(request, response_factory, resource.hash, resource.cache_control)
 
     async def get_static_processed_resource(
-        self, resource_name, body_processor=None, body_loader=None, watcher=None
+        self, resource_name, body_processor=None, body_loader=None, inotify=None
     ):
         if body_loader:
-            body = body_loader(self, resource_name, watcher)
+            body = body_loader(self, resource_name, inotify)
         else:
-            if watcher is None:
-                await self.watcher_availible.wait()
-                watcher = self.current_watcher
+            if inotify is None:
+                await self.inotify_availible.wait()
+                inotify = self.current_inotify
             file_name = pkg_resources.resource_filename(self.package, resource_name)
             with open(file_name, "rb") as f:
                 body = f.read()
             with suppress(ValueError):
-                watcher.watch(
+                inotify.add_watch(
                     file_name,
-                    flags=aionotify.Flags.MODIFY
-                    + aionotify.Flags.DELETE_SELF
-                    + aionotify.Flags.MOVE_SELF,
+                    Mask.MODIFY | Mask.DELETE_SELF | Mask.MOVE_SELF,
                 )
 
         hash = None
@@ -298,18 +295,16 @@ class ProcessedStaticManager(object):
             await cancel_and_wait_task(self.monitor_task)
 
 
-def sass_body_loader(static_manager, resource_name, watcher, **kwargs):
+def sass_body_loader(static_manager, resource_name, inotify, **kwargs):
     def importer(path):
         file_name = os.path.abspath(
             pkg_resources.resource_filename(static_manager.package, resource_name)
         )
-        if watcher:
+        if inotify:
             with suppress(ValueError):
-                watcher.watch(
+                inotify.add_watch(
                     file_name,
-                    flags=aionotify.Flags.MODIFY
-                    + aionotify.Flags.DELETE_SELF
-                    + aionotify.Flags.MOVE_SELF,
+                    Mask.MODIFY | Mask.DELETE_SELF | Mask.MOVE_SELF,
                 )
         return [(file_name,)]
 

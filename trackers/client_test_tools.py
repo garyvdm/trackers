@@ -11,11 +11,11 @@ import tempfile
 from contextlib import AsyncExitStack, asynccontextmanager, closing, suppress
 from functools import partial
 
-import aionotify
 import arsenic
 import pkg_resources
 import yaml
 from aiohttp import web
+from asyncinotify import Inotify, Mask
 
 from trackers.tests import web_server_fixture
 from trackers.web_app import convert_client_urls_to_paths
@@ -24,17 +24,12 @@ log = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def watch_path(loop, path):
-    watcher = aionotify.Watcher()
-    watcher.watch(path=path, flags=aionotify.Flags.MODIFY)
-
-    # TODO: ideally need a recursive setup.
-    watcher.watch(path=os.path.join(path, "tests"), flags=aionotify.Flags.MODIFY)
-    await watcher.setup(loop)
-    try:
-        yield watcher
-    finally:
-        watcher.close()
+async def watch_path(path):
+    with Inotify() as inotify:
+        inotify.add_watch(path, Mask.MODIFY)
+        # TODO: ideally need a recursive setup.
+        inotify.add_watch(os.path.join(path, "tests"), Mask.MODIFY)
+        yield inotify
 
 
 @asynccontextmanager
@@ -123,7 +118,9 @@ async def qunit_runner_async(args, loop):
                 arsenic.get_session(service, browser)
             )
 
-        watcher = await stack.enter_async_context(watch_path(loop, org_static_path))
+        inotify = await stack.enter_async_context(watch_path(org_static_path))
+        inotify_iter = aiter(inotify)
+
         stop_event = await stack.enter_async_context(
             on_signals_set_event(loop, ("SIGINT", "SIGTERM"))
         )
@@ -136,7 +133,7 @@ async def qunit_runner_async(args, loop):
 
             await driver.get(f"{url}/static/tests/test-lib.html#post_results")
 
-            get_watcher_event = asyncio.ensure_future(watcher.get_event())
+            get_watcher_event = asyncio.ensure_future(aiter(inotify_iter))
             await asyncio.wait(
                 (get_watcher_event, stop_event_wait),
                 return_when=asyncio.FIRST_COMPLETED,

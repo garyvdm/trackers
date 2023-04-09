@@ -6,7 +6,7 @@ dependencies = [
     "aiohttp",
     "aiohttp_session[secure]",
     "aiomsgpack",
-    "aionotify",
+    "asyncinotify",
     "aniso8601",
     "arsenic",
     "beautifulsoup4",
