@@ -9,9 +9,9 @@ from dataclasses import asdict, is_dataclass
 from datetime import datetime, timedelta
 
 import msgpack
+from dulwich_tree import TreeReader
 
 from trackers.base import Tracker
-from trackers.dulwich_helpers import TreeReader
 
 
 def json_encode(obj):

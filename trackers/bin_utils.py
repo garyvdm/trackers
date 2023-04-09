@@ -15,6 +15,7 @@ import aiohttp
 import dulwich.repo
 import polyline
 import yaml
+from dulwich_tree import TreeReader, TreeWriter
 from more_itertools import chunked, interleave_longest
 
 import trackers.events
@@ -30,7 +31,6 @@ from trackers.analyse import (
     ramer_douglas_peucker_sections,
     route_with_distance_and_index,
 )
-from trackers.dulwich_helpers import TreeReader, TreeWriter
 
 defaults_yaml = f"""
     data_path: {relpath(join(__file__, '../../data'))}

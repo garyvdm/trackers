@@ -15,6 +15,7 @@ import msgpack
 import yaml
 from asyncinotify import Inotify, Mask
 from dulwich.repo import Repo
+from dulwich_tree import TreeReader, TreeWriter
 from more_itertools import spy
 
 from trackers.analyse import AnalyseTracker, get_analyse_routes
@@ -26,7 +27,6 @@ from trackers.base import (
     general_fut_done_callback,
 )
 from trackers.combined import Combined
-from trackers.dulwich_helpers import TreeReader, TreeWriter
 from trackers.general import (
     hash_bytes,
     index_and_hash_tracker,
@@ -253,7 +253,11 @@ class Event(object):
             ).encode()
             tree_writer.set_data(self.routes_yaml_path, routes_bytes)
 
-        tree_writer.commit(message, author=author)
+        if isinstance(message, str):
+            message = message.encode()
+        if isinstance(author, str):
+            author = author.encode()
+        tree_writer.do_commit(message, author=author)
         if prevent_reload:
             _, self.git_hash = tree_writer.lookup(self.path)
         else:

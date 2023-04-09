@@ -20,6 +20,7 @@ from operator import itemgetter
 import pkg_resources
 import yaml
 from aiohttp import WSCloseCode, WSMsgType, web
+from dulwich_tree import TreeReader, TreeWriter
 from htmlwrite import Markup, Tag, Writer
 from more_itertools import chunked, first
 
@@ -35,7 +36,6 @@ from trackers.auth import (
     show_identity,
 )
 from trackers.base import Observable, cancel_and_wait_task, list_register
-from trackers.dulwich_helpers import TreeReader, TreeWriter
 from trackers.general import hash_bytes, json_dumps
 from trackers.persisted_func_cache import PersistedFuncCache
 from trackers.web_helpers import (

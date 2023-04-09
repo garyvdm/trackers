@@ -12,6 +12,7 @@ dependencies = [
     "beautifulsoup4",
     "calmjs.parse",
     "dulwich",
+    "dulwich-tree",
     "fixtures",
     "geographiclib",
     "htmlwrite",

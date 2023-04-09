@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock
 
 import fixtures
 from dulwich.repo import MemoryRepo
+from dulwich_tree import TreeWriter
 
 from trackers.base import Tracker
-from trackers.dulwich_helpers import TreeWriter
 from trackers.events import Event
 from trackers.general import (
     cropped_tracker_start,
@@ -25,7 +25,7 @@ class TestStatic(IsolatedAsyncioTestCase, fixtures.TestWithFixtures):
             "events/test_event/test_rider",
             b"\x91\x82\xa4time\xcbA\xd6\x1a\n\x98\x00\x00\x00\xa3bar\xa3foo",
         )
-        writer.commit("add test_event")
+        writer.do_commit(b"add test_event")
 
         app, settings = get_test_app_and_settings(repo)
         event = await Event.load(app, "test_event", writer)
@@ -52,7 +52,7 @@ class TestStatic(IsolatedAsyncioTestCase, fixtures.TestWithFixtures):
         writer = TreeWriter(repo)
         writer.set_data("events/test_event/data.yaml", "{}".encode())
         writer.set_data("events/test_event/test_rider", "[]".encode())
-        writer.commit("add test_event")
+        writer.do_commit(b"add test_event")
 
         app, settings = get_test_app_and_settings(repo)
         event = await Event.load(app, "test_event", writer)

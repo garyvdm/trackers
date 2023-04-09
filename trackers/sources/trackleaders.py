@@ -12,6 +12,7 @@ import dateutil.parser
 import dateutil.tz
 from calmjs.parse import es5
 from calmjs.parse.asttypes import Assign, ExprStatement, FunctionCall
+from dulwich_tree import TreeWriter
 
 import trackers.events
 from trackers.base import Tracker
@@ -24,7 +25,6 @@ from trackers.bin_utils import (
     process_secondary_route_details,
     update_bounds_inner,
 )
-from trackers.dulwich_helpers import TreeWriter
 
 # TODO: proper start/end filtering.
 

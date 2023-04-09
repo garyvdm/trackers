@@ -4,9 +4,9 @@ from unittest import IsolatedAsyncioTestCase
 import fixtures
 import msgpack
 from dulwich.repo import MemoryRepo
+from dulwich_tree import TreeWriter
 
 from trackers.base import Tracker
-from trackers.dulwich_helpers import TreeWriter
 from trackers.events import Event, load_events
 from trackers.general import json_encode
 from trackers.tests import get_test_app_and_settings
@@ -17,7 +17,7 @@ class TestEvents(IsolatedAsyncioTestCase, fixtures.TestWithFixtures):
         repo = MemoryRepo()
         writer = TreeWriter(repo)
         writer.set_data("events/test_event/data.yaml", "{}".encode())
-        writer.commit("add test_event")
+        writer.do_commit(b"add test_event")
 
         app, settings = get_test_app_and_settings(repo)
         await load_events(app, writer)
@@ -36,7 +36,7 @@ class TestEvents(IsolatedAsyncioTestCase, fixtures.TestWithFixtures):
             title: Test event
         """.encode(),
         )
-        writer.commit("add test_event")
+        writer.do_commit(b"add test_event")
 
         app, settings = get_test_app_and_settings(repo)
         event = await Event.load(app, "test_event", writer)
@@ -53,7 +53,7 @@ class TestEvents(IsolatedAsyncioTestCase, fixtures.TestWithFixtures):
         writer.set_data("events/test_event/routes.yaml", "- {data_hash: abcd, name: foo}".encode())
         writer.set_data("events/test_event/routes_data/abcd", b"\x81\xa6points\x90")
 
-        writer.commit("add test_event")
+        writer.do_commit(b"add test_event")
 
         app, settings = get_test_app_and_settings(repo)
         event = await Event.load(app, "test_event", writer)
@@ -64,7 +64,7 @@ class TestEvents(IsolatedAsyncioTestCase, fixtures.TestWithFixtures):
         writer = TreeWriter(repo)
         writer.set_data("events/test_event/data.yaml", "{}".encode())
         writer.set_data("events/test_event/routes", b"\x91\x81\xa6points\x90")
-        writer.commit("add test_event")
+        writer.do_commit(b"add test_event")
 
         app, settings = get_test_app_and_settings(repo)
         event = await Event.load(app, "test_event", writer)
@@ -101,7 +101,7 @@ class TestEvents(IsolatedAsyncioTestCase, fixtures.TestWithFixtures):
         writer = TreeWriter(repo)
         writer.set_data("events/test_event/data.yaml", "{}".encode())
         writer.set_data("events/test_event/routes", b"\x91\x81\xa6points\x90")
-        writer.commit("add test_event")
+        writer.do_commit(b"add test_event")
 
         app, settings = get_test_app_and_settings(repo)
         event = await Event.load(app, "test_event", writer)
@@ -127,7 +127,7 @@ class TestEventWithMockTracker(fixtures.TestWithFixtures):
         cache_dir = self.useFixture(fixtures.TempDir())
         writer = TreeWriter(repo)
         writer.set_data("events/test_event/data.yaml", dedent(data).encode())
-        writer.commit("add test_event")
+        writer.do_commit(b"add test_event")
 
         async def start_mock_event_tracker(app, event, rider_name, tracker_data, start, end):
             tracker = Tracker("mock_tracker")
@@ -247,7 +247,7 @@ class TestEventsStartStopTracker(IsolatedAsyncioTestCase, TestEventWithMockTrack
             msgpack.dumps([], default=json_encode),
         )
 
-        writer.commit("add test_event")
+        writer.do_commit(b"add test_event")
 
         app, settings = get_test_app_and_settings(repo)
         settings["cache_path"] = cache_dir.path
