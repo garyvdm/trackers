@@ -9,3 +9,4 @@ set -x
 ve/bin/isort trackers
 ve/bin/black trackers --quiet
 ve/bin/flake8 trackers
+ve/bin/pytest trackers
