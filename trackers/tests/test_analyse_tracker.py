@@ -2,8 +2,7 @@ import asyncio
 import pprint
 import unittest
 from datetime import datetime, timedelta
-
-import asynctest
+from unittest import IsolatedAsyncioTestCase
 
 from trackers.analyse import AnalyseTracker, get_analyse_routes, route_elevation
 from trackers.base import Tracker
@@ -50,7 +49,7 @@ def filter_keys(items, keys_to_keep=None, keys_to_remove=None):
         ]
 
 
-class TestAnalyseTracker(asynctest.TestCase):
+class TestAnalyseTracker(IsolatedAsyncioTestCase):
     maxDiff = None
 
     async def test_break_tracks(self):

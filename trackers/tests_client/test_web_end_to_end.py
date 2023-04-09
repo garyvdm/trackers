@@ -4,8 +4,8 @@ import tempfile
 import traceback
 from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import datetime
+from unittest import IsolatedAsyncioTestCase
 
-import asynctest
 import pkg_resources
 import testresources
 import testscenarios
@@ -101,7 +101,7 @@ def d(date_string):
     return datetime.strptime(date_string, "%Y/%m/%d %H:%M:%S")
 
 
-class TestWebEndToEnd(testresources.ResourcedTestCase, asynctest.TestCase):
+class TestWebEndToEnd(testresources.ResourcedTestCase, IsolatedAsyncioTestCase):
     use_default_loop = True
 
     scenarios = browser_scenarios

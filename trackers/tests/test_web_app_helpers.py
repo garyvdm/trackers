@@ -1,8 +1,8 @@
 import logging
 import unittest
 import unittest.mock
+from unittest import IsolatedAsyncioTestCase
 
-import asynctest
 from aiohttp.test_utils import make_mocked_request
 from aiohttp.web import HTTPException, HTTPOk, Response
 
@@ -86,7 +86,7 @@ class TestETagHelpers(unittest.TestCase):
         self.assertEqual(new_response.status, 200)
 
 
-class TestSayErrorHandler(asynctest.TestCase):
+class TestSayErrorHandler(IsolatedAsyncioTestCase):
     async def test_no_error(self):
         @web_app.say_error_handler
         async def no_error(request):

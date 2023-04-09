@@ -2,8 +2,7 @@ import os
 from argparse import Namespace
 from tempfile import NamedTemporaryFile
 from textwrap import dedent
-
-import asynctest
+from unittest import IsolatedAsyncioTestCase
 
 from trackers.bin_utils import (
     add_gpx_to_event_routes,
@@ -14,7 +13,7 @@ from trackers.events import Event
 from trackers.tests.test_events import TestEventWithMockTracker
 
 
-class TestConvertToStatic(asynctest.TestCase, TestEventWithMockTracker):
+class TestConvertToStatic(IsolatedAsyncioTestCase, TestEventWithMockTracker):
     async def test_mock(self):
         app, settings, writer = self.do_setup(
             """
@@ -42,7 +41,7 @@ class TestConvertToStatic(asynctest.TestCase, TestEventWithMockTracker):
         self.assertEqual(writer.get("events/test_event/static/foo/source").data, b"\x90")
 
 
-class TestAssignRiderColors(asynctest.TestCase, TestEventWithMockTracker):
+class TestAssignRiderColors(IsolatedAsyncioTestCase, TestEventWithMockTracker):
     maxDiff = None
 
     async def test(self):
@@ -76,7 +75,7 @@ class TestAssignRiderColors(asynctest.TestCase, TestEventWithMockTracker):
         )
 
 
-class TestAddGpxToEventRoutes(asynctest.TestCase, TestEventWithMockTracker):
+class TestAddGpxToEventRoutes(IsolatedAsyncioTestCase, TestEventWithMockTracker):
     async def test(self):
         app, settings, writer = self.do_setup("{}")
 

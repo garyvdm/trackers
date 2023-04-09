@@ -1,12 +1,11 @@
 import pprint
-
-import asynctest
+from unittest import IsolatedAsyncioTestCase
 
 from trackers.base import Tracker
 from trackers.general import index_and_hash_tracker
 
 
-class Test(asynctest.TestCase):
+class Test(IsolatedAsyncioTestCase):
     maxDiff = None
 
     async def test(self):

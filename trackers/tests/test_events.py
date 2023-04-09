@@ -1,6 +1,6 @@
 from textwrap import dedent
+from unittest import IsolatedAsyncioTestCase
 
-import asynctest
 import fixtures
 import msgpack
 from dulwich.repo import MemoryRepo
@@ -12,7 +12,7 @@ from trackers.general import json_encode
 from trackers.tests import get_test_app_and_settings
 
 
-class TestEvents(asynctest.TestCase, fixtures.TestWithFixtures):
+class TestEvents(IsolatedAsyncioTestCase, fixtures.TestWithFixtures):
     async def test_load_events(self):
         repo = MemoryRepo()
         writer = TreeWriter(repo)
@@ -142,7 +142,7 @@ class TestEventWithMockTracker(fixtures.TestWithFixtures):
         return app, settings, writer
 
 
-class TestEventsStartStopTracker(asynctest.TestCase, TestEventWithMockTracker):
+class TestEventsStartStopTracker(IsolatedAsyncioTestCase, TestEventWithMockTracker):
     async def test_mock(self):
         app, settings, writer = self.do_setup(
             """

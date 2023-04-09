@@ -9,7 +9,6 @@ dependencies = [
     "aionotify",
     "aniso8601",
     "arsenic",
-    "asynctest",
     "beautifulsoup4",
     "calmjs.parse",
     "dulwich",

@@ -1,8 +1,8 @@
 import hashlib
 import pprint
 import unittest
-
-import asynctest
+from unittest import IsolatedAsyncioTestCase
+from unittest.mock import AsyncMock
 
 from trackers.base import BlockedList, Tracker, get_blocked_list
 from trackers.general import index_and_hash_list
@@ -212,11 +212,11 @@ class Test(unittest.TestCase):
         self.check([], existing, expected, expected, entire_block=True)
 
 
-class TestBlockedList(asynctest.TestCase):
+class TestBlockedList(IsolatedAsyncioTestCase):
     async def test_from_tracker(self):
         tracker = Tracker("test")
 
-        new_update_callback = asynctest.CoroutineMock()
+        new_update_callback = AsyncMock()
 
         blocked_list = BlockedList.from_tracker(
             tracker, new_update_callbacks=(new_update_callback,)

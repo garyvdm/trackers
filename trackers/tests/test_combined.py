@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime
-
-import asynctest
+from unittest import IsolatedAsyncioTestCase
+from unittest.mock import AsyncMock
 
 from trackers.base import Tracker
 from trackers.combined import Combined
@@ -11,14 +11,14 @@ def d(date_string):
     return datetime.strptime(date_string, "%Y/%m/%d %H:%M:%S")
 
 
-class TestCombinedTracker(asynctest.TestCase):
+class TestCombinedTracker(IsolatedAsyncioTestCase):
     async def test_basic(self):
         tracker1 = Tracker("tracker1")
         tracker2 = Tracker("tracker2")
         await tracker1.new_points([{"time": d("2017/01/01 05:05:00"), "item": 1}])
 
-        new_points_callback = asynctest.CoroutineMock()
-        reset_points_callback = asynctest.CoroutineMock()
+        new_points_callback = AsyncMock()
+        reset_points_callback = AsyncMock()
 
         combined = await Combined.start(
             "combined",

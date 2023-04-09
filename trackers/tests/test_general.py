@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
+from unittest import IsolatedAsyncioTestCase
+from unittest.mock import AsyncMock
 
-import asynctest
 import fixtures
 from dulwich.repo import MemoryRepo
 
@@ -15,7 +16,7 @@ from trackers.general import (
 from trackers.tests import get_test_app_and_settings
 
 
-class TestStatic(asynctest.TestCase, fixtures.TestWithFixtures):
+class TestStatic(IsolatedAsyncioTestCase, fixtures.TestWithFixtures):
     async def test_start_msgpack(self):
         repo = MemoryRepo()
         writer = TreeWriter(repo)
@@ -67,7 +68,7 @@ class TestStatic(asynctest.TestCase, fixtures.TestWithFixtures):
         self.assertEqual(tracker.points, [])
 
 
-class TestCropped(asynctest.TestCase):
+class TestCropped(IsolatedAsyncioTestCase):
     async def test_with_start(self):
         org_tracker = Tracker("test")
         await org_tracker.new_points(
@@ -99,7 +100,7 @@ class TestCropped(asynctest.TestCase):
         self.assertEqual(tracker.points[0]["i"], 0)
 
 
-class TestReplayTracker(asynctest.TestCase):
+class TestReplayTracker(IsolatedAsyncioTestCase):
     async def test(self):
         org_tracker = Tracker("test")
         await org_tracker.new_points(
@@ -110,7 +111,7 @@ class TestReplayTracker(asynctest.TestCase):
         )
         org_tracker.completed.set_result(None)
 
-        new_points_callback = asynctest.CoroutineMock()
+        new_points_callback = AsyncMock()
 
         event_start = datetime(2017, 1, 1, 6, 0)
         now = datetime.now() + timedelta(seconds=0.01)

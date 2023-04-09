@@ -1,8 +1,8 @@
 import asyncio
 import json
 import sys
+from unittest import IsolatedAsyncioTestCase
 
-import asynctest
 import pkg_resources
 import testresources
 import testscenarios
@@ -17,7 +17,7 @@ def load_tests(loader, tests, pattern):
     return testresources.OptimisingTestSuite(scenarios)
 
 
-class TestQunit(testresources.ResourcedTestCase, asynctest.TestCase):
+class TestQunit(testresources.ResourcedTestCase, IsolatedAsyncioTestCase):
     use_default_loop = True
     scenarios = browser_scenarios
 
