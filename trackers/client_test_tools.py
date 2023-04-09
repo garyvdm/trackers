@@ -8,7 +8,7 @@ import signal
 import subprocess
 import sys
 import tempfile
-from contextlib import asynccontextmanager, AsyncExitStack, closing, suppress
+from contextlib import AsyncExitStack, asynccontextmanager, closing, suppress
 from functools import partial
 
 import aionotify
@@ -20,7 +20,6 @@ from aiohttp import web
 from trackers.tests import web_server_fixture
 from trackers.web_app import convert_client_urls_to_paths
 
-
 log = logging.getLogger(__name__)
 
 
@@ -30,7 +29,7 @@ async def watch_path(loop, path):
     watcher.watch(path=path, flags=aionotify.Flags.MODIFY)
 
     # TODO: ideally need a recursive setup.
-    watcher.watch(path=os.path.join(path, 'tests'), flags=aionotify.Flags.MODIFY)
+    watcher.watch(path=os.path.join(path, "tests"), flags=aionotify.Flags.MODIFY)
     await watcher.setup(loop)
     try:
         yield watcher
@@ -43,7 +42,7 @@ async def on_signals_set_event(loop, signals):
     event = asyncio.Event()
 
     def handler(signame):
-        log.info(f'{signame} received')
+        log.info(f"{signame} received")
         event.set()
 
     for signame in signals:
@@ -56,8 +55,8 @@ async def on_signals_set_event(loop, signals):
 
 
 def qunit_runner():
-    parser = argparse.ArgumentParser(description='Run qunit tests. Watch for changes.')
-    parser.add_argument('-c', '--coverage', action='store_true')
+    parser = argparse.ArgumentParser(description="Run qunit tests. Watch for changes.")
+    parser.add_argument("-c", "--coverage", action="store_true")
     args = parser.parse_args()
     logging.basicConfig(stream=sys.stdout)
     with closing(asyncio.get_event_loop()) as loop:
@@ -66,17 +65,18 @@ def qunit_runner():
 
 async def qunit_runner_async(args, loop):
     async with AsyncExitStack() as stack:
-
-        org_static_path = pkg_resources.resource_filename('trackers', '/static')
+        org_static_path = pkg_resources.resource_filename("trackers", "/static")
         if args.coverage:
-            static_path = os.path.join(await stack.enter_async_context(tempfile.TemporaryDirectory()), 'static')
+            static_path = os.path.join(
+                await stack.enter_async_context(tempfile.TemporaryDirectory()), "static"
+            )
             os.mkdir(static_path)
         else:
             static_path = org_static_path
 
         app = web.Application()
 
-        app.router.add_static('/static', static_path)
+        app.router.add_static("/static", static_path)
 
         async def receive_log(request):
             text = await request.text()
@@ -86,24 +86,31 @@ async def qunit_runner_async(args, loop):
                 outfile = sys.stderr
                 outfile.write(text)
             else:
-                if isinstance(result, dict) and 'source' in result:
-                    result['source'] = literal_str(convert_client_urls_to_paths(static_path, result['source']).strip().strip('@').strip('\n'))
-                outfile = sys.stderr if isinstance(result, dict) and result.get('failed') else sys.stdout
+                if isinstance(result, dict) and "source" in result:
+                    result["source"] = literal_str(
+                        convert_client_urls_to_paths(static_path, result["source"])
+                        .strip()
+                        .strip("@")
+                        .strip("\n")
+                    )
+                outfile = (
+                    sys.stderr if isinstance(result, dict) and result.get("failed") else sys.stdout
+                )
                 yaml.dump(result, outfile, default_flow_style=False, Dumper=DumperWithLiteral)
-            outfile.write('---\n')
-            return web.Response(text='Thanks browser.')
+            outfile.write("---\n")
+            return web.Response(text="Thanks browser.")
 
-        app.router.add_route('POST', '/results', handler=receive_log, name='receive_result')
-        app.router.add_route('POST', '/log', handler=receive_log, name='receive_log')
+        app.router.add_route("POST", "/results", handler=receive_log, name="receive_result")
+        app.router.add_route("POST", "/log", handler=receive_log, name="receive_log")
 
-        app.router.add_route('POST', '/coverage', handler=receive_coverage, name='receive_coverage')
+        app.router.add_route("POST", "/coverage", handler=receive_coverage, name="receive_coverage")
 
         async def receive_error(request):
             body = await request.text()
-            sys.stderr.write(body + '\n')
-            return web.Response(text='Thanks browser.')
+            sys.stderr.write(body + "\n")
+            return web.Response(text="Thanks browser.")
 
-        app.router.add_route('POST', '/error', handler=receive_error, name='receive_error')
+        app.router.add_route("POST", "/error", handler=receive_error, name="receive_error")
 
         url = await stack.enter_async_context(web_server_fixture(loop, app))
 
@@ -112,27 +119,32 @@ async def qunit_runner_async(args, loop):
 
         driver = await stack.enter_async_context(arsenic.get_session(service, browser))
         if args.coverage:
-            app['coverage_driver'] = await stack.enter_async_context(arsenic.get_session(service, browser))
+            app["coverage_driver"] = await stack.enter_async_context(
+                arsenic.get_session(service, browser)
+            )
 
         watcher = await stack.enter_async_context(watch_path(loop, org_static_path))
-        stop_event = await stack.enter_async_context(on_signals_set_event(loop, ('SIGINT', 'SIGTERM')))
+        stop_event = await stack.enter_async_context(
+            on_signals_set_event(loop, ("SIGINT", "SIGTERM"))
+        )
 
         stop_event_wait = asyncio.ensure_future(stop_event.wait())
 
         while not stop_event.is_set():
             if args.coverage:
-                make_instrumented_static(org_static_path, static_path, (
-                    'lib.js',
-                ))
+                make_instrumented_static(org_static_path, static_path, ("lib.js",))
 
-            await driver.get(f'{url}/static/tests/test-lib.html#post_results')
+            await driver.get(f"{url}/static/tests/test-lib.html#post_results")
 
             get_watcher_event = asyncio.ensure_future(watcher.get_event())
-            await asyncio.wait((get_watcher_event, stop_event_wait), return_when=asyncio.FIRST_COMPLETED)
+            await asyncio.wait(
+                (get_watcher_event, stop_event_wait),
+                return_when=asyncio.FIRST_COMPLETED,
+            )
             if not stop_event.is_set():
                 await get_watcher_event
                 await asyncio.sleep(1)
-                await driver.get('about:blank')
+                await driver.get("about:blank")
             else:
                 get_watcher_event.cancel()
                 with suppress(asyncio.CancelledError):
@@ -144,7 +156,7 @@ class literal_str(str):
 
 
 def literal_str_representer(dumper, data):
-    return dumper.represent_scalar(u'tag:yaml.org,2002:str', data, style='|')
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
 
 
 class DumperWithLiteral(yaml.Dumper):
@@ -159,25 +171,35 @@ def make_instrumented_static(src_path, dest_path, instrumented_files):
     shutil.copytree(src_path, dest_path)
 
     for item in instrumented_files:
-        subprocess.check_call([
-            os.path.abspath('node_modules/nyc/bin/nyc.js'), 'instrument',
-            item, dest_path,
-            '--produce-source-map', 'true',
-        ], cwd=src_path)
+        subprocess.check_call(
+            [
+                os.path.abspath("node_modules/nyc/bin/nyc.js"),
+                "instrument",
+                item,
+                dest_path,
+                "--produce-source-map",
+                "true",
+            ],
+            cwd=src_path,
+        )
 
 
 async def receive_coverage(request):
     coverage = await request.text()
-    src_path = pkg_resources.resource_filename('trackers', '/static')
-    nyc = os.path.abspath('node_modules/nyc/bin/nyc.js')
+    src_path = pkg_resources.resource_filename("trackers", "/static")
+    nyc = os.path.abspath("node_modules/nyc/bin/nyc.js")
 
     with tempfile.TemporaryDirectory() as tempdir:
-
-        with open(os.path.join(tempdir, 'out.json'), 'w') as f:
+        with open(os.path.join(tempdir, "out.json"), "w") as f:
             f.write(coverage)
-        subprocess.check_call([nyc, 'report', '--temp-directory', tempdir, src_path], cwd=src_path)
-        subprocess.check_call([nyc, 'report', '--temp-directory', tempdir, '--reporter', 'html'], cwd=src_path)
+        subprocess.check_call([nyc, "report", "--temp-directory", tempdir, src_path], cwd=src_path)
+        subprocess.check_call(
+            [nyc, "report", "--temp-directory", tempdir, "--reporter", "html"],
+            cwd=src_path,
+        )
 
-    await request.app['coverage_driver'].get('file://{}'.format(os.path.join(src_path, 'coverage/index.html')))
+    await request.app["coverage_driver"].get(
+        "file://{}".format(os.path.join(src_path, "coverage/index.html"))
+    )
 
-    return web.Response(text='Thanks browser.')
+    return web.Response(text="Thanks browser.")

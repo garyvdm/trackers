@@ -7,11 +7,9 @@ from trackers.persisted_func_cache import PersistedFuncCache
 
 
 class TestPersistedFuncCache(unittest.TestCase):
-
     def test(self):
-
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, 'cache')
+            path = os.path.join(tmpdir, "cache")
             cache = PersistedFuncCache(path)
 
             cache.func = func = unittest.mock.Mock(side_effect=lambda x: x + 1)

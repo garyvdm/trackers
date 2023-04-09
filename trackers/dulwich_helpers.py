@@ -10,8 +10,7 @@ from dulwich.objectspec import parse_tree
 
 
 class TreeReader(object):
-
-    def __init__(self, repo, treeish='HEAD', encoding="UTF-8"):
+    def __init__(self, repo, treeish="HEAD", encoding="UTF-8"):
         self.repo = repo
         self.treeish = treeish
         self.tree = None
@@ -45,10 +44,9 @@ class TreeReader(object):
 
 
 class TreeWriter(TreeReader):
-
     # TODO: changed_objects should have a ref count
 
-    def __init__(self, repo, branch=b'HEAD', encoding="UTF-8"):
+    def __init__(self, repo, branch=b"HEAD", encoding="UTF-8"):
         self.repo = repo
         self.encoding = encoding
         self.branch = branch
@@ -72,7 +70,7 @@ class TreeWriter(TreeReader):
             return self.repo[sha]
 
     def set(self, path, obj, mode):
-        path_items = path.encode(self.encoding).split(b'/')
+        path_items = path.encode(self.encoding).split(b"/")
         sub_tree = self.tree
         old_trees = [sub_tree]
         for name in path_items[:-1]:
@@ -87,7 +85,7 @@ class TreeWriter(TreeReader):
         new_objs = []
         for old_tree, name in reversed(tuple(zip(old_trees, path_items))):
             new_tree = old_tree.copy()
-            if obj is None or obj.id == b'4b825dc642cb6eb9a060e54bf8d69288fbee4904':
+            if obj is None or obj.id == b"4b825dc642cb6eb9a060e54bf8d69288fbee4904":
                 if name not in new_tree:
                     raise KeyError(name)
                 del new_tree[name]
@@ -134,7 +132,7 @@ class TreeWriter(TreeReader):
         tz = timezone
         commit.commit_timezone = commit.author_timezone = tz
         commit.message = message.encode(self.encoding)
-        commit.encoding = self.encoding.encode('ascii')
+        commit.encoding = self.encoding.encode("ascii")
         if self.org_commit_id:
             commit.parents = [self.org_commit_id]
 
@@ -143,11 +141,13 @@ class TreeWriter(TreeReader):
         self.repo.object_store.add_objects([(obj, None) for obj in self.changed_objects.values()])
         self.repo.refs.set_if_equals(self.branch, self.org_commit_id, commit_id)
 
-        if hasattr(self.repo, 'has_index') and self.repo.has_index():
+        if hasattr(self.repo, "has_index") and self.repo.has_index():
             # Apply patch to working tree.
             try:
-                subprocess.call(['git', 'cherry-pick', commit_id, '--no-commit'], cwd=self.repo.path)
+                subprocess.call(
+                    ["git", "cherry-pick", commit_id, "--no-commit"], cwd=self.repo.path
+                )
             except Exception:
-                logging.getLogger(__name__).exception('Error updating working tree:')
+                logging.getLogger(__name__).exception("Error updating working tree:")
 
         self.reset()

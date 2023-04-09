@@ -13,12 +13,15 @@ from aiohttp import web
 
 def suite():
     import trackers
-    tests = unittest.defaultTestLoader.discover(os.path.split(__file__)[0], top_level_dir=trackers.__path__[0])
+
+    tests = unittest.defaultTestLoader.discover(
+        os.path.split(__file__)[0], top_level_dir=trackers.__path__[0]
+    )
     tests_with_scenarios = testscenarios.generate_scenarios(tests)
     return testresources.OptimisingTestSuite(tests_with_scenarios)
 
 
-TEST_GOOGLE_API_KEY = 'AIzaSyD8qJMJRAfOvyG0J_LT2WNzBnem8s3vqPw'
+TEST_GOOGLE_API_KEY = "AIzaSyD8qJMJRAfOvyG0J_LT2WNzBnem8s3vqPw"
 
 
 def free_port():
@@ -26,7 +29,7 @@ def free_port():
     Determines a free port using sockets.
     """
     free_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    free_socket.bind(('0.0.0.0', 0))
+    free_socket.bind(("0.0.0.0", 0))
     free_socket.listen(5)
     port = free_socket.getsockname()[1]
     free_socket.close()
@@ -39,10 +42,10 @@ async def web_server_fixture(loop, app, port=None):
         port = free_port()
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, 'localhost', port)
+    site = web.TCPSite(runner, "localhost", port)
     await site.start()
     try:
-        yield f'http://localhost:{port}'
+        yield f"http://localhost:{port}"
     finally:
         await runner.cleanup()
 
@@ -56,7 +59,6 @@ structlog.configure(processors=[dropper])
 
 
 class WebDriverSession(testresources.TestResourceManager):
-
     def __init__(self, service, browser):
         super().__init__()
         self.service = service
@@ -93,12 +95,15 @@ browser_scenarios = [
     #         arsenic.browsers.Firefox(),
     #     ),
     # )),
-    ('chrome', dict(
-        browser_session_resource_manager=WebDriverSession(
-            arsenic.services.Chromedriver(log_file=os.devnull),
-            arsenic.browsers.Chrome(),
+    (
+        "chrome",
+        dict(
+            browser_session_resource_manager=WebDriverSession(
+                arsenic.services.Chromedriver(log_file=os.devnull),
+                arsenic.browsers.Chrome(),
+            ),
         ),
-    )),
+    ),
     # ('chrome-headless', dict(
     #     browser_session_resource_manager=WebDriverSession(
     #         arsenic.services.Chromedriver(log_file=os.devnull),

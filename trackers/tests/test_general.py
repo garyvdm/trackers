@@ -16,77 +16,98 @@ from trackers.tests import get_test_app_and_settings
 
 
 class TestStatic(asynctest.TestCase, fixtures.TestWithFixtures):
-
     async def test_start_msgpack(self):
         repo = MemoryRepo()
         writer = TreeWriter(repo)
-        writer.set_data('events/test_event/data.yaml', '{}'.encode())
-        writer.set_data('events/test_event/test_rider', b'\x91\x82\xa4time\xcbA\xd6\x1a\n\x98\x00\x00\x00\xa3bar\xa3foo')
-        writer.commit('add test_event')
+        writer.set_data("events/test_event/data.yaml", "{}".encode())
+        writer.set_data(
+            "events/test_event/test_rider",
+            b"\x91\x82\xa4time\xcbA\xd6\x1a\n\x98\x00\x00\x00\xa3bar\xa3foo",
+        )
+        writer.commit("add test_event")
 
         app, settings = get_test_app_and_settings(repo)
-        event = await Event.load(app, 'test_event', writer)
-        tracker = await static_start_event_tracker(app, event, 'Test rider', {'name': 'test_rider', 'format': 'msgpack'},
-                                                   None, None)
+        event = await Event.load(app, "test_event", writer)
+        tracker = await static_start_event_tracker(
+            app,
+            event,
+            "Test rider",
+            {"name": "test_rider", "format": "msgpack"},
+            None,
+            None,
+        )
         await tracker.complete()
         self.assertEqual(len(tracker.points), 1)
-        self.assertEqual(tracker.points[0], {
-            'time': datetime(2017, 1, 1),
-            'bar': 'foo',
-        })
+        self.assertEqual(
+            tracker.points[0],
+            {
+                "time": datetime(2017, 1, 1),
+                "bar": "foo",
+            },
+        )
 
     async def test_start_json(self):
         repo = MemoryRepo()
         writer = TreeWriter(repo)
-        writer.set_data('events/test_event/data.yaml', '{}'.encode())
-        writer.set_data('events/test_event/test_rider', '[]'.encode())
-        writer.commit('add test_event')
+        writer.set_data("events/test_event/data.yaml", "{}".encode())
+        writer.set_data("events/test_event/test_rider", "[]".encode())
+        writer.commit("add test_event")
 
         app, settings = get_test_app_and_settings(repo)
-        event = await Event.load(app, 'test_event', writer)
-        tracker = await static_start_event_tracker(app, event, 'Test rider', {'name': 'test_rider', 'format': 'json'},
-                                                   None, None)
+        event = await Event.load(app, "test_event", writer)
+        tracker = await static_start_event_tracker(
+            app,
+            event,
+            "Test rider",
+            {"name": "test_rider", "format": "json"},
+            None,
+            None,
+        )
         await tracker.complete()
         self.assertEqual(tracker.points, [])
 
 
 class TestCropped(asynctest.TestCase):
-
     async def test_with_start(self):
-        org_tracker = Tracker('test')
-        await org_tracker.new_points([
-            {'i': 0, 'time': datetime(2017, 1, 1, 5, 55)},
-            {'i': 1, 'time': datetime(2017, 1, 1, 6, 5)},
-        ])
+        org_tracker = Tracker("test")
+        await org_tracker.new_points(
+            [
+                {"i": 0, "time": datetime(2017, 1, 1, 5, 55)},
+                {"i": 1, "time": datetime(2017, 1, 1, 6, 5)},
+            ]
+        )
         org_tracker.completed.set_result(None)
 
-        tracker = await cropped_tracker_start(org_tracker, {'start': datetime(2017, 1, 1, 6, 0)})
+        tracker = await cropped_tracker_start(org_tracker, {"start": datetime(2017, 1, 1, 6, 0)})
         await tracker.complete()
         self.assertEqual(len(tracker.points), 1)
-        self.assertEqual(tracker.points[0]['i'], 1)
+        self.assertEqual(tracker.points[0]["i"], 1)
 
     async def test_with_end(self):
-        org_tracker = Tracker('test')
-        await org_tracker.new_points([
-            {'i': 0, 'time': datetime(2017, 1, 1, 5, 55)},
-            {'i': 1, 'time': datetime(2017, 1, 1, 6, 5)},
-        ])
+        org_tracker = Tracker("test")
+        await org_tracker.new_points(
+            [
+                {"i": 0, "time": datetime(2017, 1, 1, 5, 55)},
+                {"i": 1, "time": datetime(2017, 1, 1, 6, 5)},
+            ]
+        )
         org_tracker.completed.set_result(None)
 
-        tracker = await cropped_tracker_start(org_tracker, {'end': datetime(2017, 1, 1, 6, 0)})
+        tracker = await cropped_tracker_start(org_tracker, {"end": datetime(2017, 1, 1, 6, 0)})
         await tracker.complete()
         self.assertEqual(len(tracker.points), 1)
-        self.assertEqual(tracker.points[0]['i'], 0)
+        self.assertEqual(tracker.points[0]["i"], 0)
 
 
 class TestReplayTracker(asynctest.TestCase):
-
     async def test(self):
-        org_tracker = Tracker('test')
-        await org_tracker.new_points([
-            {'i': 0, 'time': datetime(2017, 1, 1, 6, 0)},
-            {'i': 1, 'time': datetime(2017, 1, 1, 6, 5)},
-        ])
+        org_tracker = Tracker("test")
+        await org_tracker.new_points(
+            [
+                {"i": 0, "time": datetime(2017, 1, 1, 6, 0)},
+                {"i": 1, "time": datetime(2017, 1, 1, 6, 5)},
+            ]
+        )
         org_tracker.completed.set_result(None)
 
         new_points_callback = asynctest.CoroutineMock()

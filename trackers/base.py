@@ -14,14 +14,17 @@ logger = logging.getLogger(__name__)
 
 
 class Tracker(object):
-
     def __init__(self, name, completed=None, new_points_callbacks=(), reset_points_callbacks=()):
         self.name = name
         self.points = []
         self.status = None
-        self.logger = logging.getLogger('trackers.{}'.format(name))
-        self.new_points_observable = Observable(f'{self.name}.new_points', callbacks=new_points_callbacks)
-        self.reset_points_observable = Observable(f'{self.name}.reset_points', callbacks=reset_points_callbacks)
+        self.logger = logging.getLogger("trackers.{}".format(name))
+        self.new_points_observable = Observable(
+            f"{self.name}.new_points", callbacks=new_points_callbacks
+        )
+        self.reset_points_observable = Observable(
+            f"{self.name}.reset_points", callbacks=reset_points_callbacks
+        )
 
         self.callback_tasks = []
         if completed is None:
@@ -32,7 +35,7 @@ class Tracker(object):
         self.finished = False
 
     def __repr__(self):
-        return f'<{type(self).__name__}({self.name})>'
+        return f"<{type(self).__name__}({self.name})>"
 
     async def new_points(self, new_points):
         self.points.extend(new_points)
@@ -58,13 +61,12 @@ class Tracker(object):
 
 
 class Observable(object):
-
-    def __init__(self, name, callbacks=(), error_msg='Error calling callback: '):
+    def __init__(self, name, callbacks=(), error_msg="Error calling callback: "):
         self.name = name
         self.callbacks = []
         self.callbacks.extend(callbacks)
         self.error_msg = error_msg
-        self.logger = logging.getLogger(f'observable.{name}')
+        self.logger = logging.getLogger(f"observable.{name}")
 
     def subscribe(self, callback):
         self.callbacks.append(callback)
@@ -74,14 +76,14 @@ class Observable(object):
 
     async def __call__(self, *args, **kwargs):
         if self.logger.isEnabledFor(logging.DEBUG):
-            self.logger.debug(f'Calling {self.callbacks}(*{args}, **{kwargs})'[:1000])
+            self.logger.debug(f"Calling {self.callbacks}(*{args}, **{kwargs})"[:1000])
         for callback in self.callbacks:
             try:
                 await callback(*args, **kwargs)
             except asyncio.CancelledError:
                 raise
             except Exception:
-                self.logger.exception(f'{self.error_msg} ({callback, args, kwargs})')
+                self.logger.exception(f"{self.error_msg} ({callback, args, kwargs})")
 
 
 async def cancel_and_wait_task(task):
@@ -98,7 +100,7 @@ def general_fut_done_callback(fut):
     except asyncio.CancelledError:
         pass
     except Exception:
-        logging.exception('')
+        logging.exception("")
 
 
 def run_forget_task(coro):
@@ -119,14 +121,13 @@ def list_register(list, item, on_empty=None, yield_item=None):
 
 
 def print_tracker(tracker):
-
     async def print_callback(callback, source, data):
-        print('{} {}: \n{}'.format(source.name, callback, pprint.pformat(data)))
+        print("{} {}: \n{}".format(source.name, callback, pprint.pformat(data)))
 
-    tracker.new_points_observable.subscribe(functools.partial(print_callback, 'new_points'))
+    tracker.new_points_observable.subscribe(functools.partial(print_callback, "new_points"))
 
     for point in tracker.points:
-        print('{} {}: \n{}'.format(tracker.name, None, pprint.pformat(point)))
+        print("{} {}: \n{}".format(tracker.name, None, pprint.pformat(point)))
 
 
 def get_blocked_list(source, existing, smallest_block_len=8, entire_block=False):
@@ -140,47 +141,65 @@ def get_blocked_list(source, existing, smallest_block_len=8, entire_block=False)
 
             while block_i + block_len < source_len:
                 end_index = block_i + block_len - 1
-                blocks.append({'start_index': block_i, 'end_index': end_index, 'end_hash': source[end_index]['hash']})
+                blocks.append(
+                    {
+                        "start_index": block_i,
+                        "end_index": end_index,
+                        "end_hash": source[end_index]["hash"],
+                    }
+                )
                 block_i += block_len
 
         partial_block = list(source[block_i:])
     else:
         if source:
-            blocks = [{'start_index': 0, 'end_index': source[-1]['index'], 'end_hash': source[-1]['hash'], }]
+            blocks = [
+                {
+                    "start_index": 0,
+                    "end_index": source[-1]["index"],
+                    "end_hash": source[-1]["hash"],
+                }
+            ]
         else:
             blocks = []
         partial_block = []
 
-    full = {'blocks': blocks, 'partial_block': partial_block}
+    full = {"blocks": blocks, "partial_block": partial_block}
 
-    if existing.get('blocks') != blocks:
+    if existing.get("blocks") != blocks:
         update = full
     else:
-        existing_partial_block = existing.get('partial_block', ())
+        existing_partial_block = existing.get("partial_block", ())
         if len(existing_partial_block) > len(partial_block):
-            update = {'partial_block': partial_block}
+            update = {"partial_block": partial_block}
         else:
-            for existing_item, item in zip(existing_partial_block, partial_block[:len(existing_partial_block)]):
-                if (existing_item['hash'], existing_item['hash']) != (item['hash'], item['hash']):
-                    update = {'partial_block': partial_block}
+            for existing_item, item in zip(
+                existing_partial_block, partial_block[: len(existing_partial_block)]
+            ):
+                if (existing_item["hash"], existing_item["hash"]) != (
+                    item["hash"],
+                    item["hash"],
+                ):
+                    update = {"partial_block": partial_block}
                     break
             else:
-                add_block = partial_block[len(existing_partial_block):]
+                add_block = partial_block[len(existing_partial_block) :]
                 if add_block:
-                    update = {'add_block': add_block}
+                    update = {"add_block": add_block}
                 else:
                     update = {}
     return full, update
 
 
 class BlockedList(object):
-
     def __init__(self, source_name, get_source, new_update_callbacks=(), **kwargs):
         self.get_source = get_source
         self.kwargs = kwargs
         self.full, _ = get_blocked_list(get_source(), {}, **self.kwargs)
         self.last = self.full
-        self.new_update_observable = Observable(f'{source_name}.blocked_list_new_update', callbacks=new_update_callbacks)
+        self.new_update_observable = Observable(
+            f"{source_name}.blocked_list_new_update", callbacks=new_update_callbacks
+        )
 
     @staticmethod
     def from_tracker(tracker, **kwargs):
@@ -206,18 +225,18 @@ class BlockedList(object):
 # TODO create async version that uses io executor
 @contextlib.contextmanager
 def stream_store(path: Path, logger: logging.Logger):
-    logging.debug('Reading data')
+    logging.debug("Reading data")
     if path.exists():
-        with path.open('rb') as f:
+        with path.open("rb") as f:
             unpacker = msgpack.Unpacker(f, raw=False, timestamp=3)
             data = list(chain.from_iterable(unpacker))
-        logging.info('Data loaded: {} items'.format(len(data)))
+        logging.info("Data loaded: {} items".format(len(data)))
     else:
         path.parent.mkdir(parents=True, exist_ok=True)
         data = []
-        logging.info('Data file did not exist. Starting blank.')
+        logging.info("Data file did not exist. Starting blank.")
 
-    with path.open('ab', 0) as f:
+    with path.open("ab", 0) as f:
         packer = msgpack.Packer(datetime=True)
 
         def write_items(items):
@@ -229,6 +248,7 @@ def stream_store(path: Path, logger: logging.Logger):
 
 
 # From https://stackoverflow.com/a/46255794/72911
+
 
 class RateLimitingSemaphore:
     def __init__(self, qps_limit, loop=None):
@@ -250,7 +270,7 @@ class RateLimitingSemaphore:
                 cur_rate = len(self.call_times) / (self.loop.time() - self.call_times[0])
             if cur_rate < self.qps_limit:
                 break
-            interval = 1. / self.qps_limit
+            interval = 1.0 / self.qps_limit
             elapsed_time = self.loop.time() - self.call_times[-1]
             await asyncio.sleep(self.queued_calls * interval - elapsed_time)
         self.queued_calls -= 1

@@ -4,29 +4,45 @@ import unittest
 
 import asynctest
 
-from trackers.base import BlockedList, get_blocked_list, Tracker
+from trackers.base import BlockedList, Tracker, get_blocked_list
 from trackers.general import index_and_hash_list
 
-source = index_and_hash_list([{'x': text} for text in 'Lorem ipsum dolor sit amet posuere.'], 0, hashlib.sha1())
+source = index_and_hash_list(
+    [{"x": text} for text in "Lorem ipsum dolor sit amet posuere."], 0, hashlib.sha1()
+)
 # pprint.pprint(source)
 
 expected_full = {
-    'blocks': [{'end_hash': 'qRd1', 'end_index': 19, 'start_index': 0},
-               {'end_hash': 'juYX', 'end_index': 24, 'start_index': 20},
-               {'end_hash': 'k9VG', 'end_index': 29, 'start_index': 25}],
-    'partial_block': [{'hash': 'LaqB', 'index': 30, 'x': 'u'},
-                      {'hash': '7is4', 'index': 31, 'x': 'e'},
-                      {'hash': 'yG0W', 'index': 32, 'x': 'r'},
-                      {'hash': 'qmpi', 'index': 33, 'x': 'e'},
-                      {'hash': 'opj8', 'index': 34, 'x': '.'}]
+    "blocks": [
+        {"end_hash": "qRd1", "end_index": 19, "start_index": 0},
+        {"end_hash": "juYX", "end_index": 24, "start_index": 20},
+        {"end_hash": "k9VG", "end_index": 29, "start_index": 25},
+    ],
+    "partial_block": [
+        {"hash": "LaqB", "index": 30, "x": "u"},
+        {"hash": "7is4", "index": 31, "x": "e"},
+        {"hash": "yG0W", "index": 32, "x": "r"},
+        {"hash": "qmpi", "index": 33, "x": "e"},
+        {"hash": "opj8", "index": 34, "x": "."},
+    ],
 }
 
 
 class Test(unittest.TestCase):
     maxDiff = None
 
-    def check(self, source, existing, expected_full, expected_update, starting_block_len=5, entire_block=False):
-        full, update = get_blocked_list(source, existing, starting_block_len, entire_block=entire_block)
+    def check(
+        self,
+        source,
+        existing,
+        expected_full,
+        expected_update,
+        starting_block_len=5,
+        entire_block=False,
+    ):
+        full, update = get_blocked_list(
+            source, existing, starting_block_len, entire_block=entire_block
+        )
         pprint.pprint(full)
         pprint.pprint(update)
 
@@ -36,7 +52,7 @@ class Test(unittest.TestCase):
     def test_empty_source(self):
         source = ()
         existing = {}
-        expected_full = {'blocks': [], 'partial_block': []}
+        expected_full = {"blocks": [], "partial_block": []}
         expected_update = expected_full
         self.check(source, existing, expected_full, expected_update)
 
@@ -52,104 +68,132 @@ class Test(unittest.TestCase):
 
     def test_some_full_block(self):
         existing = {
-            'blocks': [{'start_index': 0, 'end_index': 24, 'end_hash': 'juYX'}],
-            'partial_block': []
+            "blocks": [{"start_index": 0, "end_index": 24, "end_hash": "juYX"}],
+            "partial_block": [],
         }
         expected_update = expected_full
         self.check(source, existing, expected_full, expected_update)
 
     def test_all_full_block(self):
         existing = {
-            'blocks': [{'end_hash': 'qRd1', 'end_index': 19, 'start_index': 0},
-                       {'end_hash': 'juYX', 'end_index': 24, 'start_index': 20},
-                       {'end_hash': 'k9VG', 'end_index': 29, 'start_index': 25}],
-            'partial_block': []
+            "blocks": [
+                {"end_hash": "qRd1", "end_index": 19, "start_index": 0},
+                {"end_hash": "juYX", "end_index": 24, "start_index": 20},
+                {"end_hash": "k9VG", "end_index": 29, "start_index": 25},
+            ],
+            "partial_block": [],
         }
         expected_update = {
-            'add_block': [{'hash': 'LaqB', 'index': 30, 'x': 'u'},
-                          {'hash': '7is4', 'index': 31, 'x': 'e'},
-                          {'hash': 'yG0W', 'index': 32, 'x': 'r'},
-                          {'hash': 'qmpi', 'index': 33, 'x': 'e'},
-                          {'hash': 'opj8', 'index': 34, 'x': '.'}]
+            "add_block": [
+                {"hash": "LaqB", "index": 30, "x": "u"},
+                {"hash": "7is4", "index": 31, "x": "e"},
+                {"hash": "yG0W", "index": 32, "x": "r"},
+                {"hash": "qmpi", "index": 33, "x": "e"},
+                {"hash": "opj8", "index": 34, "x": "."},
+            ]
         }
         self.check(source, existing, expected_full, expected_update)
 
     def test_prev_partial_block(self):
         existing = {
-            'blocks': [{'end_hash': 'juYX', 'end_index': 24, 'start_index': 0}],
-            'partial_block': [{'hash': 'wARg', 'index': 25, 'x': 't'},
-                              {'hash': 'Zwue', 'index': 26, 'x': ' '},
-                              {'hash': 'QFbp', 'index': 27, 'x': 'p'}]
+            "blocks": [{"end_hash": "juYX", "end_index": 24, "start_index": 0}],
+            "partial_block": [
+                {"hash": "wARg", "index": 25, "x": "t"},
+                {"hash": "Zwue", "index": 26, "x": " "},
+                {"hash": "QFbp", "index": 27, "x": "p"},
+            ],
         }
         expected_update = expected_full
         self.check(source, existing, expected_full, expected_update)
 
     def test_partial_block(self):
         existing = {
-            'blocks': [{'end_hash': 'qRd1', 'end_index': 19, 'start_index': 0},
-                       {'end_hash': 'juYX', 'end_index': 24, 'start_index': 20},
-                       {'end_hash': 'k9VG', 'end_index': 29, 'start_index': 25}],
-            'partial_block': [{'hash': 'LaqB', 'index': 30, 'x': 'u'},
-                              {'hash': '7is4', 'index': 31, 'x': 'e'},
-                              {'hash': 'yG0W', 'index': 32, 'x': 'r'}]
+            "blocks": [
+                {"end_hash": "qRd1", "end_index": 19, "start_index": 0},
+                {"end_hash": "juYX", "end_index": 24, "start_index": 20},
+                {"end_hash": "k9VG", "end_index": 29, "start_index": 25},
+            ],
+            "partial_block": [
+                {"hash": "LaqB", "index": 30, "x": "u"},
+                {"hash": "7is4", "index": 31, "x": "e"},
+                {"hash": "yG0W", "index": 32, "x": "r"},
+            ],
         }
         expected_update = {
-            'add_block': [{'hash': 'qmpi', 'index': 33, 'x': 'e'},
-                          {'hash': 'opj8', 'index': 34, 'x': '.'}]
+            "add_block": [
+                {"hash": "qmpi", "index": 33, "x": "e"},
+                {"hash": "opj8", "index": 34, "x": "."},
+            ]
         }
         self.check(source, existing, expected_full, expected_update)
 
     def test_block_wrong_hash(self):
         existing = {
-            'blocks': [{'start_index': 0, 'end_index': 24, 'end_hash': 'WRONG'},
-                       {'start_index': 25, 'end_index': 29, 'end_hash': 'k9VG'}],
-            'partial_block': [{'hash': 'LaqB', 'index': 30, 'x': 'u'},
-                              {'hash': '7is4', 'index': 31, 'x': 'e'},
-                              {'hash': 'yG0W', 'index': 32, 'x': 'r'},
-                              {'hash': 'qmpi', 'index': 33, 'x': 'e'},
-                              {'hash': 'opj8', 'index': 34, 'x': '.'}]
+            "blocks": [
+                {"start_index": 0, "end_index": 24, "end_hash": "WRONG"},
+                {"start_index": 25, "end_index": 29, "end_hash": "k9VG"},
+            ],
+            "partial_block": [
+                {"hash": "LaqB", "index": 30, "x": "u"},
+                {"hash": "7is4", "index": 31, "x": "e"},
+                {"hash": "yG0W", "index": 32, "x": "r"},
+                {"hash": "qmpi", "index": 33, "x": "e"},
+                {"hash": "opj8", "index": 34, "x": "."},
+            ],
         }
         expected_update = expected_full
         self.check(source, existing, expected_full, expected_update)
 
     def test_partial_wrong_hash(self):
         existing = {
-            'blocks': [{'end_hash': 'qRd1', 'end_index': 19, 'start_index': 0},
-                       {'end_hash': 'juYX', 'end_index': 24, 'start_index': 20},
-                       {'end_hash': 'k9VG', 'end_index': 29, 'start_index': 25}],
-            'partial_block': [{'hash': 'LaqB', 'index': 30, 'x': 'u'},
-                              {'hash': '7is4', 'index': 31, 'x': 'e'},
-                              {'hash': 'WRONG', 'index': 32, 'x': 'r'},
-                              {'hash': 'qmpi', 'index': 33, 'x': 'e'},
-                              {'hash': 'opj8', 'index': 34, 'x': '.'}]
+            "blocks": [
+                {"end_hash": "qRd1", "end_index": 19, "start_index": 0},
+                {"end_hash": "juYX", "end_index": 24, "start_index": 20},
+                {"end_hash": "k9VG", "end_index": 29, "start_index": 25},
+            ],
+            "partial_block": [
+                {"hash": "LaqB", "index": 30, "x": "u"},
+                {"hash": "7is4", "index": 31, "x": "e"},
+                {"hash": "WRONG", "index": 32, "x": "r"},
+                {"hash": "qmpi", "index": 33, "x": "e"},
+                {"hash": "opj8", "index": 34, "x": "."},
+            ],
         }
         expected_update = {
-            'partial_block': [{'hash': 'LaqB', 'index': 30, 'x': 'u'},
-                              {'hash': '7is4', 'index': 31, 'x': 'e'},
-                              {'hash': 'yG0W', 'index': 32, 'x': 'r'},
-                              {'hash': 'qmpi', 'index': 33, 'x': 'e'},
-                              {'hash': 'opj8', 'index': 34, 'x': '.'}]
+            "partial_block": [
+                {"hash": "LaqB", "index": 30, "x": "u"},
+                {"hash": "7is4", "index": 31, "x": "e"},
+                {"hash": "yG0W", "index": 32, "x": "r"},
+                {"hash": "qmpi", "index": 33, "x": "e"},
+                {"hash": "opj8", "index": 34, "x": "."},
+            ]
         }
         self.check(source, existing, expected_full, expected_update)
 
     def test_existing_index_too_far(self):
         existing = {
-            'blocks': [{'end_hash': 'qRd1', 'end_index': 19, 'start_index': 0},
-                       {'end_hash': 'juYX', 'end_index': 24, 'start_index': 20},
-                       {'end_hash': 'k9VG', 'end_index': 29, 'start_index': 25}],
-            'partial_block': [{'hash': 'LaqB', 'index': 30, 'x': 'u'},
-                              {'hash': '7is4', 'index': 31, 'x': 'e'},
-                              {'hash': 'yG0W', 'index': 32, 'x': 'r'},
-                              {'hash': 'qmpi', 'index': 33, 'x': 'e'},
-                              {'hash': 'opj8', 'index': 34, 'x': '.'},
-                              {'hash': 'fooo', 'index': 35, 'x': 'b'}]
+            "blocks": [
+                {"end_hash": "qRd1", "end_index": 19, "start_index": 0},
+                {"end_hash": "juYX", "end_index": 24, "start_index": 20},
+                {"end_hash": "k9VG", "end_index": 29, "start_index": 25},
+            ],
+            "partial_block": [
+                {"hash": "LaqB", "index": 30, "x": "u"},
+                {"hash": "7is4", "index": 31, "x": "e"},
+                {"hash": "yG0W", "index": 32, "x": "r"},
+                {"hash": "qmpi", "index": 33, "x": "e"},
+                {"hash": "opj8", "index": 34, "x": "."},
+                {"hash": "fooo", "index": 35, "x": "b"},
+            ],
         }
         expected_update = {
-            'partial_block': [{'hash': 'LaqB', 'index': 30, 'x': 'u'},
-                              {'hash': '7is4', 'index': 31, 'x': 'e'},
-                              {'hash': 'yG0W', 'index': 32, 'x': 'r'},
-                              {'hash': 'qmpi', 'index': 33, 'x': 'e'},
-                              {'hash': 'opj8', 'index': 34, 'x': '.'}]
+            "partial_block": [
+                {"hash": "LaqB", "index": 30, "x": "u"},
+                {"hash": "7is4", "index": 31, "x": "e"},
+                {"hash": "yG0W", "index": 32, "x": "r"},
+                {"hash": "qmpi", "index": 33, "x": "e"},
+                {"hash": "opj8", "index": 34, "x": "."},
+            ]
         }
 
         self.check(source, existing, expected_full, expected_update)
@@ -157,48 +201,59 @@ class Test(unittest.TestCase):
     def test_entire_block(self):
         existing = {}
         expected = {
-            'blocks': [{'end_hash': 'opj8', 'end_index': 34, 'start_index': 0}],
-            'partial_block': []
+            "blocks": [{"end_hash": "opj8", "end_index": 34, "start_index": 0}],
+            "partial_block": [],
         }
         self.check(source, existing, expected, expected, entire_block=True)
 
     def test_entire_block_empty_source(self):
         existing = {}
-        expected = {
-            'blocks': [],
-            'partial_block': []
-        }
+        expected = {"blocks": [], "partial_block": []}
         self.check([], existing, expected, expected, entire_block=True)
 
 
 class TestBlockedList(asynctest.TestCase):
-
     async def test_from_tracker(self):
-        tracker = Tracker('test')
+        tracker = Tracker("test")
 
         new_update_callback = asynctest.CoroutineMock()
 
-        blocked_list = BlockedList.from_tracker(tracker, new_update_callbacks=(new_update_callback, ))
+        blocked_list = BlockedList.from_tracker(
+            tracker, new_update_callbacks=(new_update_callback,)
+        )
 
         await tracker.new_points(source[:9])
-        self.assertEqual(blocked_list.full, {
-            'blocks': [{'end_hash': 'cTTc', 'end_index': 7, 'start_index': 0}],
-            'partial_block': [{'hash': 'xtbb', 'index': 8, 'x': 's'}]
-        })
-        new_update_callback.assert_called_once_with(blocked_list, {
-            'blocks': [{'end_hash': 'cTTc', 'end_index': 7, 'start_index': 0}],
-            'partial_block': [{'hash': 'xtbb', 'index': 8, 'x': 's'}]
-        })
+        self.assertEqual(
+            blocked_list.full,
+            {
+                "blocks": [{"end_hash": "cTTc", "end_index": 7, "start_index": 0}],
+                "partial_block": [{"hash": "xtbb", "index": 8, "x": "s"}],
+            },
+        )
+        new_update_callback.assert_called_once_with(
+            blocked_list,
+            {
+                "blocks": [{"end_hash": "cTTc", "end_index": 7, "start_index": 0}],
+                "partial_block": [{"hash": "xtbb", "index": 8, "x": "s"}],
+            },
+        )
         new_update_callback.reset_mock()
 
         await tracker.reset_points()
-        self.assertEqual(blocked_list.full, {'blocks': [], 'partial_block': []})
-        new_update_callback.assert_called_once_with(blocked_list, {'blocks': [], 'partial_block': []})
+        self.assertEqual(blocked_list.full, {"blocks": [], "partial_block": []})
+        new_update_callback.assert_called_once_with(
+            blocked_list, {"blocks": [], "partial_block": []}
+        )
         new_update_callback.reset_mock()
 
         await tracker.new_points(source[10:11])
-        self.assertEqual(blocked_list.full, {'blocks': [], 'partial_block': [{'x': 'm', 'index': 10, 'hash': 'KCgI'}]})
-        new_update_callback.assert_called_once_with(blocked_list, {'add_block': [{'x': 'm', 'index': 10, 'hash': 'KCgI'}]})
+        self.assertEqual(
+            blocked_list.full,
+            {"blocks": [], "partial_block": [{"x": "m", "index": 10, "hash": "KCgI"}]},
+        )
+        new_update_callback.assert_called_once_with(
+            blocked_list, {"add_block": [{"x": "m", "index": 10, "hash": "KCgI"}]}
+        )
 
         tracker.completed.set_result(None)
         await tracker.complete()

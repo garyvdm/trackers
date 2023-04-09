@@ -5,38 +5,36 @@ import unittest.mock
 
 import asynctest
 
-from trackers.base import (
-    cancel_and_wait_task,
-    list_register,
-    Observable,
-    Tracker,
-)
+from trackers.base import Observable, Tracker, cancel_and_wait_task, list_register
 
 
 class TestObservable(asynctest.TestCase):
-
     async def test_normal(self):
         callback = asynctest.CoroutineMock()
-        await Observable('test', callbacks=[callback])(foo='bar')
-        callback.assert_called_once_with(foo='bar')
+        await Observable("test", callbacks=[callback])(foo="bar")
+        callback.assert_called_once_with(foo="bar")
 
     async def test_error(self):
-        logger = logging.getLogger('observable.test')
+        logger = logging.getLogger("observable.test")
         normal_callback = asynctest.CoroutineMock()
 
         async def raise_error_callback():
-            raise Exception('foo')
+            raise Exception("foo")
 
         with self.assertLogs(logger) as (_, log_output):
-            await Observable('test', callbacks=[raise_error_callback, normal_callback], error_msg='error_msg')()
+            await Observable(
+                "test",
+                callbacks=[raise_error_callback, normal_callback],
+                error_msg="error_msg",
+            )()
 
         # the error callback should not stop the following callbacks
         normal_callback.assert_called_once_with()
         self.assertEqual(len(log_output), 1)
-        self.assertTrue(log_output[0].startswith('ERROR:observable.test:error_msg '))
+        self.assertTrue(log_output[0].startswith("ERROR:observable.test:error_msg "))
 
     async def test_cancel_still_raises(self):
-        logger = logging.getLogger('call_callbacks')
+        logger = logging.getLogger("call_callbacks")
 
         async def slow_callback():
             await asyncio.sleep(1)
@@ -51,7 +49,6 @@ class TestObservable(asynctest.TestCase):
 
 
 class TestCancelAndWait(asynctest.TestCase):
-
     async def test(self):
         task = asyncio.ensure_future(asyncio.sleep(1))
         await cancel_and_wait_task(task)
@@ -59,7 +56,6 @@ class TestCancelAndWait(asynctest.TestCase):
 
 
 class TestListRegister(unittest.TestCase):
-
     def test(self):
         register = []
         with list_register(register, 1, yield_item=2) as yield_item:
@@ -76,14 +72,13 @@ class TestListRegister(unittest.TestCase):
 
 
 class TestTracker(asynctest.TestCase):
-
     async def test(self):
         new_points_callback = asynctest.CoroutineMock()
-        tracker = Tracker('test', new_points_callbacks=(new_points_callback, ))
+        tracker = Tracker("test", new_points_callbacks=(new_points_callback,))
         tracker.stop = lambda: tracker.completed.set_result(None)
 
-        await tracker.new_points([{'foo': 'bar'}])
-        new_points_callback.assert_called_once_with(tracker, [{'foo': 'bar'}])
+        await tracker.new_points([{"foo": "bar"}])
+        new_points_callback.assert_called_once_with(tracker, [{"foo": "bar"}])
 
         tracker.stop()
         await tracker.complete()
