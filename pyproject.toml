@@ -39,6 +39,7 @@ dev = [
     "black",
     "isort",
     "pytest",
+    "pytest-asyncio",
 ]
 
 [project.scripts]

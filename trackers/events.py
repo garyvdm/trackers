@@ -107,7 +107,8 @@ async def load_events(
         await events[name].stop_and_complete_trackers()
         await removed_event_observable(events.pop(name))
     load_event_fs = [
-        load_event(name, app, events, tree_reader, new_event_observable) for name in names
+        asyncio.ensure_future(load_event(name, app, events, tree_reader, new_event_observable))
+        for name in names
     ]
     if load_event_fs:
         await asyncio.wait(load_event_fs)

@@ -4,32 +4,19 @@ import tempfile
 import traceback
 from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import datetime
-from unittest import IsolatedAsyncioTestCase
 
 import pkg_resources
-import testresources
-import testscenarios
+import pytest
 import yaml
 from aiohttp import web
 from dulwich.repo import MemoryRepo
 
 from trackers.base import Tracker
 from trackers.events import Event
-from trackers.tests_client import (
-    TEST_GOOGLE_API_KEY,
-    browser_scenarios,
-    free_port,
-    web_server_fixture,
-)
+from trackers.tests_client import TEST_GOOGLE_API_KEY, web_server_fixture
 from trackers.web_app import convert_client_urls_to_paths, make_aio_app, on_new_event
 
 # import logging
-# logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
-
-
-def load_tests(loader, tests, pattern):
-    scenarios = testscenarios.generate_scenarios(tests)
-    return testresources.OptimisingTestSuite(scenarios)
 
 
 @asynccontextmanager
@@ -101,208 +88,195 @@ def d(date_string):
     return datetime.strptime(date_string, "%Y/%m/%d %H:%M:%S")
 
 
-class TestWebEndToEnd(testresources.ResourcedTestCase, IsolatedAsyncioTestCase):
-    use_default_loop = True
+def check_no_errors(client_errors, server_errors):
+    if client_errors and server_errors:
+        pytest.fail("There were server and client errors.")
+    if client_errors:
+        pytest.fail("There were client errors.")
+    if server_errors:
+        pytest.fail("There were server errors.")
 
-    scenarios = browser_scenarios
 
-    @property
-    def resources(self):
-        return [("browser_session", self.browser_session_resource_manager)]
+# async def test_live_reconnect(browser):
+#     port = free_port()
 
-    def check_no_errors(self, client_errors, server_errors):
-        if client_errors and server_errors:
-            self.fail("There were server and client errors.")
-        if client_errors:
-            self.fail("There were client errors.")
-        if server_errors:
-            self.fail("There were server errors.")
+#     async with AsyncExitStack() as stack:
+#         app, client_errors, server_errors = await stack.enter_async_context(
+#             tracker_web_server_fixture()
+#         )
+#         app["trackers.events"]["test_event"] = event = Event(
+#             app,
+#             "test_event",
+#             yaml.safe_load(
+#                 """
+#                 title: Test Event
+#                 live: True
+#                 riders:
+#                     - name: Foo Bar
+#                       tracker: null
+#                 markers: []
+#                 """
+#             ),
+#             [],
+#         )
+#         url = await stack.enter_async_context(web_server_fixture(app, port))
+#         await on_new_event(event)
+#         await browser.get(f"{url}/test_event")
+#         await wait_condition(ws_ready_is, browser, True)
 
-    async def test_live_reconnect(self):
-        port = free_port()
+#     await wait_condition(ws_ready_is, browser, False)
 
-        session = self.browser_session
-        async with AsyncExitStack() as stack:
-            app, client_errors, server_errors = await stack.enter_async_context(
-                tracker_web_server_fixture()
-            )
-            app["trackers.events"]["test_event"] = event = Event(
-                app,
-                "test_event",
-                yaml.safe_load(
-                    """
-                    title: Test Event
-                    live: True
-                    riders:
-                        - name: Foo Bar
-                          tracker: null
-                    markers: []
+#     # Bring the server back up, reconnect
+#     async with AsyncExitStack() as stack:
+#         app, client_errors, server_errors = await stack.enter_async_context(
+#             tracker_web_server_fixture()
+#         )
+#         app["trackers.events"]["test_event"] = event = Event(
+#             app,
+#             "test_event",
+#             yaml.safe_load(
+#                 """
+#                 title: Test Event
+#                 live: True
+#                 riders:
+#                     - name: Foo Bar
+#                         tracker: null
+#                 markers: []
+#             """
+#             ),
+#             [],
+#         )
+#         url = await stack.enter_async_context(web_server_fixture(app, port))
+#         await on_new_event(event)
+#         await wait_condition(ws_ready_is, browser, True, timeout=10)
+
+#     check_no_errors(client_errors, server_errors)
+
+
+async def test_tracker_points_show_and_change(browser):
+    step_sleep_time = 0.5
+
+    async with AsyncExitStack() as stack:
+        app, client_errors, server_errors = await stack.enter_async_context(
+            tracker_web_server_fixture()
+        )
+
+        mock_tracker = Tracker("mock_tracker")
+
+        async def start_mock_event_tracker(app, event, rider_name, tracker_data, start, end):
+            return mock_tracker
+
+        app["start_event_trackers"] = {
+            "mock": start_mock_event_tracker,
+        }
+        url = await stack.enter_async_context(web_server_fixture(app))
+
+        app["trackers.events"]["test_event"] = event = Event(
+            app,
+            "test_event",
+            yaml.safe_load(
                 """
-                ),
-                [],
-            )
-            url = await stack.enter_async_context(web_server_fixture(self.loop, app, port))
-            await on_new_event(event)
-            await session.get(f"{url}/test_event")
-            await wait_condition(ws_ready_is, session, True)
-
-        await wait_condition(ws_ready_is, session, False)
-
-        # Bring the server back up, reconnect
-        async with AsyncExitStack() as stack:
-            app, client_errors, server_errors = await stack.enter_async_context(
-                tracker_web_server_fixture()
-            )
-            app["trackers.events"]["test_event"] = event = Event(
-                app,
-                "test_event",
-                yaml.safe_load(
-                    """
-                    title: Test Event
-                    live: True
-                    riders:
-                        - name: Foo Bar
-                          tracker: null
-                    markers: []
+                title: Test Event
+                event_start: 2017-01-01 05:00:00
+                live: True
+                riders:
+                  - name: Foo Bar
+                    name_short: Foo
+                    tracker: {type: mock}
+                markers: []
+                batch_update_interval: 0.1
+                predicted_update_interval: 5
+                bounds: {'north': -26.300822, 'south': -27.28287, 'east': 28.051139, 'west': 27.969365}
                 """
-                ),
-                [],
-            )
-            url = await stack.enter_async_context(web_server_fixture(self.loop, app, port))
-            await on_new_event(event)
-            await wait_condition(ws_ready_is, session, True, timeout=10)
+            ),
+            [],
+        )
+        await on_new_event(event)
+        # await event.start_trackers()
+        await browser.get(f"{url}/test_event")
+        await wait_condition(ws_ready_is, browser, True)
+        await asyncio.sleep(step_sleep_time)
 
-        self.check_no_errors(client_errors, server_errors)
+        await mock_tracker.new_points(
+            [
+                {
+                    "time": d("2017/01/01 05:00:00"),
+                    "position": (-26.300822, 28.049444, 1800),
+                },
+                {
+                    "time": d("2017/01/01 05:01:00"),
+                    "position": (-26.351581, 28.100281, 1800),
+                },
+            ]
+        )
+        await asyncio.sleep(step_sleep_time)
+        # await browser.execute_script('console.log(riders_client_items["Foo Bar"].marker);')
+        # await asyncio.sleep(100)
 
-    async def test_tracker_points_show_and_change(self):
-        step_sleep_time = 0.5
+        assert await browser.execute_script(
+            'return riders_client_items["Foo Bar"].marker !== null;'
+        )
+        assert (
+            await browser.execute_script(
+                'return riders_client_items["Foo Bar"].paths.riders_off_route.length;'
+            )
+            == 1
+        )
+        assert (
+            await browser.execute_script(
+                'return riders_client_items["Foo Bar"].paths.riders_off_route[0].getPath().length;'
+            )
+            == 2
+        )
 
-        async with AsyncExitStack() as stack:
-            session = self.browser_session
-            app, client_errors, server_errors = await stack.enter_async_context(
-                tracker_web_server_fixture()
+        await mock_tracker.reset_points()
+        await asyncio.sleep(step_sleep_time)
+        # await asyncio.sleep(100)
+        assert await browser.execute_script(
+            'return riders_client_items["Foo Bar"].marker === null;'
+        )
+        assert (
+            await browser.execute_script(
+                'return riders_client_items["Foo Bar"].paths.riders_off_route.length;'
             )
+            == 0
+        )
 
-            mock_tracker = Tracker("mock_tracker")
+        await mock_tracker.new_points(
+            [
+                {
+                    "time": d("2017/01/01 05:30:00"),
+                    "position": (-26.351581, 28.100281, 1800),
+                },
+                {
+                    "time": d("2017/01/01 05:31:00"),
+                    "position": (-27.282870, 27.970620, 1800),
+                },
+            ]
+        )
+        await asyncio.sleep(step_sleep_time)
+        # await asyncio.sleep(100)
+        assert await browser.execute_script(
+            'return riders_client_items["Foo Bar"].marker !== null;'
+        )
+        assert (
+            await browser.execute_script(
+                'return riders_client_items["Foo Bar"].paths.riders_off_route.length;'
+            )
+            == 1
+        )
+        assert (
+            await browser.execute_script(
+                'return riders_client_items["Foo Bar"].paths.riders_off_route[0].getPath().length;'
+            )
+            == 2
+        )
 
-            async def start_mock_event_tracker(app, event, rider_name, tracker_data, start, end):
-                return mock_tracker
+    check_no_errors(client_errors, server_errors)
 
-            app["start_event_trackers"] = {
-                "mock": start_mock_event_tracker,
-            }
-            url = await stack.enter_async_context(web_server_fixture(self.loop, app))
 
-            app["trackers.events"]["test_event"] = event = Event(
-                app,
-                "test_event",
-                yaml.safe_load(
-                    """
-                    title: Test Event
-                    event_start: 2017-01-01 05:00:00
-                    live: True
-                    riders:
-                        - name: Foo Bar
-                          name_short: Foo
-                          tracker: {type: mock}
-                    markers: []
-                    batch_update_interval: 0.1
-                    predicted_update_interval: 5
-                    bounds: {'north': -26.300822, 'south': -27.28287, 'east': 28.051139, 'west': 27.969365}
-                """
-                ),
-                [],
-            )
-            await on_new_event(event)
-            # await event.start_trackers()
-            await session.get(f"{url}/test_event")
-            await wait_condition(ws_ready_is, session, True)
-            await asyncio.sleep(step_sleep_time)
-
-            await mock_tracker.new_points(
-                [
-                    {
-                        "time": d("2017/01/01 05:00:00"),
-                        "position": (-26.300822, 28.049444, 1800),
-                    },
-                    {
-                        "time": d("2017/01/01 05:01:00"),
-                        "position": (-26.351581, 28.100281, 1800),
-                    },
-                ]
-            )
-            await asyncio.sleep(step_sleep_time)
-            # await session.execute_script('console.log(riders_client_items["Foo Bar"].marker);')
-            # await asyncio.sleep(100)
-            self.assertFalse(
-                await session.execute_script(
-                    'return riders_client_items["Foo Bar"].marker === null;'
-                )
-            )
-            self.assertEqual(
-                await session.execute_script(
-                    'return riders_client_items["Foo Bar"].paths.riders_off_route.length;'
-                ),
-                1,
-            )
-            self.assertEqual(
-                await session.execute_script(
-                    'return riders_client_items["Foo Bar"].paths.riders_off_route[0].getPath().length;'
-                ),
-                2,
-            )
-
-            await mock_tracker.reset_points()
-            await asyncio.sleep(step_sleep_time)
-            # await asyncio.sleep(100)
-            self.assertTrue(
-                await session.execute_script(
-                    'return riders_client_items["Foo Bar"].marker === null;'
-                )
-            )
-            self.assertEqual(
-                await session.execute_script(
-                    'return riders_client_items["Foo Bar"].paths.riders_off_route.length;'
-                ),
-                0,
-            )
-
-            await mock_tracker.new_points(
-                [
-                    {
-                        "time": d("2017/01/01 05:30:00"),
-                        "position": (-26.351581, 28.100281, 1800),
-                    },
-                    {
-                        "time": d("2017/01/01 05:31:00"),
-                        "position": (-27.282870, 27.970620, 1800),
-                    },
-                ]
-            )
-            await asyncio.sleep(step_sleep_time)
-            # await asyncio.sleep(100)
-            self.assertFalse(
-                await session.execute_script(
-                    'return riders_client_items["Foo Bar"].marker === null;'
-                )
-            )
-            self.assertEqual(
-                await session.execute_script(
-                    'return riders_client_items["Foo Bar"].paths.riders_off_route.length;'
-                ),
-                1,
-            )
-            self.assertEqual(
-                await session.execute_script(
-                    'return riders_client_items["Foo Bar"].paths.riders_off_route[0].getPath().length;'
-                ),
-                2,
-            )
-
-        self.check_no_errors(client_errors, server_errors)
-
-    # TODO:
-    # * http blocked list download
-    # * Config reload
-    # * graphs
-    # * event with route
+# TODO:
+# * http blocked list download
+# * Config reload
+# * graphs
+# * event with route

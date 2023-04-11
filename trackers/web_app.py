@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import re
+from asyncio import create_task
 from base64 import urlsafe_b64encode
 from collections import defaultdict
 from contextlib import asynccontextmanager, suppress
@@ -221,7 +222,7 @@ async def make_aio_app(
 async def shutdown(app):
     logger.info("Closing web socket connections.")
     close_fs = [
-        ws.close(code=WSCloseCode.SERVICE_RESTART, message="Server shutdown")
+        create_task(ws.close(code=WSCloseCode.SERVICE_RESTART, message="Server shutdown"))
         for ws in app["trackers.ws_sessions"]
     ]
     if close_fs:
@@ -232,9 +233,9 @@ async def shutdown(app):
 
     logger.info("Stopping event and individual trackers")
     stop_and_complete_trackers_fs = [
-        event.stop_and_complete_trackers() for event in app["trackers.events"].values()
+        create_task(event.stop_and_complete_trackers()) for event in app["trackers.events"].values()
     ] + [
-        individual_discard_tracker(app, tracker_info)
+        create_task(individual_discard_tracker(app, tracker_info))
         for tracker_info in app["trackers.individual_trackers"].values()
     ]
 
